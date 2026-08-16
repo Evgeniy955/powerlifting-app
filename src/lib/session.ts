@@ -1,21 +1,43 @@
-import { getServerSession } from 'next-auth'
-import { authOptions } from './auth'
+import { createClient } from '@/lib/supabase/server'
+import { prisma } from './prisma'
 
 export type SessionUser = {
   id: string
   role: 'COACH' | 'ATHLETE'
   email?: string | null
   name?: string | null
+  image?: string | null
 }
 
 export class UnauthorizedError extends Error {}
 export class ForbiddenError extends Error {}
 export class NotFoundError extends Error {}
 
+/** Returns the signed-in user (Supabase Auth session + our own role/profile
+ * row), or null if nobody is signed in. */
+export async function getCurrentUser(): Promise<SessionUser | null> {
+  const supabase = createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
+  if (!dbUser) return null
+
+  return {
+    id: dbUser.id,
+    role: dbUser.role === 'COACH' ? 'COACH' : 'ATHLETE',
+    email: dbUser.email,
+    name: dbUser.name,
+    image: dbUser.image,
+  }
+}
+
 export async function requireUser(): Promise<SessionUser> {
-  const session = await getServerSession(authOptions)
-  if (!session?.user) throw new UnauthorizedError('Не авторизован')
-  return session.user as unknown as SessionUser
+  const user = await getCurrentUser()
+  if (!user) throw new UnauthorizedError('Не авторизован')
+  return user
 }
 
 export async function requireCoach(): Promise<SessionUser> {
