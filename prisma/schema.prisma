@@ -1,0 +1,205 @@
+// Powerlifting Training Log — Prisma schema
+// Roles (Coach/Athlete), exercise catalog with impact coefficients,
+// per-exercise 1RM, dynamic set entries, fatigue coefficient curve.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  // NOTE: temporarily SQLite for local browser testing (Этап 3 check).
+  // Switch back to "postgresql" + a real DATABASE_URL before production.
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  emailVerified DateTime?
+  name          String?
+  image         String?
+  // "COACH" | "ATHLETE" — plain string because SQLite (local dev) doesn't support
+  // Prisma enums. Switch back to `enum Role` once back on Postgres for production.
+  role          String    @default("ATHLETE")
+  googleId      String?   @unique
+  createdAt     DateTime  @default(now())
+
+  // If this user is an athlete, they have exactly one profile
+  athleteProfile AthleteProfile?
+
+  // If this user is a coach, they manage many athlete profiles
+  coachedAthletes AthleteProfile[] @relation("CoachAthletes")
+
+  // Required by @auth/prisma-adapter for the database session strategy.
+  accounts Account[]
+  sessions Session[]
+}
+
+// The following three models are the standard NextAuth/Auth.js Prisma adapter
+// schema — required for Google sign-in + database sessions to work at all.
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model AthleteProfile {
+  id     String  @id @default(uuid())
+  // Null until the athlete accepts an invite and signs in for the first time —
+  // a coach can create this profile (and a plan for it) before that happens.
+  userId String? @unique
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  coachId String?
+  coach   User?   @relation("CoachAthletes", fields: [coachId], references: [id])
+
+  // Populated for a coach-created placeholder, before `user` exists.
+  displayName String?
+  inviteEmail String?
+  inviteToken String? @unique
+  // "NONE" | "PENDING" | "ACCEPTED" — plain string, not an enum, same reason as
+  // User.role: SQLite (local dev) doesn't support Prisma enums.
+  inviteStatus String    @default("NONE")
+  invitedAt    DateTime?
+
+  oneRepMaxes Athlete1RM[]
+  cycles      Cycle[]
+
+  createdAt DateTime @default(now())
+}
+
+// Reference catalog of exercises (seeded from the "Коэффициенты" sheet).
+// impactCoefficient = biomechanical load-on-organism weight used in the fatigue index.
+model ExerciseCatalog {
+  id                String  @id @default(uuid())
+  name              String  @unique
+  category          String? // e.g. "Приседания", "Жим", "Тяга", "Вспомогательное"
+  impactCoefficient Float   @default(1.0)
+
+  oneRepMaxes     Athlete1RM[]
+  exerciseEntries ExerciseEntry[]
+}
+
+// Per-athlete, per-exercise 1RM. Any exercise in the catalog can have a tracked 1RM,
+// not just the 3 competition lifts.
+model Athlete1RM {
+  id         String          @id @default(uuid())
+  athleteId  String
+  athlete    AthleteProfile  @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  exerciseId String
+  exercise   ExerciseCatalog @relation(fields: [exerciseId], references: [id])
+  value      Float
+  updatedAt  DateTime        @updatedAt
+
+  @@unique([athleteId, exerciseId])
+}
+
+// Legacy non-linear fatigue coefficient curve from the original Excel "F" sheet.
+// No longer used to compute "Индекс усталости" (replaced by RpeTable below, per
+// the coach's RPE chart) — left in place unused rather than risk a destructive
+// migration mid-session; safe to drop later.
+model FatigueCoefficient {
+  id          String @id @default(uuid())
+  percent1rm  Float  @unique // e.g. 0.75 = 75% of 1RM
+  coefficient Float
+}
+
+// RPE chart (Reactive Training Systems style): for a given number of reps and an
+// "ИУ" (RPE, 1-10) value, the %1RM it corresponds to. Seeded from the coach's own
+// chart (prisma/seedRpeTable.ts). Not every (reps, rpe) combination is populated —
+// the source chart only tabulates practically-used combinations.
+model RpeTable {
+  id         String @id @default(uuid())
+  reps       Int
+  rpe        Float
+  percent1rm Float
+
+  @@unique([reps, rpe])
+}
+
+model Cycle {
+  id        String         @id @default(uuid())
+  athleteId String
+  athlete   AthleteProfile @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  name      String
+  startDate DateTime
+  weeks     Int
+  createdAt DateTime       @default(now())
+
+  microcycles Microcycle[]
+}
+
+model Microcycle {
+  id         String @id @default(uuid())
+  cycleId    String
+  cycle      Cycle  @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  weekNumber Int
+
+  workouts Workout[]
+
+  @@unique([cycleId, weekNumber])
+}
+
+model Workout {
+  id            String     @id @default(uuid())
+  microcycleId  String
+  microcycle    Microcycle @relation(fields: [microcycleId], references: [id], onDelete: Cascade)
+  scheduledDate DateTime
+  dayNumber     Int // 1..N within the microcycle
+
+  exerciseEntries ExerciseEntry[]
+}
+
+model ExerciseEntry {
+  id         String          @id @default(uuid())
+  workoutId  String
+  workout    Workout         @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  exerciseId String
+  exercise   ExerciseCatalog @relation(fields: [exerciseId], references: [id])
+  orderIndex Int             @default(0)
+  multiplier Float           @default(1.0) // "Множ" — e.g. dumbbell x2
+
+  sets SetEntry[]
+}
+
+// Dynamic set list — replaces the Excel model's fixed 6-block columns.
+// UI adds rows via "+ Добавить подход".
+model SetEntry {
+  id              String        @id @default(uuid())
+  exerciseEntryId String
+  exerciseEntry   ExerciseEntry @relation(fields: [exerciseEntryId], references: [id], onDelete: Cascade)
+  setNumber       Int
+  weight          Float
+  reps            Int
+  rpe             Float?
+}

@@ -1,0 +1,103 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Iron Orange — dark-first, high-contrast token system for a gym/coaching
+   tool used mid-workout. Three themes share the same variable names so no
+   call site (bg-accent, text-text-secondary, ...) ever needs to change;
+   only the hex values below do. */
+:root,
+.theme-dark {
+  --color-bg: #14100c;
+  --color-surface: #1e1712;
+  --color-surface-2: #2a2019;
+  --color-surface-3: #362920;
+  --color-border: #423228;
+  --color-text-primary: #f5ede4;
+  --color-text-secondary: #a99c8d;
+  --color-accent: #f97316;
+  --color-on-accent: #150e09;
+  --color-accent-2: #fb923c;
+  --color-on-accent-2: #150e09;
+  --color-danger: #ef4444;
+  --color-on-danger: #150e09;
+  --shadow-color: rgba(0, 0, 0, 0.55);
+}
+
+.theme-light {
+  --color-bg: #fbf7f2;
+  --color-surface: #ffffff;
+  --color-surface-2: #f3ece3;
+  --color-surface-3: #e9ddd0;
+  --color-border: #e0d3c4;
+  --color-text-primary: #1c140d;
+  --color-text-secondary: #6b5a48;
+  --color-accent: #c2410c;
+  --color-on-accent: #ffffff;
+  --color-accent-2: #9a3412;
+  --color-on-accent-2: #ffffff;
+  --color-danger: #dc2626;
+  --color-on-danger: #ffffff;
+  --shadow-color: rgba(28, 20, 13, 0.14);
+}
+
+.theme-cyberpunk {
+  /* Near-black rather than pure #000 to avoid OLED smear on dark-panel phones. */
+  --color-bg: #0a0a0a;
+  --color-surface: #141414;
+  --color-surface-2: #1e1e1e;
+  --color-surface-3: #292929;
+  --color-border: #3d3d3d;
+  --color-text-primary: #ffffff;
+  --color-text-secondary: #d6d6d6;
+  --color-accent: #ff6a00;
+  --color-on-accent: #0a0a0a;
+  --color-accent-2: #ffd400;
+  --color-on-accent-2: #0a0a0a;
+  --color-danger: #ff3b3b;
+  --color-on-danger: #0a0a0a;
+  --shadow-color: rgba(0, 0, 0, 0.6);
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Cyberpunk / High-Contrast theme: per the original spec this one is meant
+   for use mid-session in the gym (big touch targets, high contrast, glance-
+   able at arm's length), not just a different color palette. Scoped overrides
+   bump up interactive elements site-wide without touching every component. */
+.theme-cyberpunk input,
+.theme-cyberpunk select,
+.theme-cyberpunk button {
+  font-size: 1.05em;
+  padding-top: 0.6rem;
+  padding-bottom: 0.6rem;
+  border: 1px solid var(--color-accent);
+}
+
+.theme-cyberpunk input:focus,
+.theme-cyberpunk select:focus {
+  outline: 2px solid var(--color-accent);
+}
+
+.theme-cyberpunk .text-xs {
+  font-size: 0.85rem;
+}
+
+.theme-cyberpunk .text-sm {
+  font-size: 1rem;
+}
