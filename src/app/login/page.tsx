@@ -2,10 +2,10 @@
 
 import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { signIn } from 'next-auth/react'
 import { Dumbbell } from 'lucide-react'
 import { Button, Card } from '@/components/ui'
 import { HeroBackground } from '@/components/HeroBackground'
+import { createClient } from '@/lib/supabase/client'
 
 type InviteInfo = { displayName: string | null; coachName: string }
 
@@ -31,7 +31,25 @@ function InviteBanner() {
   )
 }
 
+function ErrorNotice() {
+  const error = useSearchParams().get('error')
+  if (!error) return null
+  return (
+    <p className="mt-2 text-sm text-danger">
+      Не получилось войти. Попробуйте ещё раз.
+    </p>
+  )
+}
+
 export default function LoginPage() {
+  const handleSignIn = async () => {
+    const supabase = createClient()
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}/auth/callback` },
+    })
+  }
+
   return (
     <main className="relative flex min-h-[calc(100vh-3.5rem)] items-center justify-center overflow-hidden bg-bg px-4 text-text-primary">
       <HeroBackground />
@@ -49,9 +67,10 @@ export default function LoginPage() {
         </p>
         <Suspense fallback={null}>
           <InviteBanner />
+          <ErrorNotice />
         </Suspense>
 
-        <Button className="mt-6 w-full" onClick={() => signIn('google', { callbackUrl: '/' })}>
+        <Button className="mt-6 w-full" onClick={handleSignIn}>
           Войти через Google
         </Button>
       </Card>

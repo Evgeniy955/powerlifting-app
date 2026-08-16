@@ -1,15 +1,14 @@
-import { getServerSession } from 'next-auth'
 import { ArrowRight, Dumbbell } from 'lucide-react'
-import { authOptions } from '@/lib/auth'
+import { getCurrentUser } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import Link from 'next/link'
 import { buttonVariants } from '@/components/ui'
 import { HeroBackground } from '@/components/HeroBackground'
 
 export default async function HomePage() {
-  const session = await getServerSession(authOptions)
+  const user = await getCurrentUser()
 
-  if (!session?.user) {
+  if (!user) {
     return (
       <main className="relative flex min-h-[calc(100vh-3.5rem)] items-center justify-center overflow-hidden bg-bg px-4 text-text-primary">
         <HeroBackground />
@@ -27,8 +26,6 @@ export default async function HomePage() {
       </main>
     )
   }
-
-  const user = session.user as unknown as { id: string; role: 'COACH' | 'ATHLETE'; name?: string | null }
 
   let athleteProfileId: string | null = null
   if (user.role === 'ATHLETE') {

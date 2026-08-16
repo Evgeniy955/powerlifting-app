@@ -1,8 +1,8 @@
-import { getServerSession } from 'next-auth'
 import { Dumbbell } from 'lucide-react'
-import { authOptions } from '@/lib/auth'
+import { getCurrentUser } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import Link from 'next/link'
+import { AvatarUploader } from './AvatarUploader'
 import { SignOutButton } from './SignOutButton'
 import { ThemeToggle } from './ThemeToggle'
 
@@ -16,10 +16,7 @@ import { ThemeToggle } from './ThemeToggle'
 //   spelled out, since there's room for persistent wayfinding instead of
 //   relying on in-page back links alone.
 export async function AppHeader() {
-  const session = await getServerSession(authOptions)
-  const user = session?.user as unknown as
-    | { id: string; role: 'COACH' | 'ATHLETE'; name?: string | null; email?: string | null }
-    | undefined
+  const user = await getCurrentUser()
 
   let athleteProfileId: string | null = null
   if (user?.role === 'ATHLETE') {
@@ -41,6 +38,7 @@ export async function AppHeader() {
         <nav className="flex items-center gap-3 md:gap-4">
           {user && (
             <>
+              <AvatarUploader userId={user.id} imageUrl={user.image ?? null} />
               <span className="hidden text-sm text-text-secondary md:inline">
                 {user.name ?? user.email}
               </span>

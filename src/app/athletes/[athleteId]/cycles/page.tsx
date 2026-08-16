@@ -3,6 +3,7 @@ import { requireUser } from '@/lib/session'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { CalendarX } from 'lucide-react'
+import { AthleteLiveUpdates } from '@/components/AthleteLiveUpdates'
 import { DeleteCycleButton } from '@/components/DeleteCycleButton'
 import { CreatePlanDialog } from '@/components/CreatePlanDialog'
 import { Card } from '@/components/ui'
@@ -33,9 +34,12 @@ export default async function AthleteCyclesPage({ params }: { params: { athleteI
   return (
     <main className="min-h-[calc(100vh-3.5rem)] bg-bg text-text-primary p-6 max-w-md mx-auto space-y-4 lg:max-w-4xl">
       <div className="flex items-center justify-between gap-2">
-        <h1 className="font-display text-xl uppercase tracking-wide">
-          Циклы — {athleteDisplayName(athlete)}
-        </h1>
+        <div className="flex items-center gap-2">
+          <h1 className="font-display text-xl uppercase tracking-wide">
+            Циклы — {athleteDisplayName(athlete)}
+          </h1>
+          <AthleteLiveUpdates athleteId={athlete.id} />
+        </div>
         {user.role === 'COACH' && <CreatePlanDialog athleteId={athlete.id} />}
       </div>
 
