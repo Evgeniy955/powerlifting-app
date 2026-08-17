@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireCoach, statusForAuthError } from '@/lib/session'
@@ -8,6 +9,17 @@ import type { ParsedExerciseRow } from '@/lib/excelImport'
 // Commits coach-reviewed, recognized rows into a brand-new Cycle: groups entries by
 // date into Workouts, buckets those into Microcycles by week offset from the
 // earliest date, and upserts any 1RM values found along the way.
+//
+// NOTE: this deliberately avoids Prisma's *interactive* transaction
+// (`prisma.$transaction(async (tx) => ...)`) — against Supabase's pooled/pgbouncer
+// connection (transaction mode, used at runtime), a long-running interactive
+// transaction with hundreds of round trips reliably dies with "Transaction API
+// error: Transaction not found" once the pooler recycles the underlying
+// connection mid-transaction. Instead, every id that a later row needs to
+// reference is generated up front in JS (ids are client-side `uuid()` defaults
+// anyway), and the whole import is issued as one *batched* `$transaction([...])`
+// of plain creates/createMany calls — sent to the DB as a single request, so
+// there's no window for the pooler to swap connections underneath it.
 export async function POST(req: NextRequest, { params }: { params: { athleteId: string } }) {
   try {
     const coach = await requireCoach()
@@ -31,90 +43,118 @@ export async function POST(req: NextRequest, { params }: { params: { athleteId: 
       Math.ceil((lastDate.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1
     )
 
-    const result = await prisma.$transaction(async (tx) => {
-      const cycle = await tx.cycle.create({
+    const cycleId = randomUUID()
+
+    const microcyclesData: { id: string; cycleId: string; weekNumber: number }[] = []
+    const workoutsData: {
+      id: string
+      microcycleId: string
+      scheduledDate: Date
+      dayNumber: number
+    }[] = []
+
+    const microcycleByWeek = new Map<number, string>()
+    const workoutByDate = new Map<string, string>()
+    const dayCounterByWeek = new Map<number, number>()
+
+    for (const dateStr of uniqueDates) {
+      const date = new Date(dateStr)
+      const weekNumber =
+        Math.floor((date.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1
+
+      let microcycleId = microcycleByWeek.get(weekNumber)
+      if (!microcycleId) {
+        microcycleId = randomUUID()
+        microcycleByWeek.set(weekNumber, microcycleId)
+        microcyclesData.push({ id: microcycleId, cycleId, weekNumber })
+      }
+
+      const dayNumber = (dayCounterByWeek.get(weekNumber) ?? 0) + 1
+      dayCounterByWeek.set(weekNumber, dayNumber)
+
+      const workoutId = randomUUID()
+      workoutByDate.set(dateStr, workoutId)
+      workoutsData.push({ id: workoutId, microcycleId, scheduledDate: date, dayNumber })
+    }
+
+    const exerciseEntriesData: {
+      id: string
+      workoutId: string
+      exerciseId: string
+      orderIndex: number
+    }[] = []
+    const setEntriesData: {
+      exerciseEntryId: string
+      setNumber: number
+      weight: number
+      reps: number
+    }[] = []
+
+    const orderCounterByDate = new Map<string, number>()
+    const oneRepMaxByExercise = new Map<string, number>()
+
+    for (const entry of validEntries) {
+      const workoutId = workoutByDate.get(entry.date)!
+      const orderIndex = orderCounterByDate.get(entry.date) ?? 0
+      orderCounterByDate.set(entry.date, orderIndex + 1)
+
+      const exerciseEntryId = randomUUID()
+      exerciseEntriesData.push({
+        id: exerciseEntryId,
+        workoutId,
+        exerciseId: entry.matchedExerciseId as string,
+        orderIndex,
+      })
+
+      for (const [i, s] of entry.sets.entries()) {
+        setEntriesData.push({
+          exerciseEntryId,
+          setNumber: i + 1,
+          weight: s.weight,
+          reps: s.reps,
+        })
+      }
+
+      if (entry.oneRepMax) {
+        const prev = oneRepMaxByExercise.get(entry.matchedExerciseId as string) ?? 0
+        if (entry.oneRepMax > prev) {
+          oneRepMaxByExercise.set(entry.matchedExerciseId as string, entry.oneRepMax)
+        }
+      }
+    }
+
+    await prisma.$transaction([
+      prisma.cycle.create({
         data: {
+          id: cycleId,
           athleteId: params.athleteId,
-          name: cycleName?.trim() || `Импорт ${uniqueDates[0]} — ${uniqueDates[uniqueDates.length - 1]}`,
+          name:
+            cycleName?.trim() || `Импорт ${uniqueDates[0]} — ${uniqueDates[uniqueDates.length - 1]}`,
           startDate,
           weeks,
         },
-      })
-
-      const microcycleByWeek = new Map<number, string>()
-      const workoutByDate = new Map<string, { id: string; weekNumber: number }>()
-      const dayCounterByWeek = new Map<number, number>()
-
-      for (const dateStr of uniqueDates) {
-        const date = new Date(dateStr)
-        const weekNumber =
-          Math.floor((date.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1
-
-        let microcycleId = microcycleByWeek.get(weekNumber)
-        if (!microcycleId) {
-          const mc = await tx.microcycle.create({ data: { cycleId: cycle.id, weekNumber } })
-          microcycleId = mc.id
-          microcycleByWeek.set(weekNumber, microcycleId)
-        }
-
-        const dayNumber = (dayCounterByWeek.get(weekNumber) ?? 0) + 1
-        dayCounterByWeek.set(weekNumber, dayNumber)
-
-        const workout = await tx.workout.create({
-          data: { microcycleId, scheduledDate: date, dayNumber },
-        })
-        workoutByDate.set(dateStr, { id: workout.id, weekNumber })
-      }
-
-      let orderCounterByDate = new Map<string, number>()
-      const oneRepMaxByExercise = new Map<string, number>()
-
-      for (const entry of validEntries) {
-        const workout = workoutByDate.get(entry.date)!
-        const orderIndex = orderCounterByDate.get(entry.date) ?? 0
-        orderCounterByDate.set(entry.date, orderIndex + 1)
-
-        const exerciseEntry = await tx.exerciseEntry.create({
-          data: {
-            workoutId: workout.id,
-            exerciseId: entry.matchedExerciseId as string,
-            orderIndex,
-          },
-        })
-
-        await tx.setEntry.createMany({
-          data: entry.sets.map((s, i) => ({
-            exerciseEntryId: exerciseEntry.id,
-            setNumber: i + 1,
-            weight: s.weight,
-            reps: s.reps,
-          })),
-        })
-
-        if (entry.oneRepMax) {
-          const prev = oneRepMaxByExercise.get(entry.matchedExerciseId as string) ?? 0
-          if (entry.oneRepMax > prev) {
-            oneRepMaxByExercise.set(entry.matchedExerciseId as string, entry.oneRepMax)
-          }
-        }
-      }
-
-      for (const [exerciseId, value] of oneRepMaxByExercise.entries()) {
-        await tx.athlete1RM.upsert({
+      }),
+      prisma.microcycle.createMany({ data: microcyclesData }),
+      prisma.workout.createMany({ data: workoutsData }),
+      prisma.exerciseEntry.createMany({ data: exerciseEntriesData }),
+      ...(setEntriesData.length > 0 ? [prisma.setEntry.createMany({ data: setEntriesData })] : []),
+      ...Array.from(oneRepMaxByExercise.entries()).map(([exerciseId, value]) =>
+        prisma.athlete1RM.upsert({
           where: { athleteId_exerciseId: { athleteId: params.athleteId, exerciseId } },
           update: { value },
           create: { athleteId: params.athleteId, exerciseId, value },
         })
-      }
+      ),
+    ])
 
-      return {
-        cycleId: cycle.id,
+    return NextResponse.json(
+      {
+        cycleId,
         workoutsCreated: workoutByDate.size,
         exerciseEntriesCreated: validEntries.length,
-      }
-    })
-
-    return NextResponse.json(result, { status: 201 })
+      },
+      { status: 201 }
+    )
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
   }
