@@ -32,7 +32,7 @@ export function SetRow({ set, percentOf1rm, rpe, onChange, onRemove }: Props) {
         value={set.weight || ''}
         onChange={(e) => onChange(set.id, { weight: parseFloat(e.target.value) || 0 })}
         fieldSize="sm"
-        className="w-20"
+        className="w-20 font-bold text-accent"
       />
 
       <span className="text-text-secondary">×</span>
@@ -44,7 +44,7 @@ export function SetRow({ set, percentOf1rm, rpe, onChange, onRemove }: Props) {
         value={set.reps || ''}
         onChange={(e) => onChange(set.id, { reps: parseInt(e.target.value, 10) || 0 })}
         fieldSize="sm"
-        className="w-16"
+        className="w-16 text-text-secondary"
       />
 
       <span className="w-12 text-sm text-text-secondary">

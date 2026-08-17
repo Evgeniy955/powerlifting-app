@@ -198,7 +198,7 @@ export function WeekDayTable({ workout, rpeTable }: Props) {
                                 weight: parseFloat(e.target.value) || 0,
                               })
                             }
-                            className="w-11 rounded border border-border bg-surface-2 px-1 py-0.5 text-center text-xs outline-none focus:border-accent focus:ring-1 focus:ring-accent"
+                            className="w-11 rounded border border-border bg-surface-2 px-1 py-0.5 text-center text-xs font-bold text-accent outline-none focus:border-accent focus:ring-1 focus:ring-accent"
                           />
                           <input
                             type="number"
@@ -209,7 +209,7 @@ export function WeekDayTable({ workout, rpeTable }: Props) {
                                 reps: parseInt(e.target.value, 10) || 0,
                               })
                             }
-                            className="w-11 rounded border border-border bg-surface-2 px-1 py-0.5 text-center text-xs outline-none focus:border-accent focus:ring-1 focus:ring-accent"
+                            className="w-11 rounded border border-border bg-surface-2 px-1 py-0.5 text-center text-xs text-text-secondary outline-none focus:border-accent focus:ring-1 focus:ring-accent"
                           />
                           <span
                             className={`text-[10px] ${pct !== null ? zoneClass(pct) : 'text-text-secondary'}`}
