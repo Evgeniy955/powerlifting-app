@@ -61,6 +61,79 @@ export async function getWorkoutForDisplay(workoutId: string) {
   }
 }
 
+/**
+ * Loads a microcycle (week) with every workout (day) in it, each carrying the
+ * same shape `getWorkoutForDisplay` returns per day — so the week page can render
+ * one <WorkoutView> per day on a single scrollable page instead of the coach/athlete
+ * having to click into each day separately. The 1RM lookup is batched once across
+ * every exercise used anywhere in the week, rather than once per day.
+ */
+export async function getMicrocycleForDisplay(microcycleId: string) {
+  const microcycle = await prisma.microcycle.findUnique({
+    where: { id: microcycleId },
+    include: {
+      cycle: true,
+      workouts: {
+        orderBy: { dayNumber: 'asc' },
+        include: {
+          exerciseEntries: {
+            orderBy: { orderIndex: 'asc' },
+            include: {
+              exercise: true,
+              sets: { orderBy: { setNumber: 'asc' } },
+            },
+          },
+        },
+      },
+    },
+  })
+  if (!microcycle) return null
+
+  const athleteId = microcycle.cycle.athleteId
+  const exerciseIds = Array.from(
+    new Set(microcycle.workouts.flatMap((w) => w.exerciseEntries.map((e) => e.exerciseId)))
+  )
+
+  const oneRepMaxes = exerciseIds.length
+    ? await prisma.athlete1RM.findMany({
+        where: { athleteId, exerciseId: { in: exerciseIds } },
+      })
+    : []
+  const oneRepMaxByExercise = new Map(oneRepMaxes.map((rm) => [rm.exerciseId, rm.value]))
+
+  return {
+    id: microcycle.id,
+    weekNumber: microcycle.weekNumber,
+    cycleId: microcycle.cycleId,
+    cycleName: microcycle.cycle.name,
+    athleteId,
+    workouts: microcycle.workouts.map((workout) => ({
+      id: workout.id,
+      dayNumber: workout.dayNumber,
+      scheduledDate: workout.scheduledDate,
+      exerciseEntries: workout.exerciseEntries.map((entry) => ({
+        id: entry.id,
+        orderIndex: entry.orderIndex,
+        multiplier: entry.multiplier,
+        exercise: {
+          id: entry.exercise.id,
+          name: entry.exercise.name,
+          category: entry.exercise.category,
+          impactCoefficient: entry.exercise.impactCoefficient,
+        },
+        oneRepMax: oneRepMaxByExercise.get(entry.exerciseId) ?? null,
+        sets: entry.sets.map((s) => ({
+          id: s.id,
+          setNumber: s.setNumber,
+          weight: s.weight,
+          reps: s.reps,
+          rpe: s.rpe,
+        })),
+      })),
+    })),
+  }
+}
+
 export async function getRpeTable() {
   const rows = await prisma.rpeTable.findMany()
   return rows.map((r) => ({ reps: r.reps, rpe: r.rpe, percent1rm: r.percent1rm }))

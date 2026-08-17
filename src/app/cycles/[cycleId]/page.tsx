@@ -47,10 +47,13 @@ export default async function CyclePage({ params }: { params: { cycleId: string 
       <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">
         {cycle.microcycles.map((mc) => (
           <Card key={mc.id} padding="sm">
-            <p className="text-sm text-text-secondary mb-2">
+            <Link
+              href={`/microcycle/${mc.id}`}
+              className="mb-2 block text-sm text-text-secondary transition-colors duration-150 hover:text-accent"
+            >
               Неделя {mc.weekNumber}
               {mc.workouts[0] && ` · ${mc.workouts[0].scheduledDate.toISOString().slice(0, 10)}`}
-            </p>
+            </Link>
             <div className="flex flex-wrap gap-2">
               {mc.workouts.map((w) => (
                 <Link
