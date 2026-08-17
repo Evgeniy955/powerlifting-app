@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { Users } from 'lucide-react'
-import { Badge, Button, Card, Input, Skeleton } from '@/components/ui'
+import { Badge, Button, Card, Input } from '@/components/ui'
 import { EmptyState } from '@/components/EmptyState'
 import { InviteAthleteButton } from '@/components/InviteAthleteButton'
+import { LoadingIndicator } from '@/components/LoadingIndicator'
 import { athleteDisplayName } from '@/lib/athlete'
 
 type Athlete = {
@@ -60,17 +61,7 @@ export default function AthletesPage() {
     <main className="min-h-[calc(100vh-3.5rem)] bg-bg text-text-primary p-6 max-w-md mx-auto space-y-4 lg:max-w-4xl">
       <h1 className="font-display text-xl uppercase tracking-wide">Мои атлеты</h1>
 
-      {athletes === null && (
-        <div className="space-y-2 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0 xl:grid-cols-3">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton
-              key={i}
-              className="h-20 w-full rounded-xl"
-              style={{ animationDelay: `${i * 120}ms` }}
-            />
-          ))}
-        </div>
-      )}
+      {athletes === null && <LoadingIndicator label="Загружаем атлетов" />}
 
       {athletes !== null && athletes.length === 0 && (
         <EmptyState

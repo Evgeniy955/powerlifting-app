@@ -50,12 +50,27 @@ const config: Config = {
           '0%, 100%': { opacity: '1' },
           '50%': { opacity: '0.5' },
         },
+        'barbell-lift': {
+          '0%, 100%': { transform: 'translateY(0) rotate(-6deg)' },
+          '50%': { transform: 'translateY(-8px) rotate(6deg)' },
+        },
+        'glow-pulse': {
+          '0%, 100%': { transform: 'scale(1)', opacity: '0.25' },
+          '50%': { transform: 'scale(1.2)', opacity: '0.5' },
+        },
+        'dot-bounce': {
+          '0%, 80%, 100%': { transform: 'translateY(0)', opacity: '0.4' },
+          '40%': { transform: 'translateY(-4px)', opacity: '1' },
+        },
       },
       animation: {
         'fade-in': 'fade-in 200ms ease-out',
         'slide-up': 'slide-up 250ms cubic-bezier(0.16,1,0.3,1)',
         'scale-in': 'scale-in 200ms cubic-bezier(0.16,1,0.3,1)',
         'skeleton-pulse': 'skeleton-pulse 1.5s ease-in-out infinite',
+        'barbell-lift': 'barbell-lift 1.1s ease-in-out infinite',
+        'glow-pulse': 'glow-pulse 1.1s ease-in-out infinite',
+        'dot-bounce': 'dot-bounce 1.2s ease-in-out infinite',
       },
     },
   },
