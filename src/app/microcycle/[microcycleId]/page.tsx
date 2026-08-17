@@ -1,16 +1,18 @@
 import { getMicrocycleForDisplay, getRpeTable } from '@/lib/workout'
 import { requireUser } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
-import { WorkoutView } from '@/components/WorkoutView'
+import { WeekDayTable } from '@/components/WeekDayTable'
+import { MetricsBadge } from '@/components/MetricsBadge'
+import { computeExerciseMetrics, aggregateMetrics } from '@/lib/metrics'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 
-// Whole-week view: every day (Workout) of a microcycle rendered on one page, each
-// as its own <WorkoutView> section — lets a coach/athlete review or edit an entire
-// week without clicking into each day separately. Reuses the same day-view
-// component the single-day page uses, so editing behavior (add exercise, add set,
-// recalculated metrics) is identical either way.
+// Whole-week view: every day (Workout) of a microcycle rendered on one page as a
+// dense spreadsheet-style table (WeekDayTable) — one row per exercise, one narrow
+// column per set — instead of the tall per-exercise cards the single-day page
+// uses, so a coach/athlete can scan or edit an entire week without endless
+// scrolling. Mirrors the layout of the source Excel workbook this app replaced.
 export default async function MicrocyclePage({
   params,
 }: {
@@ -29,18 +31,51 @@ export default async function MicrocyclePage({
   const owns = user.role === 'COACH' ? athlete.coachId === user.id : athlete.userId === user.id
   if (!owns) redirect('/')
 
+  // Week-total summary, computed once from the initial data (matches the
+  // "Микроцикл N" summary row in the source spreadsheet). Doesn't live-update as
+  // you edit sets below — each day's table recalculates its own totals reactively,
+  // but re-aggregating across independent client components on every keystroke
+  // wasn't worth the added complexity for a top-of-page summary.
+  const allEntryMetrics = microcycle.workouts
+    .flatMap((w) => w.exerciseEntries)
+    .map((e) =>
+      computeExerciseMetrics(
+        {
+          sets: e.sets.map((s) => ({ weight: s.weight, reps: s.reps })),
+          oneRepMax: e.oneRepMax ?? 0,
+          impactCoefficient: e.exercise.impactCoefficient,
+          multiplier: e.multiplier,
+        },
+        rpeTable
+      )
+    )
+  const weekTotals = aggregateMetrics(allEntryMetrics)
+
   return (
     <main className="min-h-[calc(100vh-3.5rem)] bg-bg text-text-primary py-6">
-      <div className="mx-auto mb-6 max-w-md px-4 text-center lg:max-w-6xl">
-        <Link
-          href={`/cycles/${microcycle.cycleId}`}
-          className="mb-2 inline-flex items-center gap-1.5 text-sm text-text-secondary hover:text-accent"
-        >
-          <ArrowLeft className="h-4 w-4" /> {microcycle.cycleName}
-        </Link>
-        <h1 className="font-display text-xl uppercase tracking-wide">
-          Неделя {microcycle.weekNumber}
-        </h1>
+      <div className="mx-auto mb-6 max-w-md space-y-4 px-4 lg:max-w-6xl">
+        <div className="text-center">
+          <Link
+            href={`/cycles/${microcycle.cycleId}`}
+            className="mb-2 inline-flex items-center gap-1.5 text-sm text-text-secondary hover:text-accent"
+          >
+            <ArrowLeft className="h-4 w-4" /> {microcycle.cycleName}
+          </Link>
+          <h1 className="font-display text-xl uppercase tracking-wide">
+            Неделя {microcycle.weekNumber}
+          </h1>
+        </div>
+
+        {allEntryMetrics.length > 0 && (
+          <MetricsBadge
+            tonnage={weekTotals.tonnage}
+            avgWeight={weekTotals.avgWeight}
+            relativeIntensity={weekTotals.relativeIntensity}
+            kpsh={weekTotals.kpsh}
+            loadCoefficient={weekTotals.loadCoefficient}
+            fatigueIndex={weekTotals.fatigueIndex}
+          />
+        )}
       </div>
 
       {microcycle.workouts.length === 0 ? (
@@ -48,23 +83,9 @@ export default async function MicrocyclePage({
           В этой неделе пока нет тренировок.
         </p>
       ) : (
-        <div className="space-y-8">
+        <div className="mx-auto max-w-md space-y-3 px-4 lg:max-w-6xl">
           {microcycle.workouts.map((workout) => (
-            <section key={workout.id}>
-              <div className="mb-2 text-center">
-                <h2 className="font-display text-base uppercase tracking-wide text-text-secondary">
-                  День {workout.dayNumber}
-                </h2>
-                <p className="text-xs text-text-secondary">
-                  {workout.scheduledDate.toISOString().slice(0, 10)}
-                </p>
-              </div>
-              <WorkoutView
-                workoutId={workout.id}
-                initialEntries={workout.exerciseEntries}
-                rpeTable={rpeTable}
-              />
-            </section>
+            <WeekDayTable key={workout.id} workout={workout} rpeTable={rpeTable} />
           ))}
         </div>
       )}
