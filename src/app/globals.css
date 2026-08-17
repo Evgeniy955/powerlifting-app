@@ -65,6 +65,20 @@ body {
   font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
 }
 
+/* Every numeric input in the app (set weight/reps) is custom-styled and
+   narrow, especially in the compact week table — the browser's native
+   up/down spin buttons eat into that width and clip the last digit. Hidden
+   everywhere; nothing in the app relies on the spinner for input. */
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
