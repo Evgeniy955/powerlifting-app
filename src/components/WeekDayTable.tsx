@@ -73,7 +73,7 @@ export function WeekDayTable({ workout, rpeTable }: Props) {
   function updateSetLocally(
     entryId: string,
     setId: string,
-    patch: Partial<{ weight: number; reps: number }>
+    patch: Partial<{ weight: number; reps: number; completed: boolean }>
   ) {
     setEntries((prev) =>
       prev.map((e) =>
@@ -181,6 +181,20 @@ export function WeekDayTable({ workout, rpeTable }: Props) {
                     const pct = entry.oneRepMax ? set.weight / entry.oneRepMax : null
                     return (
                       <td key={i} className="group relative px-0.5 py-0.5 align-top">
+                        <label
+                          className="absolute left-0 top-0 cursor-pointer"
+                          title={`Подход ${i + 1} выполнен`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={set.completed}
+                            onChange={(e) =>
+                              updateSetLocally(entry.id, set.id, { completed: e.target.checked })
+                            }
+                            aria-label={`Подход ${i + 1} выполнен`}
+                            className="h-2.5 w-2.5 cursor-pointer accent-accent"
+                          />
+                        </label>
                         <button
                           onClick={() => removeSet(entry.id, set.id)}
                           aria-label="Удалить подход"
@@ -188,7 +202,9 @@ export function WeekDayTable({ workout, rpeTable }: Props) {
                         >
                           <X className="h-2.5 w-2.5" />
                         </button>
-                        <div className="flex flex-col items-center gap-0.5">
+                        <div
+                          className={`flex flex-col items-center gap-0.5 ${set.completed ? 'opacity-70' : ''}`}
+                        >
                           <input
                             type="number"
                             inputMode="decimal"
@@ -198,7 +214,7 @@ export function WeekDayTable({ workout, rpeTable }: Props) {
                                 weight: parseFloat(e.target.value) || 0,
                               })
                             }
-                            className="w-14 min-w-0 rounded border border-border bg-surface-2 px-0.5 py-0.5 text-center text-xs font-bold text-accent outline-none focus:border-accent focus:ring-1 focus:ring-accent"
+                            className={`w-14 min-w-0 rounded border px-0.5 py-0.5 text-center text-xs font-bold text-accent outline-none focus:border-accent focus:ring-1 focus:ring-accent ${set.completed ? 'border-zone-low bg-surface-3' : 'border-border bg-surface-2'}`}
                           />
                           <input
                             type="number"
@@ -209,7 +225,7 @@ export function WeekDayTable({ workout, rpeTable }: Props) {
                                 reps: parseInt(e.target.value, 10) || 0,
                               })
                             }
-                            className="w-14 min-w-0 rounded border border-border bg-surface-2 px-0.5 py-0.5 text-center text-xs text-text-secondary outline-none focus:border-accent focus:ring-1 focus:ring-accent"
+                            className={`w-14 min-w-0 rounded border px-0.5 py-0.5 text-center text-xs text-text-secondary outline-none focus:border-accent focus:ring-1 focus:ring-accent ${set.completed ? 'border-zone-low bg-surface-3' : 'border-border bg-surface-2'}`}
                           />
                           <span
                             className={`text-[10px] ${pct !== null ? zoneClass(pct) : 'text-text-secondary'}`}

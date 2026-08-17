@@ -56,6 +56,7 @@ export async function getWorkoutForDisplay(workoutId: string) {
         weight: s.weight,
         reps: s.reps,
         rpe: s.rpe,
+        completed: s.completed,
       })),
     })),
   }
@@ -128,6 +129,7 @@ export async function getMicrocycleForDisplay(microcycleId: string) {
           weight: s.weight,
           reps: s.reps,
           rpe: s.rpe,
+          completed: s.completed,
         })),
       })),
     })),

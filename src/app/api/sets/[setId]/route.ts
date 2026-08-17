@@ -4,13 +4,19 @@ import { requireUser, statusForAuthError } from '@/lib/session'
 import { assertCanAccessSet } from '@/lib/authorization'
 import { coachEmailToNotify, queueChangeNotification } from '@/lib/email'
 
-// PATCH /api/sets/:setId { weight?, reps?, rpe? } — live edit as the user types.
+// PATCH /api/sets/:setId { weight?, reps?, rpe?, completed? } — live edit as the
+// user types (weight/reps/rpe) or toggles the "done" checkbox (completed).
 // Debounced on the client; this route just persists whatever fields are sent.
 export async function PATCH(req: NextRequest, { params }: { params: { setId: string } }) {
   try {
     const user = await requireUser()
     const chain = await assertCanAccessSet(params.setId, user)
-    const body = (await req.json()) as { weight?: number; reps?: number; rpe?: number | null }
+    const body = (await req.json()) as {
+      weight?: number
+      reps?: number
+      rpe?: number | null
+      completed?: boolean
+    }
     const set = await prisma.setEntry.update({
       where: { id: params.setId },
       data: body,

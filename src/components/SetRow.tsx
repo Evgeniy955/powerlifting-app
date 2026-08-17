@@ -8,13 +8,14 @@ export type SetValue = {
   setNumber: number
   weight: number
   reps: number
+  completed: boolean
 }
 
 type Props = {
   set: SetValue
   percentOf1rm: number | null
   rpe: number | null // ИУ for this set, reverse-looked-up from the RPE chart
-  onChange: (id: string, patch: Partial<Pick<SetValue, 'weight' | 'reps'>>) => void
+  onChange: (id: string, patch: Partial<Pick<SetValue, 'weight' | 'reps' | 'completed'>>) => void
   onRemove: (id: string) => void
 }
 
@@ -22,8 +23,17 @@ type Props = {
 // previous set) and only reports changes upward — the parent owns debounced saving.
 export function SetRow({ set, percentOf1rm, rpe, onChange, onRemove }: Props) {
   return (
-    <div className="flex items-center gap-2 py-1">
-      <span className="w-6 text-text-secondary text-sm">{set.setNumber}</span>
+    <div className={`flex items-center gap-2 py-1 ${set.completed ? 'opacity-70' : ''}`}>
+      <label className="flex w-6 shrink-0 cursor-pointer items-center justify-center">
+        <input
+          type="checkbox"
+          checked={set.completed}
+          onChange={(e) => onChange(set.id, { completed: e.target.checked })}
+          aria-label={`Подход ${set.setNumber} выполнен`}
+          className="h-3.5 w-3.5 cursor-pointer accent-accent"
+        />
+      </label>
+      <span className="w-4 text-text-secondary text-sm">{set.setNumber}</span>
 
       <Input
         type="number"

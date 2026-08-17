@@ -60,7 +60,10 @@ export function ExerciseCard({ entry, rpeTable }: Props) {
     return map
   }, [sets, metrics.fatiguePerSet])
 
-  function updateSetLocally(id: string, patch: Partial<Pick<SetValue, 'weight' | 'reps'>>) {
+  function updateSetLocally(
+    id: string,
+    patch: Partial<Pick<SetValue, 'weight' | 'reps' | 'completed'>>
+  ) {
     setSets((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)))
 
     // Debounce the network write per-set so live metrics feel instant while
