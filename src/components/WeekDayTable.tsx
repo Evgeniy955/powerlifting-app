@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
-import { Plus, X } from 'lucide-react'
+import { Check, Plus, X } from 'lucide-react'
 import { ExerciseAutocomplete, type ExerciseOption } from './ExerciseAutocomplete'
 import type { ExerciseEntryData } from './ExerciseCard'
 import { computeExerciseMetrics, aggregateMetrics } from '@/lib/metrics'
@@ -181,20 +181,22 @@ export function WeekDayTable({ workout, rpeTable }: Props) {
                     const pct = entry.oneRepMax ? set.weight / entry.oneRepMax : null
                     return (
                       <td key={i} className="group relative px-0.5 py-0.5 align-top">
-                        <label
-                          className="absolute left-0 top-0 cursor-pointer"
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateSetLocally(entry.id, set.id, { completed: !set.completed })
+                          }
+                          aria-pressed={set.completed}
+                          aria-label={`Подход ${i + 1} выполнен`}
                           title={`Подход ${i + 1} выполнен`}
+                          className={`absolute left-0 top-0 z-10 flex h-3.5 w-3.5 items-center justify-center rounded-sm border transition-colors ${
+                            set.completed
+                              ? 'border-accent bg-accent text-on-accent'
+                              : 'border-border bg-surface-2 text-transparent hover:border-accent'
+                          }`}
                         >
-                          <input
-                            type="checkbox"
-                            checked={set.completed}
-                            onChange={(e) =>
-                              updateSetLocally(entry.id, set.id, { completed: e.target.checked })
-                            }
-                            aria-label={`Подход ${i + 1} выполнен`}
-                            className="h-2.5 w-2.5 cursor-pointer accent-accent"
-                          />
-                        </label>
+                          <Check className="h-2.5 w-2.5" />
+                        </button>
                         <button
                           onClick={() => removeSet(entry.id, set.id)}
                           aria-label="Удалить подход"

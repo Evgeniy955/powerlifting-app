@@ -1,6 +1,6 @@
 'use client'
 
-import { X } from 'lucide-react'
+import { Check, X } from 'lucide-react'
 import { Input } from '@/components/ui'
 
 export type SetValue = {
@@ -24,15 +24,19 @@ type Props = {
 export function SetRow({ set, percentOf1rm, rpe, onChange, onRemove }: Props) {
   return (
     <div className={`flex items-center gap-2 py-1 ${set.completed ? 'opacity-70' : ''}`}>
-      <label className="flex w-6 shrink-0 cursor-pointer items-center justify-center">
-        <input
-          type="checkbox"
-          checked={set.completed}
-          onChange={(e) => onChange(set.id, { completed: e.target.checked })}
-          aria-label={`Подход ${set.setNumber} выполнен`}
-          className="h-3.5 w-3.5 cursor-pointer accent-accent"
-        />
-      </label>
+      <button
+        type="button"
+        onClick={() => onChange(set.id, { completed: !set.completed })}
+        aria-pressed={set.completed}
+        aria-label={`Подход ${set.setNumber} выполнен`}
+        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded border transition-colors ${
+          set.completed
+            ? 'border-accent bg-accent text-on-accent'
+            : 'border-border bg-surface-2 text-transparent hover:border-accent'
+        }`}
+      >
+        <Check className="h-3.5 w-3.5" />
+      </button>
       <span className="w-4 text-text-secondary text-sm">{set.setNumber}</span>
 
       <Input
