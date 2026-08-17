@@ -1,8 +1,8 @@
-import { ArrowRight, Dumbbell } from 'lucide-react'
+import { ArrowRight, Dumbbell, Activity, Lock } from 'lucide-react'
 import { getCurrentUser } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import Link from 'next/link'
-import { buttonVariants } from '@/components/ui'
+import { buttonVariants, Badge, Card } from '@/components/ui'
 import { HeroBackground } from '@/components/HeroBackground'
 
 export default async function HomePage() {
@@ -33,32 +33,71 @@ export default async function HomePage() {
     athleteProfileId = profile?.id ?? null
   }
 
-  return (
-    <main className="relative flex min-h-[calc(100vh-3.5rem)] items-center justify-center overflow-hidden bg-bg px-4 text-text-primary">
-      <HeroBackground />
-      <div className="relative space-y-4 text-center animate-slide-up">
-        <h1 className="font-display text-3xl uppercase tracking-wide">
-          Iron<span className="text-accent">Ledger</span>
-        </h1>
-        <p className="text-text-secondary">Привет, {user.name ?? 'спортсмен'}.</p>
+  const powerliftingHref =
+    user.role === 'COACH'
+      ? '/athletes'
+      : athleteProfileId
+        ? `/athletes/${athleteProfileId}/cycles`
+        : null
 
-        <div className="flex flex-col items-center gap-2">
-          {user.role === 'COACH' && (
-            <Link
-              href="/athletes"
-              className="inline-flex items-center gap-1.5 text-accent hover:underline"
-            >
-              Мои атлеты <ArrowRight className="h-4 w-4" />
+  return (
+    <main className="relative flex min-h-[calc(100vh-3.5rem)] items-center justify-center overflow-hidden bg-bg px-4 py-16 text-text-primary">
+      <HeroBackground />
+      <div className="relative w-full max-w-2xl space-y-8 text-center animate-slide-up">
+        <div className="space-y-2">
+          <h1 className="font-display text-3xl uppercase tracking-wide">
+            Iron<span className="text-accent">Ledger</span>
+          </h1>
+          <p className="text-text-secondary">Привет, {user.name ?? 'спортсмен'}. Выбери направление.</p>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          {powerliftingHref ? (
+            <Link href={powerliftingHref} className="group text-left">
+              <Card className="flex h-full flex-col gap-3 transition-colors group-hover:border-accent">
+                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-accent text-on-accent">
+                  <Dumbbell className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="font-display text-lg uppercase tracking-wide">Пауэрлифтинг</h2>
+                  <p className="text-sm text-text-secondary">
+                    {user.role === 'COACH'
+                      ? 'Атлеты, циклы, аналитика'
+                      : 'Твои циклы и результаты'}
+                  </p>
+                </div>
+                <span className="mt-auto inline-flex items-center gap-1.5 text-sm text-accent">
+                  {user.role === 'COACH' ? 'Мои атлеты' : 'Мои планы'}{' '}
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                </span>
+              </Card>
             </Link>
+          ) : (
+            <Card className="flex h-full flex-col gap-3 opacity-60">
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-accent text-on-accent">
+                <Dumbbell className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="font-display text-lg uppercase tracking-wide">Пауэрлифтинг</h2>
+                <p className="text-sm text-text-secondary">Профиль атлета ещё не создан</p>
+              </div>
+            </Card>
           )}
-          {user.role === 'ATHLETE' && athleteProfileId && (
-            <Link
-              href={`/athletes/${athleteProfileId}/cycles`}
-              className="inline-flex items-center gap-1.5 text-accent hover:underline"
-            >
-              Мои планы <ArrowRight className="h-4 w-4" />
-            </Link>
-          )}
+
+          <Card className="flex h-full flex-col gap-3 opacity-60" aria-disabled="true">
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-surface-2 text-text-secondary">
+              <Activity className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="font-display text-lg uppercase tracking-wide">Тренажёрный зал</h2>
+              <p className="text-sm text-text-secondary">Обычные тренировки</p>
+            </div>
+            <span className="mt-auto inline-flex items-center gap-1.5">
+              <Badge tone="neutral" className="inline-flex items-center gap-1">
+                <Lock className="h-3 w-3" /> Скоро
+              </Badge>
+            </span>
+          </Card>
         </div>
       </div>
     </main>
