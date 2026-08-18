@@ -111,7 +111,13 @@ export default async function MicrocyclePage({
       ) : (
         <div className="mx-auto max-w-md space-y-3 px-4 lg:max-w-6xl">
           {microcycle.workouts.map((workout) => (
-            <WeekDayTable key={workout.id} workout={workout} rpeTable={rpeTable} />
+            <WeekDayTable
+              key={workout.id}
+              workout={workout}
+              rpeTable={rpeTable}
+              athleteId={microcycle.athleteId}
+              canEditOneRepMax={user.role === 'COACH'}
+            />
           ))}
         </div>
       )}
