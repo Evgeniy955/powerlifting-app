@@ -2,7 +2,18 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireCoach, statusForAuthError } from '@/lib/session'
 
-// GET /api/athletes — list athletes attached to the signed-in coach.
+// The powerlifting "total" — classic squat, paused bench, classic deadlift.
+// Matched by exact ExerciseCatalog name rather than a hardcoded id, so it
+// still works after a reseed (new uuids) as long as the names stay the same.
+const MAIN_LIFT_NAMES = {
+  squat: 'Приседание',
+  bench: 'Жим лежа с паузой',
+  deadlift: 'Становая тяга',
+} as const
+
+// GET /api/athletes — list athletes attached to the signed-in coach, each with
+// their current best (Athlete1RM) in the three total lifts, plus the summed
+// total if all three are set.
 export async function GET() {
   try {
     const coach = await requireCoach()
@@ -11,7 +22,44 @@ export async function GET() {
       include: { user: { select: { id: true, name: true, email: true, image: true } } },
       orderBy: { createdAt: 'asc' },
     })
-    return NextResponse.json(athletes)
+
+    const mainLiftExercises = await prisma.exerciseCatalog.findMany({
+      where: { name: { in: Object.values(MAIN_LIFT_NAMES) } },
+      select: { id: true, name: true },
+    })
+    const liftIdByName = new Map(mainLiftExercises.map((e) => [e.name, e.id]))
+    const liftIds = mainLiftExercises.map((e) => e.id)
+
+    const oneRepMaxes =
+      athletes.length && liftIds.length
+        ? await prisma.athlete1RM.findMany({
+            where: { athleteId: { in: athletes.map((a) => a.id) }, exerciseId: { in: liftIds } },
+            select: { athleteId: true, exerciseId: true, value: true },
+          })
+        : []
+    const valueByAthleteAndExercise = new Map<string, number>()
+    for (const rm of oneRepMaxes) {
+      valueByAthleteAndExercise.set(`${rm.athleteId}:${rm.exerciseId}`, rm.value)
+    }
+
+    const squatId = liftIdByName.get(MAIN_LIFT_NAMES.squat) ?? null
+    const benchId = liftIdByName.get(MAIN_LIFT_NAMES.bench) ?? null
+    const deadliftId = liftIdByName.get(MAIN_LIFT_NAMES.deadlift) ?? null
+
+    const withMainLifts = athletes.map((athlete) => {
+      const lookup = (exerciseId: string | null) =>
+        exerciseId ? (valueByAthleteAndExercise.get(`${athlete.id}:${exerciseId}`) ?? null) : null
+
+      const squat = lookup(squatId)
+      const bench = lookup(benchId)
+      const deadlift = lookup(deadliftId)
+      const total =
+        squat !== null && bench !== null && deadlift !== null ? squat + bench + deadlift : null
+
+      return { ...athlete, mainLifts: { squat, bench, deadlift, total } }
+    })
+
+    return NextResponse.json(withMainLifts)
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
   }
