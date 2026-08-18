@@ -66,6 +66,12 @@ function cellDate(cell: ExcelJS.Cell): Date | null {
   return null
 }
 
+// Matches a lone tempo/pause annotation like "10сек", "10 сек", "10секунд", "10с",
+// "10с." — the original sheet sometimes puts follow-up sets of the *same* exercise
+// on their own row without repeating the exercise name, using just the pause
+// duration as the "name". Never a real exercise on its own.
+const TEMPO_NOTE_PATTERN = /^\d+\s*с(?:ек(?:унд[а-я]*)?)?\.?$/i
+
 type HeaderMap = {
   dateCol: number
   exerciseCol: number
@@ -174,6 +180,10 @@ export async function parseWorkbookPreview(buffer: Buffer): Promise<ImportPrevie
       cursor = blockEnd
     }
 
+    // Tracks the most recently emitted row (recognized or not) so a following
+    // tempo-note-only row ("10сек") can be folded into it — see TEMPO_NOTE_PATTERN.
+    let lastEntry: ParsedExerciseRow | null = null
+
     for (let r = headerRowNumber + 1; r <= sheet.rowCount; r++) {
       const row = sheet.getRow(r)
 
@@ -192,11 +202,21 @@ export async function parseWorkbookPreview(buffer: Buffer): Promise<ImportPrevie
       }
       if (sets.length === 0) continue
 
+      const dateStr = currentDate.toISOString().slice(0, 10)
+
+      // Not a separate exercise — extra sets of whatever came right before it,
+      // same day. Merge into that row rather than surfacing "10сек" as an
+      // unrecognized exercise name the coach would otherwise have to dismiss.
+      if (TEMPO_NOTE_PATTERN.test(rawName) && lastEntry && lastEntry.date === dateStr) {
+        lastEntry.sets.push(...sets)
+        continue
+      }
+
       const oneRepMax = header.oneRepMaxCol ? cellNumber(row.getCell(header.oneRepMaxCol)) : 0
       const match = byNormalizedName.get(rawName.trim().toLowerCase())
 
       const parsed: ParsedExerciseRow = {
-        date: currentDate.toISOString().slice(0, 10),
+        date: dateStr,
         sheetName: sheet.name,
         rowNumber: r,
         rawName,
@@ -208,6 +228,7 @@ export async function parseWorkbookPreview(buffer: Buffer): Promise<ImportPrevie
 
       if (match) recognized.push(parsed)
       else unrecognized.push(parsed)
+      lastEntry = parsed
     }
   })
 
