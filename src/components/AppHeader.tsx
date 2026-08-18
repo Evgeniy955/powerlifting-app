@@ -44,12 +44,20 @@ export async function AppHeader() {
               </span>
 
               {user.role === 'COACH' && (
-                <Link
-                  href="/athletes"
-                  className="hidden text-sm text-accent transition-colors hover:underline md:inline"
-                >
-                  Мои атлеты
-                </Link>
+                <>
+                  <Link
+                    href="/athletes"
+                    className="hidden text-sm text-accent transition-colors hover:underline md:inline"
+                  >
+                    Мои атлеты
+                  </Link>
+                  <Link
+                    href="/admin/users"
+                    className="hidden text-sm text-text-secondary transition-colors hover:text-accent hover:underline md:inline"
+                  >
+                    Админка
+                  </Link>
+                </>
               )}
               {user.role === 'ATHLETE' && athleteProfileId && (
                 <Link
