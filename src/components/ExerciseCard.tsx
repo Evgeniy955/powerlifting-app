@@ -1,10 +1,11 @@
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
-import { Ban, Plus, Trash2 } from 'lucide-react'
+import { Ban, Check, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { SetRow, type SetValue } from './SetRow'
 import { MetricsBadge } from './MetricsBadge'
-import { Card } from '@/components/ui'
+import { ExerciseAutocomplete, type ExerciseOption } from './ExerciseAutocomplete'
+import { Card, Input } from '@/components/ui'
 import { computeExerciseMetrics } from '@/lib/metrics'
 import type { RpePoint } from '@/lib/rpe'
 
@@ -44,6 +45,14 @@ type Props = {
 export function ExerciseCard({ entry, rpeTable, position, onRemove }: Props) {
   const [sets, setSets] = useState<SetValue[]>(entry.sets)
   const [skipped, setSkipped] = useState(entry.skipped)
+  // Which catalog exercise this entry points to and its "Множ" multiplier —
+  // local so an edit shows up immediately without a page reload; entry itself
+  // is only the initial value from the server.
+  const [exercise, setExercise] = useState(entry.exercise)
+  const [multiplier, setMultiplier] = useState(entry.multiplier)
+  const [editing, setEditing] = useState(false)
+  const [draftExercise, setDraftExercise] = useState<ExerciseOption | null>(null)
+  const [draftMultiplier, setDraftMultiplier] = useState(entry.multiplier)
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
   async function toggleSkipped() {
@@ -57,9 +66,28 @@ export function ExerciseCard({ entry, rpeTable, position, onRemove }: Props) {
   }
 
   async function handleRemove() {
-    if (!window.confirm(`Убрать «${entry.exercise.name}» из плана на этот день?`)) return
+    if (!window.confirm(`Убрать «${exercise.name}» из плана на этот день?`)) return
     onRemove(entry.id)
     await fetch(`/api/exercise-entries/${entry.id}`, { method: 'DELETE' })
+  }
+
+  function startEditing() {
+    setDraftExercise(null)
+    setDraftMultiplier(multiplier)
+    setEditing(true)
+  }
+
+  async function saveEdit() {
+    const nextExercise = draftExercise ?? exercise
+    const nextMultiplier = draftMultiplier
+    setExercise(nextExercise)
+    setMultiplier(nextMultiplier)
+    setEditing(false)
+    await fetch(`/api/exercise-entries/${entry.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ exerciseId: nextExercise.id, multiplier: nextMultiplier }),
+    })
   }
 
   const metrics = useMemo(
@@ -68,12 +96,12 @@ export function ExerciseCard({ entry, rpeTable, position, onRemove }: Props) {
         {
           sets: sets.map((s) => ({ weight: s.weight, reps: s.reps })),
           oneRepMax: entry.oneRepMax ?? 0,
-          impactCoefficient: entry.exercise.impactCoefficient,
-          multiplier: entry.multiplier,
+          impactCoefficient: exercise.impactCoefficient,
+          multiplier,
         },
         rpeTable
       ),
-    [sets, entry.oneRepMax, entry.exercise.impactCoefficient, entry.multiplier, rpeTable]
+    [sets, entry.oneRepMax, exercise.impactCoefficient, multiplier, rpeTable]
   )
 
   // Per-set ИУ (RPE), shown next to each set. Comes straight out of the same
@@ -141,7 +169,7 @@ export function ExerciseCard({ entry, rpeTable, position, onRemove }: Props) {
             className={`min-w-0 break-words font-display text-base uppercase tracking-wide ${skipped ? 'line-through' : ''}`}
           >
             <span className="mr-1.5 text-text-secondary">{position}.</span>
-            {entry.exercise.name}
+            {exercise.name}
           </h3>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -149,6 +177,15 @@ export function ExerciseCard({ entry, rpeTable, position, onRemove }: Props) {
             <span className="text-xs text-zone-moderate">1ПМ не задан</span>
           )}
           {skipped && <span className="text-xs text-danger">Пропущено</span>}
+          <button
+            type="button"
+            onClick={startEditing}
+            aria-label="Редактировать упражнение"
+            title="Редактировать упражнение"
+            className="text-text-secondary transition-colors hover:text-accent"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
           <button
             type="button"
             onClick={handleRemove}
@@ -160,6 +197,46 @@ export function ExerciseCard({ entry, rpeTable, position, onRemove }: Props) {
           </button>
         </div>
       </div>
+
+      {editing && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface-2 p-2">
+          <div className="min-w-[10rem] flex-1">
+            <ExerciseAutocomplete
+              onSelect={setDraftExercise}
+              placeholder={draftExercise?.name ?? exercise.name}
+            />
+          </div>
+          <label className="flex items-center gap-1 text-xs text-text-secondary">
+            Множ
+            <Input
+              type="number"
+              inputMode="decimal"
+              value={draftMultiplier}
+              onChange={(e) => setDraftMultiplier(parseFloat(e.target.value) || 1)}
+              fieldSize="sm"
+              className="w-16"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={saveEdit}
+            aria-label="Сохранить"
+            title="Сохранить"
+            className="text-accent transition-colors hover:text-accent-2"
+          >
+            <Check className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setEditing(false)}
+            aria-label="Отменить"
+            title="Отменить"
+            className="text-text-secondary transition-colors hover:text-danger"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       <div>
         {sets.map((set) => (

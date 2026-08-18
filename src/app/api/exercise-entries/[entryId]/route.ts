@@ -4,18 +4,24 @@ import { requireUser, statusForAuthError } from '@/lib/session'
 import { assertCanAccessExerciseEntry } from '@/lib/authorization'
 import { coachEmailToNotify, queueChangeNotification } from '@/lib/email'
 
-// PATCH /api/exercise-entries/:entryId { skipped? } — toggles the "didn't get to
-// this exercise" flag. Coach or athlete, same access rule as everything else on
-// the workout (assertCanAccessExerciseEntry).
+// PATCH /api/exercise-entries/:entryId { skipped?, exerciseId?, multiplier? } —
+// toggles the "didn't get to this exercise" flag, and/or edits which catalog
+// exercise this entry points to and its "Множ" multiplier. Coach or athlete,
+// same access rule as everything else on the workout (assertCanAccessExerciseEntry).
 export async function PATCH(req: NextRequest, { params }: { params: { entryId: string } }) {
   try {
     const user = await requireUser()
     await assertCanAccessExerciseEntry(params.entryId, user)
 
-    const body = (await req.json()) as { skipped?: boolean }
+    const body = (await req.json()) as {
+      skipped?: boolean
+      exerciseId?: string
+      multiplier?: number
+    }
     const entry = await prisma.exerciseEntry.update({
       where: { id: params.entryId },
       data: body,
+      include: { exercise: true },
     })
 
     return NextResponse.json(entry)

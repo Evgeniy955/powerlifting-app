@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
-import { Ban, Check, Plus, Trash2, X } from 'lucide-react'
+import { Ban, Check, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { ExerciseAutocomplete, type ExerciseOption } from './ExerciseAutocomplete'
 import type { ExerciseEntryData } from './ExerciseCard'
 import { computeExerciseMetrics, aggregateMetrics } from '@/lib/metrics'
@@ -45,6 +45,12 @@ type Props = {
 export function WeekDayTable({ workout, rpeTable, athleteId, canEditOneRepMax }: Props) {
   const [entries, setEntries] = useState<ExerciseEntryData[]>(workout.exerciseEntries)
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+
+  // Inline "which exercise + Множ" editor — only one row at a time, so a single
+  // id/draft pair is enough rather than per-row state.
+  const [editingEntryId, setEditingEntryId] = useState<string | null>(null)
+  const [draftExercise, setDraftExercise] = useState<ExerciseOption | null>(null)
+  const [draftMultiplier, setDraftMultiplier] = useState(1)
 
   const date = new Date(workout.scheduledDate)
   const weekday = WEEKDAY_SHORT[date.getUTCDay()]
@@ -140,6 +146,30 @@ export function WeekDayTable({ workout, rpeTable, athleteId, canEditOneRepMax }:
     await fetch(`/api/exercise-entries/${entryId}`, { method: 'DELETE' })
   }
 
+  function startEditingExercise(entry: ExerciseEntryData) {
+    setEditingEntryId(entry.id)
+    setDraftExercise(null)
+    setDraftMultiplier(entry.multiplier)
+  }
+
+  async function saveExerciseEdit(entryId: string) {
+    const current = entries.find((e) => e.id === entryId)
+    if (!current) return
+    const nextExercise = draftExercise ?? current.exercise
+    const nextMultiplier = draftMultiplier
+    setEntries((prev) =>
+      prev.map((e) =>
+        e.id === entryId ? { ...e, exercise: nextExercise, multiplier: nextMultiplier } : e
+      )
+    )
+    setEditingEntryId(null)
+    await fetch(`/api/exercise-entries/${entryId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ exerciseId: nextExercise.id, multiplier: nextMultiplier }),
+    })
+  }
+
   async function removeSet(entryId: string, setId: string) {
     setEntries((prev) =>
       prev.map((e) => (e.id === entryId ? { ...e, sets: e.sets.filter((s) => s.id !== setId) } : e))
@@ -231,6 +261,15 @@ export function WeekDayTable({ workout, rpeTable, athleteId, canEditOneRepMax }:
                         </button>
                         <button
                           type="button"
+                          onClick={() => startEditingExercise(entry)}
+                          aria-label="Редактировать упражнение"
+                          title="Редактировать упражнение"
+                          className="flex h-4 w-4 shrink-0 items-center justify-center text-text-secondary transition-colors hover:text-accent"
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => removeExercise(entry.id, entry.exercise.name)}
                           aria-label="Убрать упражнение из плана"
                           title="Убрать упражнение из плана"
@@ -239,13 +278,52 @@ export function WeekDayTable({ workout, rpeTable, athleteId, canEditOneRepMax }:
                           <Trash2 className="h-3 w-3" />
                         </button>
                       </div>
-                      <span className={`block w-full break-words ${entry.skipped ? 'line-through' : ''}`}>
-                        <span className="text-text-secondary">{index + 1}. </span>
-                        {entry.exercise.name}
-                        {entry.multiplier !== 1 && (
-                          <span className="ml-1 text-text-secondary">×{entry.multiplier}</span>
-                        )}
-                      </span>
+                      {editingEntryId === entry.id ? (
+                        <div className="flex w-full flex-col gap-1 rounded border border-border bg-surface-2 p-1">
+                          <ExerciseAutocomplete
+                            onSelect={setDraftExercise}
+                            placeholder={draftExercise?.name ?? entry.exercise.name}
+                          />
+                          <div className="flex items-center gap-1">
+                            <label className="flex items-center gap-1 text-[10px] text-text-secondary">
+                              Множ
+                              <input
+                                type="number"
+                                inputMode="decimal"
+                                value={draftMultiplier}
+                                onChange={(e) => setDraftMultiplier(parseFloat(e.target.value) || 1)}
+                                className="w-10 min-w-0 rounded border border-border bg-surface px-0.5 py-0.5 text-center text-xs"
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => saveExerciseEdit(entry.id)}
+                              aria-label="Сохранить"
+                              title="Сохранить"
+                              className="ml-auto text-accent transition-colors hover:text-accent-2"
+                            >
+                              <Check className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingEntryId(null)}
+                              aria-label="Отменить"
+                              title="Отменить"
+                              className="text-text-secondary transition-colors hover:text-danger"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <span className={`block w-full break-words ${entry.skipped ? 'line-through' : ''}`}>
+                          <span className="text-text-secondary">{index + 1}. </span>
+                          {entry.exercise.name}
+                          {entry.multiplier !== 1 && (
+                            <span className="ml-1 text-text-secondary">×{entry.multiplier}</span>
+                          )}
+                        </span>
+                      )}
                     </div>
                   </td>
                   {Array.from({ length: maxSets }).map((_, i) => {
