@@ -1,7 +1,8 @@
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
-import { Ban, Check, Pencil, Plus, Trash2, X } from 'lucide-react'
+import Link from 'next/link'
+import { Ban, Check, ChevronRight, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { ExerciseAutocomplete, type ExerciseOption } from './ExerciseAutocomplete'
 import type { ExerciseEntryData } from './ExerciseCard'
 import { computeExerciseMetrics, aggregateMetrics } from '@/lib/metrics'
@@ -207,10 +208,17 @@ export function WeekDayTable({ workout, rpeTable, athleteId, canEditOneRepMax }:
 
   return (
     <div className="animate-slide-up overflow-hidden rounded-xl border border-border bg-surface">
-      <div className="flex items-baseline gap-2 border-b border-border bg-accent px-3 py-1.5 text-on-accent">
-        <span className="font-display text-base uppercase tracking-wide">{weekday}</span>
-        <span className="text-sm opacity-90">{dateLabel}</span>
-      </div>
+      <Link
+        href={`/workout/${workout.id}`}
+        className="flex items-center justify-between gap-2 border-b border-border bg-accent px-3 py-1.5 text-on-accent transition-opacity hover:opacity-90"
+        title="Открыть день"
+      >
+        <span className="flex items-baseline gap-2">
+          <span className="font-display text-base uppercase tracking-wide">{weekday}</span>
+          <span className="text-sm opacity-90">{dateLabel}</span>
+        </span>
+        <ChevronRight className="h-4 w-4 shrink-0 opacity-75" />
+      </Link>
 
       <div className="overflow-x-auto">
         <table className="w-full min-w-max border-collapse text-sm">
