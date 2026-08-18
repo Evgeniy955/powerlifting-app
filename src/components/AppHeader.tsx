@@ -49,7 +49,7 @@ export async function AppHeader() {
                     href="/athletes"
                     className="hidden text-sm text-accent transition-colors hover:underline md:inline"
                   >
-                    Мои атлеты
+                    Мои спортсмены
                   </Link>
                   <Link
                     href="/admin/users"

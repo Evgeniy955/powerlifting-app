@@ -16,6 +16,14 @@ type Athlete = {
   inviteStatus: 'NONE' | 'PENDING' | 'ACCEPTED'
   invitedAt: string | null
   user: { id: string; name: string | null; email: string; image: string | null } | null
+  // Current best (Athlete1RM) in the three total lifts — classic squat, paused
+  // bench, classic deadlift — plus the summed total if all three are set.
+  mainLifts: {
+    squat: number | null
+    bench: number | null
+    deadlift: number | null
+    total: number | null
+  }
 }
 
 // Coach-only screen. Three-step workflow: create the athlete's page (email +
@@ -59,7 +67,7 @@ export default function AthletesPage() {
 
   return (
     <main className="min-h-[calc(100vh-3.5rem)] bg-bg text-text-primary p-6 max-w-md mx-auto space-y-4 lg:max-w-4xl">
-      <h1 className="font-display text-xl uppercase tracking-wide">Мои атлеты</h1>
+      <h1 className="font-display text-xl uppercase tracking-wide">Мои спортсмены</h1>
 
       {athletes === null && <LoadingIndicator label="Загружаем атлетов" />}
 
@@ -77,12 +85,35 @@ export default function AthletesPage() {
         <ul className="animate-fade-in space-y-2 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0 xl:grid-cols-3">
           {athletes.map((a) => (
             <li key={a.id}>
-              <Card padding="sm" className="space-y-2">
+              <Card padding="md" className="space-y-3">
                 <div className="flex items-center justify-between gap-2">
-                  <p>{athleteDisplayName(a)}</p>
+                  <p className="text-base font-medium">{athleteDisplayName(a)}</p>
                   {a.inviteStatus === 'PENDING' && <Badge tone="moderate">Приглашение отправлено</Badge>}
                   {a.inviteStatus === 'NONE' && <Badge tone="neutral">Не приглашён</Badge>}
                 </div>
+
+                <div className="grid grid-cols-[auto_1fr] items-baseline gap-x-3 gap-y-1 rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm">
+                  <span className="text-text-secondary">Присед</span>
+                  <span className="font-display tracking-wide">
+                    {a.mainLifts.squat ?? '—'} {a.mainLifts.squat !== null && 'кг'}
+                  </span>
+
+                  <span className="text-text-secondary">Жим (пауза)</span>
+                  <span className="font-display tracking-wide">
+                    {a.mainLifts.bench ?? '—'} {a.mainLifts.bench !== null && 'кг'}
+                  </span>
+
+                  <span className="text-text-secondary">Тяга</span>
+                  <span className="font-display tracking-wide">
+                    {a.mainLifts.deadlift ?? '—'} {a.mainLifts.deadlift !== null && 'кг'}
+                  </span>
+
+                  <span className="text-text-secondary font-medium">Сумма</span>
+                  <span className="font-display font-bold tracking-wide text-accent">
+                    {a.mainLifts.total ?? '—'} {a.mainLifts.total !== null && 'кг'}
+                  </span>
+                </div>
+
                 <div className="flex flex-wrap items-center gap-3 text-xs">
                   <a href={`/athletes/${a.id}/cycles`} className="text-accent hover:underline">
                     Циклы
@@ -106,27 +137,29 @@ export default function AthletesPage() {
         </ul>
       )}
 
-      <Card padding="sm" className="space-y-2 lg:max-w-md">
-        <p className="text-sm text-text-secondary">Создать страницу атлета</p>
-        <Input
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="athlete@example.com"
-          className="w-full"
-        />
-        <div className="flex gap-2">
+      <div className="mt-6 flex justify-center border-t border-border pt-6">
+        <Card padding="sm" className="w-full space-y-2 lg:max-w-md">
+          <p className="text-sm text-text-secondary">Создать страницу атлета</p>
           <Input
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="Имя (необязательно)"
-            className="flex-1"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="athlete@example.com"
+            className="w-full"
           />
-          <Button onClick={handleAdd} size="sm">
-            Создать
-          </Button>
-        </div>
-        {error && <p className="text-xs text-danger">{error}</p>}
-      </Card>
+          <div className="flex gap-2">
+            <Input
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="Имя (необязательно)"
+              className="flex-1"
+            />
+            <Button onClick={handleAdd} size="sm">
+              Создать
+            </Button>
+          </div>
+          {error && <p className="text-xs text-danger">{error}</p>}
+        </Card>
+      </div>
     </main>
   )
 }
