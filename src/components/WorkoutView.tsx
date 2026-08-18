@@ -30,6 +30,7 @@ export function WorkoutView({ workoutId, initialEntries, rpeTable }: Props) {
       {
         id: created.id,
         multiplier: created.multiplier,
+        skipped: false,
         exercise: {
           id: exercise.id,
           name: exercise.name,

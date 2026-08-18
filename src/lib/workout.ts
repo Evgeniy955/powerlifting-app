@@ -43,6 +43,7 @@ export async function getWorkoutForDisplay(workoutId: string) {
       id: entry.id,
       orderIndex: entry.orderIndex,
       multiplier: entry.multiplier,
+      skipped: entry.skipped,
       exercise: {
         id: entry.exercise.id,
         name: entry.exercise.name,
@@ -133,6 +134,7 @@ export async function getMicrocycleForDisplay(microcycleId: string) {
         id: entry.id,
         orderIndex: entry.orderIndex,
         multiplier: entry.multiplier,
+        skipped: entry.skipped,
         exercise: {
           id: entry.exercise.id,
           name: entry.exercise.name,

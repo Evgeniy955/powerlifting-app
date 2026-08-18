@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
-import { Check, Plus, X } from 'lucide-react'
+import { Ban, Check, Plus, X } from 'lucide-react'
 import { ExerciseAutocomplete, type ExerciseOption } from './ExerciseAutocomplete'
 import type { ExerciseEntryData } from './ExerciseCard'
 import { computeExerciseMetrics, aggregateMetrics } from '@/lib/metrics'
@@ -123,6 +123,15 @@ export function WeekDayTable({ workout, rpeTable, athleteId, canEditOneRepMax }:
     }, 400)
   }
 
+  async function toggleSkipped(entryId: string, next: boolean) {
+    setEntries((prev) => prev.map((e) => (e.id === entryId ? { ...e, skipped: next } : e)))
+    await fetch(`/api/exercise-entries/${entryId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ skipped: next }),
+    })
+  }
+
   async function removeSet(entryId: string, setId: string) {
     setEntries((prev) =>
       prev.map((e) => (e.id === entryId ? { ...e, sets: e.sets.filter((s) => s.id !== setId) } : e))
@@ -143,6 +152,7 @@ export function WeekDayTable({ workout, rpeTable, athleteId, canEditOneRepMax }:
       {
         id: created.id,
         multiplier: created.multiplier,
+        skipped: false,
         exercise: {
           id: exercise.id,
           name: exercise.name,
@@ -189,12 +199,34 @@ export function WeekDayTable({ workout, rpeTable, athleteId, canEditOneRepMax }:
             {entries.map((entry) => {
               const m = perEntryMetrics.get(entry.id)!
               return (
-                <tr key={entry.id} className="border-b border-border last:border-b-0">
-                  <td className="sticky left-0 z-10 max-w-[10rem] truncate bg-surface px-2 py-1 font-medium">
-                    {entry.exercise.name}
-                    {entry.multiplier !== 1 && (
-                      <span className="ml-1 text-text-secondary">×{entry.multiplier}</span>
-                    )}
+                <tr
+                  key={entry.id}
+                  className={`border-b border-border last:border-b-0 ${entry.skipped ? 'opacity-50' : ''}`}
+                >
+                  <td className="sticky left-0 z-10 max-w-[10rem] bg-surface px-2 py-1 font-medium">
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => toggleSkipped(entry.id, !entry.skipped)}
+                        aria-pressed={entry.skipped}
+                        title={
+                          entry.skipped ? 'Отметить как выполненное' : 'Отметить как пропущенное'
+                        }
+                        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors ${
+                          entry.skipped
+                            ? 'border-danger bg-danger text-on-danger'
+                            : 'border-border bg-surface-2 text-text-secondary hover:border-danger hover:text-danger'
+                        }`}
+                      >
+                        <Ban className="h-2.5 w-2.5" />
+                      </button>
+                      <span className={`truncate ${entry.skipped ? 'line-through' : ''}`}>
+                        {entry.exercise.name}
+                        {entry.multiplier !== 1 && (
+                          <span className="ml-1 text-text-secondary">×{entry.multiplier}</span>
+                        )}
+                      </span>
+                    </div>
                   </td>
                   {Array.from({ length: maxSets }).map((_, i) => {
                     const set = entry.sets[i]
