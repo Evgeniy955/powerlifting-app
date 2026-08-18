@@ -36,7 +36,7 @@ export default async function AthleteCyclesPage({ params }: { params: { athleteI
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <h1 className="font-display text-xl uppercase tracking-wide">
-            Циклы — {athleteDisplayName(athlete)}
+            Планы — {athleteDisplayName(athlete)}
           </h1>
           <AthleteLiveUpdates athleteId={athlete.id} />
         </div>
@@ -46,7 +46,7 @@ export default async function AthleteCyclesPage({ params }: { params: { athleteI
       {athlete.cycles.length === 0 && (
         <EmptyState
           icon={CalendarX}
-          title="Циклов пока нет"
+          title="Планов пока нет"
           description="Создай план или импортируй его из Excel."
         />
       )}
