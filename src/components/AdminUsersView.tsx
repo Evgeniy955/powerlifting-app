@@ -10,6 +10,22 @@ export type AdminUser = {
   name: string | null
   role: string
   _count: { coachedAthletes: number }
+  athleteProfile: { inviteStatus: string } | null
+}
+
+// null/no profile and 'NONE' both mean "never actually invited by email" —
+// e.g. self-registered, or attached to a coach without going through the
+// invite flow.
+function inviteBadge(u: AdminUser) {
+  if (u.role !== 'ATHLETE') return null
+  const status = u.athleteProfile?.inviteStatus ?? 'NONE'
+  if (status === 'ACCEPTED') {
+    return <Badge tone="accent">Приглашён — принял приглашение</Badge>
+  }
+  if (status === 'PENDING') {
+    return <Badge tone="moderate">Приглашён — не принял приглашение</Badge>
+  }
+  return <Badge tone="neutral">Не приглашён</Badge>
 }
 
 type Props = {
@@ -175,6 +191,7 @@ export function AdminUsersView({ initialUsers, currentUserId }: Props) {
                         {u._count.coachedAthletes} атлет(ов)
                       </p>
                     )}
+                    {u.role === 'ATHLETE' && <div className="mt-1">{inviteBadge(u)}</div>}
                   </div>
 
                   <div className="flex shrink-0 flex-col items-end gap-1">
