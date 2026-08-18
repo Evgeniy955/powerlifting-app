@@ -114,12 +114,12 @@ export default function AthletesPage() {
                   </span>
                 </div>
 
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
                   <a
                     href={`/athletes/${a.id}/cycles`}
                     title="Циклы"
                     aria-label="Циклы"
-                    className="text-text-secondary transition-colors hover:text-accent"
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-sky-500 text-white shadow-card transition-transform hover:scale-110 hover:brightness-110"
                   >
                     <CalendarDays className="h-4 w-4" />
                   </a>
@@ -127,7 +127,7 @@ export default function AthletesPage() {
                     href={`/athletes/${a.id}/analytics`}
                     title="Аналитика"
                     aria-label="Аналитика"
-                    className="text-text-secondary transition-colors hover:text-accent"
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-violet-500 text-white shadow-card transition-transform hover:scale-110 hover:brightness-110"
                   >
                     <BarChart3 className="h-4 w-4" />
                   </a>
@@ -135,7 +135,7 @@ export default function AthletesPage() {
                     href={`/api/athletes/${a.id}/export`}
                     title="Экспорт в Excel"
                     aria-label="Экспорт в Excel"
-                    className="text-text-secondary transition-colors hover:text-accent"
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-white shadow-card transition-transform hover:scale-110 hover:brightness-110"
                   >
                     <FileDown className="h-4 w-4" />
                   </a>
@@ -143,7 +143,7 @@ export default function AthletesPage() {
                     href={`/athletes/${a.id}/import`}
                     title="Импорт из Excel"
                     aria-label="Импорт из Excel"
-                    className="text-text-secondary transition-colors hover:text-accent"
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-500 text-white shadow-card transition-transform hover:scale-110 hover:brightness-110"
                   >
                     <FileUp className="h-4 w-4" />
                   </a>
