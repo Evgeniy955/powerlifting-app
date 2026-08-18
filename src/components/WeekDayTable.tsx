@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
-import { Ban, Check, Plus, X } from 'lucide-react'
+import { Ban, Check, Plus, Trash2, X } from 'lucide-react'
 import { ExerciseAutocomplete, type ExerciseOption } from './ExerciseAutocomplete'
 import type { ExerciseEntryData } from './ExerciseCard'
 import { computeExerciseMetrics, aggregateMetrics } from '@/lib/metrics'
@@ -132,6 +132,14 @@ export function WeekDayTable({ workout, rpeTable, athleteId, canEditOneRepMax }:
     })
   }
 
+  // Removes this exercise from the day's plan (ExerciseEntry + its sets) — not
+  // the ExerciseCatalog entry, which stays intact for every other day/athlete.
+  async function removeExercise(entryId: string, exerciseName: string) {
+    if (!window.confirm(`Убрать «${exerciseName}» из плана на этот день?`)) return
+    setEntries((prev) => prev.filter((e) => e.id !== entryId))
+    await fetch(`/api/exercise-entries/${entryId}`, { method: 'DELETE' })
+  }
+
   async function removeSet(entryId: string, setId: string) {
     setEntries((prev) =>
       prev.map((e) => (e.id === entryId ? { ...e, sets: e.sets.filter((s) => s.id !== setId) } : e))
@@ -205,21 +213,32 @@ export function WeekDayTable({ workout, rpeTable, athleteId, canEditOneRepMax }:
                 >
                   <td className="sticky left-0 z-10 max-w-[10rem] bg-surface px-2 py-1 font-medium">
                     <div className="flex flex-col items-start gap-0.5">
-                      <button
-                        type="button"
-                        onClick={() => toggleSkipped(entry.id, !entry.skipped)}
-                        aria-pressed={entry.skipped}
-                        title={
-                          entry.skipped ? 'Отметить как выполненное' : 'Отметить как пропущенное'
-                        }
-                        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors ${
-                          entry.skipped
-                            ? 'border-danger bg-danger text-on-danger'
-                            : 'border-border bg-surface-2 text-text-secondary hover:border-danger hover:text-danger'
-                        }`}
-                      >
-                        <Ban className="h-2.5 w-2.5" />
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => toggleSkipped(entry.id, !entry.skipped)}
+                          aria-pressed={entry.skipped}
+                          title={
+                            entry.skipped ? 'Отметить как выполненное' : 'Отметить как пропущенное'
+                          }
+                          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors ${
+                            entry.skipped
+                              ? 'border-danger bg-danger text-on-danger'
+                              : 'border-border bg-surface-2 text-text-secondary hover:border-danger hover:text-danger'
+                          }`}
+                        >
+                          <Ban className="h-2.5 w-2.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeExercise(entry.id, entry.exercise.name)}
+                          aria-label="Убрать упражнение из плана"
+                          title="Убрать упражнение из плана"
+                          className="flex h-4 w-4 shrink-0 items-center justify-center text-text-secondary transition-colors hover:text-danger"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
                       <span className={`truncate ${entry.skipped ? 'line-through' : ''}`}>
                         <span className="text-text-secondary">{index + 1}. </span>
                         {entry.exercise.name}

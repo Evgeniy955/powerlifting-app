@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
-import { Ban, Plus } from 'lucide-react'
+import { Ban, Plus, Trash2 } from 'lucide-react'
 import { SetRow, type SetValue } from './SetRow'
 import { MetricsBadge } from './MetricsBadge'
 import { Card } from '@/components/ui'
@@ -33,12 +33,15 @@ type Props = {
   // orderIndex can have gaps/different bases depending on how the entry was
   // created (import vs. manual add).
   position: number
+  // Removes this exercise from the day's plan (ExerciseEntry row + its sets) —
+  // not the ExerciseCatalog entry, which stays intact for every other day/athlete.
+  onRemove: (entryId: string) => void
 }
 
 // One exercise block in the day view: dynamic set list ("+ Добавить подход"),
 // reactive metrics recomputed on every keystroke, debounced persistence to the API.
 // No auto-fill of new sets — they start empty by design.
-export function ExerciseCard({ entry, rpeTable, position }: Props) {
+export function ExerciseCard({ entry, rpeTable, position, onRemove }: Props) {
   const [sets, setSets] = useState<SetValue[]>(entry.sets)
   const [skipped, setSkipped] = useState(entry.skipped)
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
@@ -51,6 +54,12 @@ export function ExerciseCard({ entry, rpeTable, position }: Props) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ skipped: next }),
     })
+  }
+
+  async function handleRemove() {
+    if (!window.confirm(`Убрать «${entry.exercise.name}» из плана на этот день?`)) return
+    onRemove(entry.id)
+    await fetch(`/api/exercise-entries/${entry.id}`, { method: 'DELETE' })
   }
 
   const metrics = useMemo(
@@ -135,10 +144,21 @@ export function ExerciseCard({ entry, rpeTable, position }: Props) {
             {entry.exercise.name}
           </h3>
         </div>
-        {entry.oneRepMax === null && !skipped && (
-          <span className="text-xs text-zone-moderate">1ПМ не задан</span>
-        )}
-        {skipped && <span className="text-xs text-danger">Пропущено</span>}
+        <div className="flex items-center gap-2">
+          {entry.oneRepMax === null && !skipped && (
+            <span className="text-xs text-zone-moderate">1ПМ не задан</span>
+          )}
+          {skipped && <span className="text-xs text-danger">Пропущено</span>}
+          <button
+            type="button"
+            onClick={handleRemove}
+            aria-label="Убрать упражнение из плана"
+            title="Убрать упражнение из плана"
+            className="text-text-secondary transition-colors hover:text-danger"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       <div>
