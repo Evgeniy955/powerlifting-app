@@ -139,12 +139,12 @@ export function WeekDayTable({ workout, rpeTable }: Props) {
   return (
     <div className="animate-slide-up overflow-hidden rounded-xl border border-border bg-surface">
       <div className="flex items-baseline gap-2 border-b border-border bg-accent px-3 py-1.5 text-on-accent">
-        <span className="font-display text-sm uppercase tracking-wide">{weekday}</span>
-        <span className="text-xs opacity-90">{dateLabel}</span>
+        <span className="font-display text-base uppercase tracking-wide">{weekday}</span>
+        <span className="text-sm opacity-90">{dateLabel}</span>
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-max border-collapse text-xs">
+        <table className="w-full min-w-max border-collapse text-sm">
           <thead>
             <tr className="border-b border-border bg-surface-2 text-text-secondary">
               <th className="sticky left-0 z-10 bg-surface-2 px-2 py-1 text-left font-bold">
@@ -169,7 +169,7 @@ export function WeekDayTable({ workout, rpeTable }: Props) {
               const m = perEntryMetrics.get(entry.id)!
               return (
                 <tr key={entry.id} className="border-b border-border last:border-b-0">
-                  <td className="sticky left-0 z-10 max-w-[9rem] truncate bg-surface px-2 py-1 font-medium">
+                  <td className="sticky left-0 z-10 max-w-[10rem] truncate bg-surface px-2 py-1 font-medium">
                     {entry.exercise.name}
                     {entry.multiplier !== 1 && (
                       <span className="ml-1 text-text-secondary">×{entry.multiplier}</span>
@@ -189,20 +189,20 @@ export function WeekDayTable({ workout, rpeTable }: Props) {
                           aria-pressed={set.completed}
                           aria-label={`Подход ${i + 1} выполнен`}
                           title={`Подход ${i + 1} выполнен`}
-                          className={`absolute left-0 top-0 z-10 flex h-3.5 w-3.5 items-center justify-center rounded-sm border transition-colors ${
+                          className={`absolute left-0 top-0 z-10 flex h-4 w-4 items-center justify-center rounded-sm border transition-colors ${
                             set.completed
                               ? 'border-accent bg-accent text-on-accent'
                               : 'border-border bg-surface-2 text-transparent hover:border-accent'
                           }`}
                         >
-                          <Check className="h-2.5 w-2.5" />
+                          <Check className="h-3 w-3" />
                         </button>
                         <button
                           onClick={() => removeSet(entry.id, set.id)}
                           aria-label="Удалить подход"
                           className="absolute right-0 top-0 hidden text-text-secondary hover:text-danger group-hover:block"
                         >
-                          <X className="h-2.5 w-2.5" />
+                          <X className="h-3 w-3" />
                         </button>
                         <div
                           className={`flex flex-col items-center gap-0.5 ${set.completed ? 'opacity-70' : ''}`}
@@ -216,7 +216,7 @@ export function WeekDayTable({ workout, rpeTable }: Props) {
                                 weight: parseFloat(e.target.value) || 0,
                               })
                             }
-                            className={`w-14 min-w-0 rounded border px-0.5 py-0.5 text-center text-xs font-bold text-accent outline-none focus:border-accent focus:ring-1 focus:ring-accent ${set.completed ? 'border-zone-low bg-surface-3' : 'border-border bg-surface-2'}`}
+                            className={`w-16 min-w-0 rounded border px-0.5 py-0.5 text-center text-sm font-bold text-accent outline-none focus:border-accent focus:ring-1 focus:ring-accent ${set.completed ? 'border-zone-low bg-surface-3' : 'border-border bg-surface-2'}`}
                           />
                           <input
                             type="number"
@@ -227,10 +227,10 @@ export function WeekDayTable({ workout, rpeTable }: Props) {
                                 reps: parseInt(e.target.value, 10) || 0,
                               })
                             }
-                            className={`w-14 min-w-0 rounded border px-0.5 py-0.5 text-center text-xs text-text-secondary outline-none focus:border-accent focus:ring-1 focus:ring-accent ${set.completed ? 'border-zone-low bg-surface-3' : 'border-border bg-surface-2'}`}
+                            className={`w-16 min-w-0 rounded border px-0.5 py-0.5 text-center text-sm text-text-secondary outline-none focus:border-accent focus:ring-1 focus:ring-accent ${set.completed ? 'border-zone-low bg-surface-3' : 'border-border bg-surface-2'}`}
                           />
                           <span
-                            className={`text-[10px] ${pct !== null ? zoneClass(pct) : 'text-text-secondary'}`}
+                            className={`text-xs ${pct !== null ? zoneClass(pct) : 'text-text-secondary'}`}
                           >
                             {pct !== null ? `${Math.round(pct * 100)}%` : '—'}
                           </span>
