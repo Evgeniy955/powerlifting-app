@@ -122,8 +122,8 @@ export function ExerciseCard({ entry, rpeTable, position, onRemove }: Props) {
 
   return (
     <Card className={`space-y-3 animate-slide-up ${skipped ? 'opacity-60' : ''}`}>
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex min-w-0 items-start gap-2">
           <button
             type="button"
             onClick={toggleSkipped}
@@ -138,13 +138,13 @@ export function ExerciseCard({ entry, rpeTable, position, onRemove }: Props) {
             <Ban className="h-3.5 w-3.5" />
           </button>
           <h3
-            className={`font-display text-base uppercase tracking-wide ${skipped ? 'line-through' : ''}`}
+            className={`min-w-0 break-words font-display text-base uppercase tracking-wide ${skipped ? 'line-through' : ''}`}
           >
             <span className="mr-1.5 text-text-secondary">{position}.</span>
             {entry.exercise.name}
           </h3>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           {entry.oneRepMax === null && !skipped && (
             <span className="text-xs text-zone-moderate">1ПМ не задан</span>
           )}

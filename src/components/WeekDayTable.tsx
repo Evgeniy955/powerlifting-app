@@ -211,8 +211,8 @@ export function WeekDayTable({ workout, rpeTable, athleteId, canEditOneRepMax }:
                   key={entry.id}
                   className={`border-b border-border last:border-b-0 ${entry.skipped ? 'opacity-50' : ''}`}
                 >
-                  <td className="sticky left-0 z-10 max-w-[10rem] bg-surface px-2 py-1 font-medium">
-                    <div className="flex flex-col items-start gap-0.5">
+                  <td className="sticky left-0 z-10 w-40 max-w-[10rem] bg-surface px-2 py-1 font-medium align-top">
+                    <div className="flex w-full flex-col items-start gap-0.5">
                       <div className="flex items-center gap-1">
                         <button
                           type="button"
@@ -239,7 +239,7 @@ export function WeekDayTable({ workout, rpeTable, athleteId, canEditOneRepMax }:
                           <Trash2 className="h-3 w-3" />
                         </button>
                       </div>
-                      <span className={`truncate ${entry.skipped ? 'line-through' : ''}`}>
+                      <span className={`block w-full break-words ${entry.skipped ? 'line-through' : ''}`}>
                         <span className="text-text-secondary">{index + 1}. </span>
                         {entry.exercise.name}
                         {entry.multiplier !== 1 && (
