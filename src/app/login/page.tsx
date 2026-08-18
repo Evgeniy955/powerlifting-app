@@ -34,6 +34,14 @@ function InviteBanner() {
 function ErrorNotice() {
   const error = useSearchParams().get('error')
   if (!error) return null
+  if (error === 'not_invited') {
+    return (
+      <p className="mt-2 text-sm text-danger">
+        Этот email не приглашён. Попросите тренера отправить приглашение и
+        попробуйте снова.
+      </p>
+    )
+  }
   return (
     <p className="mt-2 text-sm text-danger">
       Не получилось войти. Попробуйте ещё раз.

@@ -39,6 +39,25 @@ export async function GET(request: Request) {
 
   if (!existing) {
     const isCoach = COACH_EMAILS.includes(email)
+
+    // Closed signup: the only way into the app as an athlete is a pending
+    // invite from a coach (matched by exact email) — no more organic
+    // self-signup. Coaches are still admitted straight from COACH_EMAILS.
+    // Supabase Auth already created its own auth.users row for this session
+    // by this point (that's a separate table we don't own) — sign back out
+    // so the browser doesn't end up with a live Supabase session pointing at
+    // a Google account with no matching row in our own `public."User"`.
+    const pendingInvite = isCoach
+      ? null
+      : await prisma.athleteProfile.findFirst({
+          where: { userId: null, inviteStatus: 'PENDING', inviteEmail: email },
+        })
+
+    if (!isCoach && !pendingInvite) {
+      await supabase.auth.signOut()
+      return NextResponse.redirect(`${origin}/login?error=not_invited`)
+    }
+
     const name =
       (user.user_metadata?.full_name as string | undefined) ??
       (user.user_metadata?.name as string | undefined) ??
@@ -55,21 +74,11 @@ export async function GET(request: Request) {
       },
     })
 
-    if (!isCoach) {
-      // A coach may have already created a placeholder profile for this
-      // exact email and invited them — link it instead of creating a second,
-      // orphan one. Falls back to organic self-signup if no invite matches.
-      const pendingInvite = await prisma.athleteProfile.findFirst({
-        where: { userId: null, inviteStatus: 'PENDING', inviteEmail: email },
+    if (pendingInvite) {
+      await prisma.athleteProfile.update({
+        where: { id: pendingInvite.id },
+        data: { userId: user.id, inviteStatus: 'ACCEPTED' },
       })
-      if (pendingInvite) {
-        await prisma.athleteProfile.update({
-          where: { id: pendingInvite.id },
-          data: { userId: user.id, inviteStatus: 'ACCEPTED' },
-        })
-      } else {
-        await prisma.athleteProfile.create({ data: { userId: user.id } })
-      }
     }
   }
 
