@@ -59,7 +59,7 @@ export default function AthletesPage() {
 
   return (
     <main className="min-h-[calc(100vh-3.5rem)] bg-bg text-text-primary p-6 max-w-md mx-auto space-y-4 lg:max-w-4xl">
-      <h1 className="font-display text-xl uppercase tracking-wide">Мои атлеты</h1>
+      <h1 className="font-display text-xl uppercase tracking-wide">Мои спортсмены</h1>
 
       {athletes === null && <LoadingIndicator label="Загружаем атлетов" />}
 

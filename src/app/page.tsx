@@ -67,7 +67,7 @@ export default async function HomePage() {
                   </p>
                 </div>
                 <span className="mt-auto inline-flex items-center gap-1.5 text-sm text-accent">
-                  {user.role === 'COACH' ? 'Мои атлеты' : 'Мои планы'}{' '}
+                  {user.role === 'COACH' ? 'Мои спортсмены' : 'Мои планы'}{' '}
                   <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                 </span>
               </Card>
