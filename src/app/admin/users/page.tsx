@@ -22,6 +22,10 @@ export default async function AdminUsersPage() {
       name: true,
       role: true,
       _count: { select: { coachedAthletes: true } },
+      // Only meaningful for ATHLETE users — null means they were never
+      // coach-invited at all (self-registered, or attached without ever
+      // going through the email invite flow).
+      athleteProfile: { select: { inviteStatus: true } },
     },
   })
 
