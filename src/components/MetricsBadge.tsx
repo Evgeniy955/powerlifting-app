@@ -28,33 +28,45 @@ export function MetricsBadge({
   sessionType,
 }: Props) {
   return (
-    <div className="grid grid-cols-3 gap-x-4 gap-y-1 rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm">
-      <span className="text-text-secondary">Тоннаж</span>
-      <span className="col-span-2 font-display tracking-wide">{tonnage} кг</span>
+    <div className="flex flex-col gap-1 rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm">
+      <div className="flex items-baseline gap-2">
+        <span className="text-text-secondary">Тоннаж</span>
+        <span className="font-display tracking-wide">{tonnage} кг</span>
+      </div>
 
-      <span className="text-text-secondary">КПШ</span>
-      <span className="col-span-2 font-display tracking-wide">{kpsh}</span>
+      <div className="flex items-baseline gap-2">
+        <span className="text-text-secondary">КПШ</span>
+        <span className="font-display tracking-wide">{kpsh}</span>
+      </div>
 
-      <span className="text-text-secondary">Сред.вес</span>
-      <span className="col-span-2 font-display tracking-wide">{avgWeight} кг</span>
+      <div className="flex items-baseline gap-2">
+        <span className="text-text-secondary">Сред.вес</span>
+        <span className="font-display tracking-wide">{avgWeight} кг</span>
+      </div>
 
-      <span className="text-text-secondary">Интенсивность</span>
-      <span className={`col-span-2 font-display tracking-wide ${zoneClass(relativeIntensity)}`}>
-        {Math.round(relativeIntensity * 100)}%
-      </span>
+      <div className="flex items-baseline gap-2">
+        <span className="text-text-secondary">Интенсивность</span>
+        <span className={`font-display tracking-wide ${zoneClass(relativeIntensity)}`}>
+          {Math.round(relativeIntensity * 100)}%
+        </span>
+      </div>
 
-      <span className="text-text-secondary">КО</span>
-      <span className="col-span-2 font-display tracking-wide">{loadCoefficient}</span>
+      <div className="flex items-baseline gap-2">
+        <span className="text-text-secondary">КО</span>
+        <span className="font-display tracking-wide">{loadCoefficient}</span>
+      </div>
 
-      <span className="text-text-secondary">Индекс усталости</span>
-      <span className="col-span-2 font-display tracking-wide">
-        {fatigueIndex ?? '—'}
-        {sessionType && (
-          <span className="ml-1 text-xs text-text-secondary">
-            ({sessionType === 'heavy' ? 'тяжёлая' : 'лёгкая'})
-          </span>
-        )}
-      </span>
+      <div className="flex items-baseline gap-2">
+        <span className="text-text-secondary">Индекс усталости</span>
+        <span className="font-display tracking-wide">
+          {fatigueIndex ?? '—'}
+          {sessionType && (
+            <span className="ml-1 text-xs text-text-secondary">
+              ({sessionType === 'heavy' ? 'тяжёлая' : 'лёгкая'})
+            </span>
+          )}
+        </span>
+      </div>
     </div>
   )
 }
