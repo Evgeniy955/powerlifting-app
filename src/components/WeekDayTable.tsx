@@ -150,11 +150,11 @@ export function WeekDayTable({ workout, rpeTable }: Props) {
               <th className="sticky left-0 z-10 bg-surface-2 px-2 py-1 text-left font-bold">
                 Упражнение
               </th>
-              {Array.from({ length: maxSets }).map((_, i) => (
-                <th key={i} className="px-1 py-1 text-center font-bold">
-                  {i + 1}
+              {maxSets > 0 && (
+                <th colSpan={maxSets} className="px-1 py-1 text-center font-bold">
+                  Подходы
                 </th>
-              ))}
+              )}
               <th className="px-1 py-1" />
               <th className="px-1.5 py-1 text-right font-bold">Тонн</th>
               <th className="px-1.5 py-1 text-right font-bold">Срвес</th>
