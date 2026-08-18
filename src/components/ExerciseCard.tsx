@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
-import { Plus } from 'lucide-react'
+import { Ban, Plus } from 'lucide-react'
 import { SetRow, type SetValue } from './SetRow'
 import { MetricsBadge } from './MetricsBadge'
 import { Card } from '@/components/ui'
@@ -11,6 +11,9 @@ import type { RpePoint } from '@/lib/rpe'
 export type ExerciseEntryData = {
   id: string
   multiplier: number
+  // Athlete didn't get to this exercise (ran out of time, gym was busy, etc.) —
+  // distinct from just having no sets logged yet.
+  skipped: boolean
   exercise: {
     id: string
     name: string
@@ -31,7 +34,18 @@ type Props = {
 // No auto-fill of new sets — they start empty by design.
 export function ExerciseCard({ entry, rpeTable }: Props) {
   const [sets, setSets] = useState<SetValue[]>(entry.sets)
+  const [skipped, setSkipped] = useState(entry.skipped)
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+
+  async function toggleSkipped() {
+    const next = !skipped
+    setSkipped(next)
+    await fetch(`/api/exercise-entries/${entry.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ skipped: next }),
+    })
+  }
 
   const metrics = useMemo(
     () =>
@@ -92,12 +106,32 @@ export function ExerciseCard({ entry, rpeTable }: Props) {
   }
 
   return (
-    <Card className="space-y-3 animate-slide-up">
-      <div className="flex items-baseline justify-between">
-        <h3 className="font-display text-base uppercase tracking-wide">{entry.exercise.name}</h3>
-        {entry.oneRepMax === null && (
+    <Card className={`space-y-3 animate-slide-up ${skipped ? 'opacity-60' : ''}`}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={toggleSkipped}
+            aria-pressed={skipped}
+            title={skipped ? 'Отметить как выполненное' : 'Отметить как пропущенное'}
+            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors ${
+              skipped
+                ? 'border-danger bg-danger text-on-danger'
+                : 'border-border bg-surface-2 text-text-secondary hover:border-danger hover:text-danger'
+            }`}
+          >
+            <Ban className="h-3.5 w-3.5" />
+          </button>
+          <h3
+            className={`font-display text-base uppercase tracking-wide ${skipped ? 'line-through' : ''}`}
+          >
+            {entry.exercise.name}
+          </h3>
+        </div>
+        {entry.oneRepMax === null && !skipped && (
           <span className="text-xs text-zone-moderate">1ПМ не задан</span>
         )}
+        {skipped && <span className="text-xs text-danger">Пропущено</span>}
       </div>
 
       <div>
