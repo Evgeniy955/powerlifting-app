@@ -242,13 +242,13 @@ export function WeekDayTable({ workout, rpeTable, athleteId, canEditOneRepMax }:
                         >
                           <X className="h-3 w-3" />
                         </button>
-                        <div
-                          className={`flex flex-col items-center gap-0.5 ${set.completed ? 'opacity-70' : ''}`}
-                        >
+                        <div className="flex flex-col items-center gap-0.5">
                           {/* Set-number pill doubles as the "done" toggle (swaps to a
                               checkmark when tapped) — sits in normal flow above the
                               weight input instead of overlapping it, and gives a
-                              properly sized tap target on mobile. */}
+                              properly sized tap target on mobile. Kept at full opacity
+                              even when completed (the rest of the row dims below) so
+                              the done state stays the brightest thing in the row. */}
                           <button
                             type="button"
                             onClick={() =>
@@ -258,39 +258,43 @@ export function WeekDayTable({ workout, rpeTable, athleteId, canEditOneRepMax }:
                             aria-label={`Подход ${i + 1}${set.completed ? ' выполнен, нажмите чтобы снять отметку' : ', нажмите чтобы отметить выполненным'}`}
                             className={`flex h-5 w-16 items-center justify-center rounded border text-[10px] font-medium transition-colors ${
                               set.completed
-                                ? 'border-accent bg-accent text-on-accent'
+                                ? 'border-accent bg-accent text-on-accent shadow-[0_0_8px_-1px_var(--color-accent)]'
                                 : 'border-border bg-surface-2 text-text-secondary hover:border-accent hover:text-accent'
                             }`}
                           >
                             {set.completed ? <Check className="h-3 w-3" /> : i + 1}
                           </button>
-                          <input
-                            type="number"
-                            inputMode="decimal"
-                            value={set.weight || ''}
-                            onChange={(e) =>
-                              updateSetLocally(entry.id, set.id, {
-                                weight: parseFloat(e.target.value) || 0,
-                              })
-                            }
-                            className={`w-16 min-w-0 rounded border px-0.5 py-0.5 text-center text-sm font-bold text-accent outline-none focus:border-accent focus:ring-1 focus:ring-accent ${set.completed ? 'border-zone-low bg-surface-3' : 'border-border bg-surface-2'}`}
-                          />
-                          <input
-                            type="number"
-                            inputMode="numeric"
-                            value={set.reps || ''}
-                            onChange={(e) =>
-                              updateSetLocally(entry.id, set.id, {
-                                reps: parseInt(e.target.value, 10) || 0,
-                              })
-                            }
-                            className={`w-16 min-w-0 rounded border px-0.5 py-0.5 text-center text-sm text-text-secondary outline-none focus:border-accent focus:ring-1 focus:ring-accent ${set.completed ? 'border-zone-low bg-surface-3' : 'border-border bg-surface-2'}`}
-                          />
-                          <span
-                            className={`text-xs ${pct !== null ? zoneClass(pct) : 'text-text-secondary'}`}
+                          <div
+                            className={`flex flex-col items-center gap-0.5 ${set.completed ? 'opacity-70' : ''}`}
                           >
-                            {pct !== null ? `${Math.round(pct * 100)}%` : '—'}
-                          </span>
+                            <input
+                              type="number"
+                              inputMode="decimal"
+                              value={set.weight || ''}
+                              onChange={(e) =>
+                                updateSetLocally(entry.id, set.id, {
+                                  weight: parseFloat(e.target.value) || 0,
+                                })
+                              }
+                              className={`w-16 min-w-0 rounded border px-0.5 py-0.5 text-center text-sm font-bold text-accent outline-none focus:border-accent focus:ring-1 focus:ring-accent ${set.completed ? 'border-zone-low bg-surface-3' : 'border-border bg-surface-2'}`}
+                            />
+                            <input
+                              type="number"
+                              inputMode="numeric"
+                              value={set.reps || ''}
+                              onChange={(e) =>
+                                updateSetLocally(entry.id, set.id, {
+                                  reps: parseInt(e.target.value, 10) || 0,
+                                })
+                              }
+                              className={`w-16 min-w-0 rounded border px-0.5 py-0.5 text-center text-sm text-text-secondary outline-none focus:border-accent focus:ring-1 focus:ring-accent ${set.completed ? 'border-zone-low bg-surface-3' : 'border-border bg-surface-2'}`}
+                            />
+                            <span
+                              className={`text-xs ${pct !== null ? zoneClass(pct) : 'text-text-secondary'}`}
+                            >
+                              {pct !== null ? `${Math.round(pct * 100)}%` : '—'}
+                            </span>
+                          </div>
                         </div>
                       </td>
                     )
