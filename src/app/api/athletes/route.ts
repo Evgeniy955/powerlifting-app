@@ -5,10 +5,16 @@ import { requireCoach, statusForAuthError } from '@/lib/session'
 // The powerlifting "total" — classic squat, paused bench, classic deadlift.
 // Matched by exact ExerciseCatalog name rather than a hardcoded id, so it
 // still works after a reseed (new uuids) as long as the names stay the same.
+//
+// Deadlift is "Тяга классика", not the generic seeded "Становая тяга" — the
+// coach's actual training log never uses that name (checked: zero Athlete1RM
+// rows reference it, for any athlete). "Тяга классика" is the one they
+// actually log against, the same way "Приседание" (vs. "Приседание сумо") is
+// the classic-stance squat.
 const MAIN_LIFT_NAMES = {
   squat: 'Приседание',
   bench: 'Жим лежа с паузой',
-  deadlift: 'Становая тяга',
+  deadlift: 'Тяга классика',
 } as const
 
 // GET /api/athletes — list athletes attached to the signed-in coach, each with
