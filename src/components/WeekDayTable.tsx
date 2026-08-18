@@ -29,14 +29,20 @@ export type WeekWorkoutData = {
 type Props = {
   workout: WeekWorkoutData
   rpeTable: RpePoint[]
+  athleteId: string
+  // 1RM is athlete-wide (not per-day), and the API that upserts it is coach-only —
+  // athletes viewing their own week see the value read-only, same as before.
+  canEditOneRepMax: boolean
 }
 
 // Spreadsheet-dense day view — one compact table per day instead of a stack of
 // full-height exercise cards, so a coach can scan (or edit) an entire week
 // without endless scrolling. Mirrors the source Excel layout this app replaced:
 // exercise rows, one narrow column per set (weight/reps/%1RM), totals on the
-// right (Тоннаж/Сред.вес/Инт%/ПМ/КПШ/КО), a day-totals row at the bottom.
-export function WeekDayTable({ workout, rpeTable }: Props) {
+// right (Тоннаж/Сред.вес/Инт%/ПМ/КПШ/КО), a day-totals row at the bottom. The ПМ
+// column is highlighted (bg-accent-2) and, for a coach, editable — it's the one
+// figure everything else on the row (%1RM, Инт%, КО) is computed from.
+export function WeekDayTable({ workout, rpeTable, athleteId, canEditOneRepMax }: Props) {
   const [entries, setEntries] = useState<ExerciseEntryData[]>(workout.exerciseEntries)
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
@@ -100,6 +106,21 @@ export function WeekDayTable({ workout, rpeTable }: Props) {
     setEntries((prev) =>
       prev.map((e) => (e.id === entryId ? { ...e, sets: [...e.sets, newSet] } : e))
     )
+  }
+
+  function updateOneRepMaxLocally(entryId: string, exerciseId: string, value: number) {
+    setEntries((prev) => prev.map((e) => (e.id === entryId ? { ...e, oneRepMax: value } : e)))
+
+    const key = `1rm-${entryId}`
+    if (saveTimers.current[key]) clearTimeout(saveTimers.current[key])
+    if (value <= 0) return // API requires value > 0 — let the coach keep typing
+    saveTimers.current[key] = setTimeout(() => {
+      fetch(`/api/athletes/${athleteId}/one-rep-max`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ exerciseId, value }),
+      })
+    }, 400)
   }
 
   async function removeSet(entryId: string, setId: string) {
@@ -255,7 +276,27 @@ export function WeekDayTable({ workout, rpeTable }: Props) {
                   <td className={`px-1.5 py-1 text-right align-top ${zoneClass(m.relativeIntensity)}`}>
                     {Math.round(m.relativeIntensity * 100)}%
                   </td>
-                  <td className="px-1.5 py-1 text-right align-top">{entry.oneRepMax ?? '—'}</td>
+                  <td className="px-1.5 py-1 text-right align-top">
+                    {canEditOneRepMax ? (
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        value={entry.oneRepMax || ''}
+                        onChange={(e) =>
+                          updateOneRepMaxLocally(
+                            entry.id,
+                            entry.exercise.id,
+                            parseFloat(e.target.value) || 0
+                          )
+                        }
+                        className="w-14 min-w-0 rounded border-none bg-accent-2 px-1 py-0.5 text-center text-sm font-bold text-on-accent-2 outline-none focus:ring-1 focus:ring-accent"
+                      />
+                    ) : (
+                      <span className="rounded bg-accent-2 px-1.5 py-0.5 font-bold text-on-accent-2">
+                        {entry.oneRepMax ?? '—'}
+                      </span>
+                    )}
+                  </td>
                   <td className="px-1.5 py-1 text-right align-top">{m.kpsh}</td>
                   <td className="px-1.5 py-1 text-right align-top">{m.loadCoefficient}</td>
                 </tr>
