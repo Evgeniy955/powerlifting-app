@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { CalendarDays } from 'lucide-react'
 import { Button, Dialog, Input, useToast } from '@/components/ui'
@@ -45,6 +45,19 @@ export function CreatePlanDialog({ athleteId }: Props) {
   const [weekdays, setWeekdays] = useState<number[]>([1, 3, 5])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const dateInputRef = useRef<HTMLInputElement>(null)
+
+  function openDatePicker() {
+    // showPicker() is the only way to open the native date picker
+    // programmatically; not in older Safari, so fall back to focusing the
+    // (invisible-icon but still real) input, which at least lets keyboard/
+    // click-to-type work.
+    if (typeof dateInputRef.current?.showPicker === 'function') {
+      dateInputRef.current.showPicker()
+    } else {
+      dateInputRef.current?.focus()
+    }
+  }
 
   function toggleWeekday(value: number) {
     setWeekdays((prev) =>
@@ -109,14 +122,19 @@ export function CreatePlanDialog({ athleteId }: Props) {
                 hidden (still fully clickable, just invisible) and replaced
                 with our own icon below the field instead of inside it. */}
             <Input
+              ref={dateInputRef}
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
               className="mt-1 w-full [&::-webkit-calendar-picker-indicator]:opacity-0"
             />
-            <span className="mt-1 flex items-center gap-1">
+            <button
+              type="button"
+              onClick={openDatePicker}
+              className="mt-1 flex items-center gap-1 text-text-secondary transition-colors hover:text-accent"
+            >
               <CalendarDays className="h-3.5 w-3.5" />
-            </span>
+            </button>
           </label>
           <label className="block text-xs text-text-secondary">
             Недель
