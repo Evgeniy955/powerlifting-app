@@ -196,7 +196,7 @@ export function WeekDayTable({ workout, rpeTable, athleteId, canEditOneRepMax }:
             </tr>
           </thead>
           <tbody>
-            {entries.map((entry) => {
+            {entries.map((entry, index) => {
               const m = perEntryMetrics.get(entry.id)!
               return (
                 <tr
@@ -221,6 +221,7 @@ export function WeekDayTable({ workout, rpeTable, athleteId, canEditOneRepMax }:
                         <Ban className="h-2.5 w-2.5" />
                       </button>
                       <span className={`truncate ${entry.skipped ? 'line-through' : ''}`}>
+                        <span className="text-text-secondary">{index + 1}. </span>
                         {entry.exercise.name}
                         {entry.multiplier !== 1 && (
                           <span className="ml-1 text-text-secondary">×{entry.multiplier}</span>
