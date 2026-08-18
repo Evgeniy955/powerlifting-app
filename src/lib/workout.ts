@@ -32,13 +32,32 @@ export async function getWorkoutForDisplay(workoutId: string) {
     : []
   const oneRepMaxByExercise = new Map(oneRepMaxes.map((rm) => [rm.exerciseId, rm.value]))
 
+  // Sibling days in the same microcycle, for prev/next navigation on the day
+  // page — ordered by dayNumber (not creation order), same reasoning as
+  // prevWeek/nextWeek below: stays correct even if days were created out of
+  // order (e.g. via import).
+  const siblingDays = await prisma.workout.findMany({
+    where: { microcycleId: workout.microcycleId },
+    orderBy: { dayNumber: 'asc' },
+    select: { id: true, dayNumber: true, scheduledDate: true },
+  })
+  const currentDayIndex = siblingDays.findIndex((w) => w.id === workout.id)
+  const prevDay = currentDayIndex > 0 ? siblingDays[currentDayIndex - 1] : null
+  const nextDay =
+    currentDayIndex >= 0 && currentDayIndex < siblingDays.length - 1
+      ? siblingDays[currentDayIndex + 1]
+      : null
+
   return {
     id: workout.id,
     scheduledDate: workout.scheduledDate,
     dayNumber: workout.dayNumber,
     weekNumber: workout.microcycle.weekNumber,
+    microcycleId: workout.microcycleId,
     athleteId,
     cycleId: workout.microcycle.cycleId,
+    prevDay,
+    nextDay,
     exerciseEntries: workout.exerciseEntries.map((entry) => ({
       id: entry.id,
       orderIndex: entry.orderIndex,

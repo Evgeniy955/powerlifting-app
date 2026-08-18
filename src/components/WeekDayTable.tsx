@@ -1,7 +1,8 @@
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
-import { Ban, Check, Plus, X } from 'lucide-react'
+import Link from 'next/link'
+import { Ban, Check, ChevronRight, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { ExerciseAutocomplete, type ExerciseOption } from './ExerciseAutocomplete'
 import type { ExerciseEntryData } from './ExerciseCard'
 import { computeExerciseMetrics, aggregateMetrics } from '@/lib/metrics'
@@ -45,6 +46,12 @@ type Props = {
 export function WeekDayTable({ workout, rpeTable, athleteId, canEditOneRepMax }: Props) {
   const [entries, setEntries] = useState<ExerciseEntryData[]>(workout.exerciseEntries)
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+
+  // Inline "which exercise + Множ" editor — only one row at a time, so a single
+  // id/draft pair is enough rather than per-row state.
+  const [editingEntryId, setEditingEntryId] = useState<string | null>(null)
+  const [draftExercise, setDraftExercise] = useState<ExerciseOption | null>(null)
+  const [draftMultiplier, setDraftMultiplier] = useState(1)
 
   const date = new Date(workout.scheduledDate)
   const weekday = WEEKDAY_SHORT[date.getUTCDay()]
@@ -132,6 +139,38 @@ export function WeekDayTable({ workout, rpeTable, athleteId, canEditOneRepMax }:
     })
   }
 
+  // Removes this exercise from the day's plan (ExerciseEntry + its sets) — not
+  // the ExerciseCatalog entry, which stays intact for every other day/athlete.
+  async function removeExercise(entryId: string, exerciseName: string) {
+    if (!window.confirm(`Убрать «${exerciseName}» из плана на этот день?`)) return
+    setEntries((prev) => prev.filter((e) => e.id !== entryId))
+    await fetch(`/api/exercise-entries/${entryId}`, { method: 'DELETE' })
+  }
+
+  function startEditingExercise(entry: ExerciseEntryData) {
+    setEditingEntryId(entry.id)
+    setDraftExercise(null)
+    setDraftMultiplier(entry.multiplier)
+  }
+
+  async function saveExerciseEdit(entryId: string) {
+    const current = entries.find((e) => e.id === entryId)
+    if (!current) return
+    const nextExercise = draftExercise ?? current.exercise
+    const nextMultiplier = draftMultiplier
+    setEntries((prev) =>
+      prev.map((e) =>
+        e.id === entryId ? { ...e, exercise: nextExercise, multiplier: nextMultiplier } : e
+      )
+    )
+    setEditingEntryId(null)
+    await fetch(`/api/exercise-entries/${entryId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ exerciseId: nextExercise.id, multiplier: nextMultiplier }),
+    })
+  }
+
   async function removeSet(entryId: string, setId: string) {
     setEntries((prev) =>
       prev.map((e) => (e.id === entryId ? { ...e, sets: e.sets.filter((s) => s.id !== setId) } : e))
@@ -168,13 +207,28 @@ export function WeekDayTable({ workout, rpeTable, athleteId, canEditOneRepMax }:
   const totalCols = maxSets + 8 // name + N sets + add-set + 6 metric columns
 
   return (
-    <div className="animate-slide-up overflow-hidden rounded-xl border border-border bg-surface">
-      <div className="flex items-baseline gap-2 border-b border-border bg-accent px-3 py-1.5 text-on-accent">
-        <span className="font-display text-base uppercase tracking-wide">{weekday}</span>
-        <span className="text-sm opacity-90">{dateLabel}</span>
-      </div>
+    // NOTE: overflow-hidden lives on the inner wrapper below (header + scrolling
+    // table only), not here. It used to sit on this outer div, which meant the
+    // "Добавить упражнение..." autocomplete's dropdown — anchored right at the
+    // bottom edge of this card — got clipped to zero height the instant it
+    // opened. It only needs to clip the accent-colored header bar and the
+    // horizontally-scrolling table to the card's rounded corners; the footer
+    // has no bg of its own to clip.
+    <div className="animate-slide-up rounded-xl border border-border bg-surface">
+      <div className="overflow-hidden rounded-t-xl">
+        <Link
+          href={`/workout/${workout.id}`}
+          className="flex items-center justify-between gap-2 border-b border-border bg-accent px-3 py-1.5 text-on-accent transition-opacity hover:opacity-90"
+          title="Открыть день"
+        >
+          <span className="flex items-baseline gap-2">
+            <span className="font-display text-base uppercase tracking-wide">{weekday}</span>
+            <span className="text-sm opacity-90">{dateLabel}</span>
+          </span>
+          <ChevronRight className="h-4 w-4 shrink-0 opacity-75" />
+        </Link>
 
-      <div className="overflow-x-auto">
+        <div className="overflow-x-auto">
         <table className="w-full min-w-max border-collapse text-sm">
           <thead>
             <tr className="border-b border-border bg-surface-2 text-text-secondary">
@@ -196,36 +250,96 @@ export function WeekDayTable({ workout, rpeTable, athleteId, canEditOneRepMax }:
             </tr>
           </thead>
           <tbody>
-            {entries.map((entry) => {
+            {entries.map((entry, index) => {
               const m = perEntryMetrics.get(entry.id)!
               return (
                 <tr
                   key={entry.id}
                   className={`border-b border-border last:border-b-0 ${entry.skipped ? 'opacity-50' : ''}`}
                 >
-                  <td className="sticky left-0 z-10 max-w-[10rem] bg-surface px-2 py-1 font-medium">
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => toggleSkipped(entry.id, !entry.skipped)}
-                        aria-pressed={entry.skipped}
-                        title={
-                          entry.skipped ? 'Отметить как выполненное' : 'Отметить как пропущенное'
-                        }
-                        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors ${
-                          entry.skipped
-                            ? 'border-danger bg-danger text-on-danger'
-                            : 'border-border bg-surface-2 text-text-secondary hover:border-danger hover:text-danger'
-                        }`}
-                      >
-                        <Ban className="h-2.5 w-2.5" />
-                      </button>
-                      <span className={`truncate ${entry.skipped ? 'line-through' : ''}`}>
-                        {entry.exercise.name}
-                        {entry.multiplier !== 1 && (
-                          <span className="ml-1 text-text-secondary">×{entry.multiplier}</span>
-                        )}
-                      </span>
+                  <td className="sticky left-0 z-10 w-40 max-w-[10rem] bg-surface px-2 py-1 font-medium align-top">
+                    <div className="flex w-full flex-col items-start gap-0.5">
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => toggleSkipped(entry.id, !entry.skipped)}
+                          aria-pressed={entry.skipped}
+                          title={
+                            entry.skipped ? 'Отметить как выполненное' : 'Отметить как пропущенное'
+                          }
+                          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors ${
+                            entry.skipped
+                              ? 'border-danger bg-danger text-on-danger'
+                              : 'border-border bg-surface-2 text-text-secondary hover:border-danger hover:text-danger'
+                          }`}
+                        >
+                          <Ban className="h-2.5 w-2.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => startEditingExercise(entry)}
+                          aria-label="Редактировать упражнение"
+                          title="Редактировать упражнение"
+                          className="flex h-4 w-4 shrink-0 items-center justify-center text-text-secondary transition-colors hover:text-accent"
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeExercise(entry.id, entry.exercise.name)}
+                          aria-label="Убрать упражнение из плана"
+                          title="Убрать упражнение из плана"
+                          className="flex h-4 w-4 shrink-0 items-center justify-center text-text-secondary transition-colors hover:text-danger"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                      {editingEntryId === entry.id ? (
+                        <div className="flex w-full flex-col gap-1 rounded border border-border bg-surface-2 p-1">
+                          <ExerciseAutocomplete
+                            onSelect={setDraftExercise}
+                            placeholder={draftExercise?.name ?? entry.exercise.name}
+                          />
+                          <div className="flex items-center gap-1">
+                            <label className="flex items-center gap-1 text-[10px] text-text-secondary">
+                              Множ
+                              <input
+                                type="number"
+                                inputMode="decimal"
+                                value={draftMultiplier}
+                                onChange={(e) => setDraftMultiplier(parseFloat(e.target.value) || 1)}
+                                className="w-10 min-w-0 rounded border border-border bg-surface px-0.5 py-0.5 text-center text-xs"
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => saveExerciseEdit(entry.id)}
+                              aria-label="Сохранить"
+                              title="Сохранить"
+                              className="ml-auto text-accent transition-colors hover:text-accent-2"
+                            >
+                              <Check className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingEntryId(null)}
+                              aria-label="Отменить"
+                              title="Отменить"
+                              className="text-text-secondary transition-colors hover:text-danger"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <span className={`block w-full break-words ${entry.skipped ? 'line-through' : ''}`}>
+                          <span className="text-text-secondary">{index + 1}. </span>
+                          {entry.exercise.name}
+                          {entry.multiplier !== 1 && (
+                            <span className="ml-1 text-text-secondary">×{entry.multiplier}</span>
+                          )}
+                        </span>
+                      )}
                     </div>
                   </td>
                   {Array.from({ length: maxSets }).map((_, i) => {
@@ -241,13 +355,13 @@ export function WeekDayTable({ workout, rpeTable, athleteId, canEditOneRepMax }:
                         >
                           <X className="h-3 w-3" />
                         </button>
-                        <div
-                          className={`flex flex-col items-center gap-0.5 ${set.completed ? 'opacity-70' : ''}`}
-                        >
+                        <div className="flex flex-col items-center gap-0.5">
                           {/* Set-number pill doubles as the "done" toggle (swaps to a
                               checkmark when tapped) — sits in normal flow above the
                               weight input instead of overlapping it, and gives a
-                              properly sized tap target on mobile. */}
+                              properly sized tap target on mobile. Kept at full opacity
+                              even when completed (the rest of the row dims below) so
+                              the done state stays the brightest thing in the row. */}
                           <button
                             type="button"
                             onClick={() =>
@@ -257,39 +371,43 @@ export function WeekDayTable({ workout, rpeTable, athleteId, canEditOneRepMax }:
                             aria-label={`Подход ${i + 1}${set.completed ? ' выполнен, нажмите чтобы снять отметку' : ', нажмите чтобы отметить выполненным'}`}
                             className={`flex h-5 w-16 items-center justify-center rounded border text-[10px] font-medium transition-colors ${
                               set.completed
-                                ? 'border-accent bg-accent text-on-accent'
+                                ? 'border-accent bg-accent text-on-accent shadow-[0_0_8px_-1px_var(--color-accent)]'
                                 : 'border-border bg-surface-2 text-text-secondary hover:border-accent hover:text-accent'
                             }`}
                           >
                             {set.completed ? <Check className="h-3 w-3" /> : i + 1}
                           </button>
-                          <input
-                            type="number"
-                            inputMode="decimal"
-                            value={set.weight || ''}
-                            onChange={(e) =>
-                              updateSetLocally(entry.id, set.id, {
-                                weight: parseFloat(e.target.value) || 0,
-                              })
-                            }
-                            className={`w-16 min-w-0 rounded border px-0.5 py-0.5 text-center text-sm font-bold text-accent outline-none focus:border-accent focus:ring-1 focus:ring-accent ${set.completed ? 'border-zone-low bg-surface-3' : 'border-border bg-surface-2'}`}
-                          />
-                          <input
-                            type="number"
-                            inputMode="numeric"
-                            value={set.reps || ''}
-                            onChange={(e) =>
-                              updateSetLocally(entry.id, set.id, {
-                                reps: parseInt(e.target.value, 10) || 0,
-                              })
-                            }
-                            className={`w-16 min-w-0 rounded border px-0.5 py-0.5 text-center text-sm text-text-secondary outline-none focus:border-accent focus:ring-1 focus:ring-accent ${set.completed ? 'border-zone-low bg-surface-3' : 'border-border bg-surface-2'}`}
-                          />
-                          <span
-                            className={`text-xs ${pct !== null ? zoneClass(pct) : 'text-text-secondary'}`}
+                          <div
+                            className={`flex flex-col items-center gap-0.5 ${set.completed ? 'opacity-70' : ''}`}
                           >
-                            {pct !== null ? `${Math.round(pct * 100)}%` : '—'}
-                          </span>
+                            <input
+                              type="number"
+                              inputMode="decimal"
+                              value={set.weight || ''}
+                              onChange={(e) =>
+                                updateSetLocally(entry.id, set.id, {
+                                  weight: parseFloat(e.target.value) || 0,
+                                })
+                              }
+                              className={`w-16 min-w-0 rounded border px-0.5 py-0.5 text-center text-sm font-bold text-accent outline-none focus:border-accent focus:ring-1 focus:ring-accent ${set.completed ? 'border-zone-low bg-surface-3' : 'border-border bg-surface-2'}`}
+                            />
+                            <input
+                              type="number"
+                              inputMode="numeric"
+                              value={set.reps || ''}
+                              onChange={(e) =>
+                                updateSetLocally(entry.id, set.id, {
+                                  reps: parseInt(e.target.value, 10) || 0,
+                                })
+                              }
+                              className={`w-16 min-w-0 rounded border px-0.5 py-0.5 text-center text-sm text-text-secondary outline-none focus:border-accent focus:ring-1 focus:ring-accent ${set.completed ? 'border-zone-low bg-surface-3' : 'border-border bg-surface-2'}`}
+                            />
+                            <span
+                              className={`text-xs ${pct !== null ? zoneClass(pct) : 'text-text-secondary'}`}
+                            >
+                              {pct !== null ? `${Math.round(pct * 100)}%` : '—'}
+                            </span>
+                          </div>
                         </div>
                       </td>
                     )
@@ -358,6 +476,7 @@ export function WeekDayTable({ workout, rpeTable, athleteId, canEditOneRepMax }:
             </tr>
           </tbody>
         </table>
+        </div>
       </div>
 
       <div className="border-t border-border p-2">

@@ -23,7 +23,9 @@ type Props = {
 // previous set) and only reports changes upward — the parent owns debounced saving.
 export function SetRow({ set, percentOf1rm, rpe, onChange, onRemove }: Props) {
   return (
-    <div className={`flex items-center gap-2 py-1 ${set.completed ? 'opacity-70' : ''}`}>
+    <div className="flex items-center gap-2 py-1">
+      {/* Kept at full opacity even when completed (the rest of the row dims
+          below) so the done state stays the brightest thing in the row. */}
       <button
         type="button"
         onClick={() => onChange(set.id, { completed: !set.completed })}
@@ -31,42 +33,44 @@ export function SetRow({ set, percentOf1rm, rpe, onChange, onRemove }: Props) {
         aria-label={`Подход ${set.setNumber}${set.completed ? ' выполнен, нажмите чтобы снять отметку' : ', нажмите чтобы отметить выполненным'}`}
         className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border text-sm font-medium transition-colors ${
           set.completed
-            ? 'border-accent bg-accent text-on-accent'
+            ? 'border-accent bg-accent text-on-accent shadow-[0_0_10px_-1px_var(--color-accent)]'
             : 'border-border bg-surface-2 text-text-secondary hover:border-accent hover:text-accent'
         }`}
       >
         {set.completed ? <Check className="h-4 w-4" /> : set.setNumber}
       </button>
 
-      <Input
-        type="number"
-        inputMode="decimal"
-        placeholder="Вес"
-        value={set.weight || ''}
-        onChange={(e) => onChange(set.id, { weight: parseFloat(e.target.value) || 0 })}
-        fieldSize="sm"
-        className="w-20 font-bold text-accent"
-      />
+      <div className={`flex items-center gap-2 ${set.completed ? 'opacity-70' : ''}`}>
+        <Input
+          type="number"
+          inputMode="decimal"
+          placeholder="Вес"
+          value={set.weight || ''}
+          onChange={(e) => onChange(set.id, { weight: parseFloat(e.target.value) || 0 })}
+          fieldSize="sm"
+          className="w-20 font-bold text-accent"
+        />
 
-      <span className="text-text-secondary">×</span>
+        <span className="text-text-secondary">×</span>
 
-      <Input
-        type="number"
-        inputMode="numeric"
-        placeholder="Повт"
-        value={set.reps || ''}
-        onChange={(e) => onChange(set.id, { reps: parseInt(e.target.value, 10) || 0 })}
-        fieldSize="sm"
-        className="w-16 text-text-secondary"
-      />
+        <Input
+          type="number"
+          inputMode="numeric"
+          placeholder="Повт"
+          value={set.reps || ''}
+          onChange={(e) => onChange(set.id, { reps: parseInt(e.target.value, 10) || 0 })}
+          fieldSize="sm"
+          className="w-16 text-text-secondary"
+        />
 
-      <span className="w-12 text-sm text-text-secondary">
-        {percentOf1rm !== null ? `${Math.round(percentOf1rm * 100)}%` : '—'}
-      </span>
+        <span className="w-12 text-sm text-text-secondary">
+          {percentOf1rm !== null ? `${Math.round(percentOf1rm * 100)}%` : '—'}
+        </span>
 
-      <span className="w-10 text-sm text-accent" title="ИУ (RPE)">
-        {rpe !== null ? rpe : '—'}
-      </span>
+        <span className="w-10 text-sm text-accent" title="ИУ (RPE)">
+          {rpe !== null ? rpe : '—'}
+        </span>
+      </div>
 
       <button
         onClick={() => onRemove(set.id)}

@@ -45,7 +45,12 @@ export function ExerciseAutocomplete({ onSelect, placeholder }: Props) {
         className="w-full"
       />
       {open && options.length > 0 && (
-        <ul className="absolute z-10 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-border bg-surface shadow-elevated animate-scale-in">
+        // z-30, not z-10: WeekDayTable's sticky first column also sits at z-10,
+        // and on the week page every day is a sibling card — with equal
+        // z-index, whichever one is later in the DOM wins the tie, so a later
+        // day's sticky cells were painting over this dropdown. Needs to win
+        // outright, not by DOM-order luck.
+        <ul className="absolute z-30 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-border bg-surface shadow-elevated animate-scale-in">
           {options.map((opt) => (
             <li key={opt.id}>
               <button

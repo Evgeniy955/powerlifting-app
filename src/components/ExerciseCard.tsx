@@ -1,10 +1,11 @@
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
-import { Ban, Plus } from 'lucide-react'
+import { Ban, Check, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { SetRow, type SetValue } from './SetRow'
 import { MetricsBadge } from './MetricsBadge'
-import { Card } from '@/components/ui'
+import { ExerciseAutocomplete, type ExerciseOption } from './ExerciseAutocomplete'
+import { Card, Input } from '@/components/ui'
 import { computeExerciseMetrics } from '@/lib/metrics'
 import type { RpePoint } from '@/lib/rpe'
 
@@ -27,14 +28,31 @@ export type ExerciseEntryData = {
 type Props = {
   entry: ExerciseEntryData
   rpeTable: RpePoint[]
+  // 1-based position of this exercise within the day, for display only (e.g. "1.
+  // Приседания") — mirrors the "Порядок" numbering from the original spreadsheet.
+  // Derived from render order rather than entry.orderIndex directly, since
+  // orderIndex can have gaps/different bases depending on how the entry was
+  // created (import vs. manual add).
+  position: number
+  // Removes this exercise from the day's plan (ExerciseEntry row + its sets) —
+  // not the ExerciseCatalog entry, which stays intact for every other day/athlete.
+  onRemove: (entryId: string) => void
 }
 
 // One exercise block in the day view: dynamic set list ("+ Добавить подход"),
 // reactive metrics recomputed on every keystroke, debounced persistence to the API.
 // No auto-fill of new sets — they start empty by design.
-export function ExerciseCard({ entry, rpeTable }: Props) {
+export function ExerciseCard({ entry, rpeTable, position, onRemove }: Props) {
   const [sets, setSets] = useState<SetValue[]>(entry.sets)
   const [skipped, setSkipped] = useState(entry.skipped)
+  // Which catalog exercise this entry points to and its "Множ" multiplier —
+  // local so an edit shows up immediately without a page reload; entry itself
+  // is only the initial value from the server.
+  const [exercise, setExercise] = useState(entry.exercise)
+  const [multiplier, setMultiplier] = useState(entry.multiplier)
+  const [editing, setEditing] = useState(false)
+  const [draftExercise, setDraftExercise] = useState<ExerciseOption | null>(null)
+  const [draftMultiplier, setDraftMultiplier] = useState(entry.multiplier)
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
   async function toggleSkipped() {
@@ -47,18 +65,43 @@ export function ExerciseCard({ entry, rpeTable }: Props) {
     })
   }
 
+  async function handleRemove() {
+    if (!window.confirm(`Убрать «${exercise.name}» из плана на этот день?`)) return
+    onRemove(entry.id)
+    await fetch(`/api/exercise-entries/${entry.id}`, { method: 'DELETE' })
+  }
+
+  function startEditing() {
+    setDraftExercise(null)
+    setDraftMultiplier(multiplier)
+    setEditing(true)
+  }
+
+  async function saveEdit() {
+    const nextExercise = draftExercise ?? exercise
+    const nextMultiplier = draftMultiplier
+    setExercise(nextExercise)
+    setMultiplier(nextMultiplier)
+    setEditing(false)
+    await fetch(`/api/exercise-entries/${entry.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ exerciseId: nextExercise.id, multiplier: nextMultiplier }),
+    })
+  }
+
   const metrics = useMemo(
     () =>
       computeExerciseMetrics(
         {
           sets: sets.map((s) => ({ weight: s.weight, reps: s.reps })),
           oneRepMax: entry.oneRepMax ?? 0,
-          impactCoefficient: entry.exercise.impactCoefficient,
-          multiplier: entry.multiplier,
+          impactCoefficient: exercise.impactCoefficient,
+          multiplier,
         },
         rpeTable
       ),
-    [sets, entry.oneRepMax, entry.exercise.impactCoefficient, entry.multiplier, rpeTable]
+    [sets, entry.oneRepMax, exercise.impactCoefficient, multiplier, rpeTable]
   )
 
   // Per-set ИУ (RPE), shown next to each set. Comes straight out of the same
@@ -107,8 +150,8 @@ export function ExerciseCard({ entry, rpeTable }: Props) {
 
   return (
     <Card className={`space-y-3 animate-slide-up ${skipped ? 'opacity-60' : ''}`}>
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex min-w-0 items-start gap-2">
           <button
             type="button"
             onClick={toggleSkipped}
@@ -123,16 +166,77 @@ export function ExerciseCard({ entry, rpeTable }: Props) {
             <Ban className="h-3.5 w-3.5" />
           </button>
           <h3
-            className={`font-display text-base uppercase tracking-wide ${skipped ? 'line-through' : ''}`}
+            className={`min-w-0 break-words font-display text-base uppercase tracking-wide ${skipped ? 'line-through' : ''}`}
           >
-            {entry.exercise.name}
+            <span className="mr-1.5 text-text-secondary">{position}.</span>
+            {exercise.name}
           </h3>
         </div>
-        {entry.oneRepMax === null && !skipped && (
-          <span className="text-xs text-zone-moderate">1ПМ не задан</span>
-        )}
-        {skipped && <span className="text-xs text-danger">Пропущено</span>}
+        <div className="flex shrink-0 items-center gap-2">
+          {entry.oneRepMax === null && !skipped && (
+            <span className="text-xs text-zone-moderate">1ПМ не задан</span>
+          )}
+          {skipped && <span className="text-xs text-danger">Пропущено</span>}
+          <button
+            type="button"
+            onClick={startEditing}
+            aria-label="Редактировать упражнение"
+            title="Редактировать упражнение"
+            className="text-text-secondary transition-colors hover:text-accent"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={handleRemove}
+            aria-label="Убрать упражнение из плана"
+            title="Убрать упражнение из плана"
+            className="text-text-secondary transition-colors hover:text-danger"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
       </div>
+
+      {editing && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface-2 p-2">
+          <div className="min-w-[10rem] flex-1">
+            <ExerciseAutocomplete
+              onSelect={setDraftExercise}
+              placeholder={draftExercise?.name ?? exercise.name}
+            />
+          </div>
+          <label className="flex items-center gap-1 text-xs text-text-secondary">
+            Множ
+            <Input
+              type="number"
+              inputMode="decimal"
+              value={draftMultiplier}
+              onChange={(e) => setDraftMultiplier(parseFloat(e.target.value) || 1)}
+              fieldSize="sm"
+              className="w-16"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={saveEdit}
+            aria-label="Сохранить"
+            title="Сохранить"
+            className="text-accent transition-colors hover:text-accent-2"
+          >
+            <Check className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setEditing(false)}
+            aria-label="Отменить"
+            title="Отменить"
+            className="text-text-secondary transition-colors hover:text-danger"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       <div>
         {sets.map((set) => (

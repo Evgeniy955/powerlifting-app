@@ -57,7 +57,7 @@ export async function coachEmailToNotify(
   return coach?.email ?? null
 }
 
-export type ChangeEventKind = 'set-updated' | 'set-removed' | 'exercise-added'
+export type ChangeEventKind = 'set-updated' | 'set-removed' | 'exercise-added' | 'exercise-removed'
 
 export type ChangeEvent = {
   athleteId: string
@@ -119,6 +119,7 @@ function fieldLabel(field: ChangeEvent['field']) {
 
 function describeEvent(e: ChangeEvent): string {
   if (e.kind === 'exercise-added') return `+ Добавлено упражнение: ${e.exerciseName}`
+  if (e.kind === 'exercise-removed') return `− Удалено упражнение из плана: ${e.exerciseName}`
   if (e.kind === 'set-removed') return `− Удалён подход ${e.setNumber} (${e.exerciseName})`
   return `Подход ${e.setNumber} (${e.exerciseName}): ${fieldLabel(e.field)} ${e.before ?? '—'} → ${e.after ?? '—'}`
 }
