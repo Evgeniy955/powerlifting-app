@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { CalendarDays } from 'lucide-react'
 import { Button, Dialog, Input, useToast } from '@/components/ui'
 
 type Props = { athleteId: string }
@@ -103,12 +104,19 @@ export function CreatePlanDialog({ athleteId }: Props) {
           />
           <label className="block text-xs text-text-secondary">
             Начало
+            {/* The browser's own calendar-picker glyph sits inside the field
+                and, on narrow widths, lands right on top of the date digits —
+                hidden (still fully clickable, just invisible) and replaced
+                with our own icon below the field instead of inside it. */}
             <Input
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className="mt-1 w-full"
+              className="mt-1 w-full [&::-webkit-calendar-picker-indicator]:opacity-0"
             />
+            <span className="mt-1 flex items-center gap-1">
+              <CalendarDays className="h-3.5 w-3.5" />
+            </span>
           </label>
           <label className="block text-xs text-text-secondary">
             Недель
