@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { requireUser } from '@/lib/session'
 import { redirect } from 'next/navigation'
 import { AdminUsersView } from '@/components/AdminUsersView'
+import { AdminPendingInvites } from '@/components/AdminPendingInvites'
 
 // Coach-only role management screen. There's no separate ADMIN role in this
 // app — COACH already is the privileged tier — so this is just "who's a coach
@@ -24,8 +25,25 @@ export default async function AdminUsersPage() {
     },
   })
 
+  // Placeholder athletes with no linked user yet — invited or not — so a
+  // coach can resend (or send for the first time) without having to go find
+  // the athlete's own card on /athletes. Not scoped to the current coach,
+  // same "any coach can act on anyone" rule as the rest of this page.
+  const pendingInvites = await prisma.athleteProfile.findMany({
+    where: { userId: null },
+    orderBy: { createdAt: 'asc' },
+    select: {
+      id: true,
+      displayName: true,
+      inviteEmail: true,
+      inviteStatus: true,
+      invitedAt: true,
+      coach: { select: { name: true, email: true } },
+    },
+  })
+
   return (
-    <main className="min-h-[calc(100vh-3.5rem)] bg-bg text-text-primary p-6 max-w-md mx-auto space-y-4 lg:max-w-4xl">
+    <main className="min-h-[calc(100vh-3.5rem)] bg-bg text-text-primary p-6 max-w-md mx-auto space-y-6 lg:max-w-4xl">
       <div>
         <h1 className="font-display text-xl uppercase tracking-wide">Пользователи</h1>
         <p className="text-sm text-text-secondary">
@@ -34,6 +52,13 @@ export default async function AdminUsersPage() {
       </div>
 
       <AdminUsersView initialUsers={users} currentUserId={user.id} />
+
+      {pendingInvites.length > 0 && (
+        <div className="space-y-2">
+          <h2 className="font-display text-lg uppercase tracking-wide">Ожидают приглашения</h2>
+          <AdminPendingInvites initialInvites={pendingInvites} />
+        </div>
+      )}
     </main>
   )
 }
