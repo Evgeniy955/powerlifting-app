@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { BarChart3, CalendarDays, FileDown, FileUp, Users } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { BarChart3, FileDown, FileUp, Users } from 'lucide-react'
 import { Badge, Button, Card, Input } from '@/components/ui'
 import { EmptyState } from '@/components/EmptyState'
 import { InviteAthleteButton } from '@/components/InviteAthleteButton'
@@ -30,6 +31,7 @@ type Athlete = {
 // optional display name, no signup required yet) -> build their plan -> send
 // the invite email (InviteAthleteButton, shown until they've accepted).
 export default function AthletesPage() {
+  const router = useRouter()
   // `null` = initial list hasn't come back from the server yet (shows the loading
   // skeleton below); `[]` = loaded, genuinely no athletes yet (shows EmptyState).
   // Kept distinct so a background refresh (after adding/inviting an athlete)
@@ -85,7 +87,20 @@ export default function AthletesPage() {
         <ul className="animate-fade-in space-y-2 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0 xl:grid-cols-3">
           {athletes.map((a) => (
             <li key={a.id}>
-              <Card padding="md" className="space-y-3">
+              <Card
+                padding="md"
+                role="link"
+                tabIndex={0}
+                aria-label={`Открыть циклы: ${athleteDisplayName(a)}`}
+                onClick={() => router.push(`/athletes/${a.id}/cycles`)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    router.push(`/athletes/${a.id}/cycles`)
+                  }
+                }}
+                className="cursor-pointer space-y-3 transition-transform hover:scale-[1.01]"
+              >
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-base font-medium">{athleteDisplayName(a)}</p>
                   {a.inviteStatus === 'PENDING' && <Badge tone="moderate">Приглашение отправлено</Badge>}
@@ -114,15 +129,7 @@ export default function AthletesPage() {
                   </span>
                 </div>
 
-                <div className="flex items-center gap-3">
-                  <a
-                    href={`/athletes/${a.id}/cycles`}
-                    title="Циклы"
-                    aria-label="Циклы"
-                    className="flex h-8 w-8 items-center justify-center rounded-full bg-sky-500 text-white shadow-card transition-transform hover:scale-110 hover:brightness-110"
-                  >
-                    <CalendarDays className="h-4 w-4" />
-                  </a>
+                <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
                   <a
                     href={`/athletes/${a.id}/analytics`}
                     title="Аналитика"
@@ -149,7 +156,9 @@ export default function AthletesPage() {
                   </a>
                 </div>
                 {!a.userId && (
-                  <InviteAthleteButton athleteId={a.id} onSent={load} />
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <InviteAthleteButton athleteId={a.id} onSent={load} />
+                  </div>
                 )}
               </Card>
             </li>
