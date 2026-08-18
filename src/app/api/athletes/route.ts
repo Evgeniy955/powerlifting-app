@@ -6,20 +6,22 @@ import { requireCoach, statusForAuthError } from '@/lib/session'
 // Matched by exact ExerciseCatalog name rather than a hardcoded id, so it
 // still works after a reseed (new uuids) as long as the names stay the same.
 //
-// Deadlift is "Тяга классика", not the generic seeded "Становая тяга" — the
-// coach's actual training log never uses that name (checked: zero Athlete1RM
-// rows reference it, for any athlete). "Тяга классика" is the one they
-// actually log against, the same way "Приседание" (vs. "Приседание сумо") is
-// the classic-stance squat.
+// Deadlift is just "Тяга" — confirmed against the coach's actual log (not the
+// generic seeded "Становая тяга", which nobody's data ever references, and
+// not "Тяга классика" either).
 const MAIN_LIFT_NAMES = {
   squat: 'Приседание',
   bench: 'Жим лежа с паузой',
-  deadlift: 'Тяга классика',
+  deadlift: 'Тяга',
 } as const
 
+const TWELVE_WEEKS_MS = 12 * 7 * 24 * 60 * 60 * 1000
+
 // GET /api/athletes — list athletes attached to the signed-in coach, each with
-// their current best (Athlete1RM) in the three total lifts, plus the summed
-// total if all three are set.
+// their best logged weight in the three total lifts over the last 12 weeks
+// (not the manually-maintained Athlete1RM field, which can go stale — this
+// reflects what they've actually lifted recently), plus the summed total if
+// all three have a result in that window.
 export async function GET() {
   try {
     const coach = await requireCoach()
@@ -36,16 +38,41 @@ export async function GET() {
     const liftIdByName = new Map(mainLiftExercises.map((e) => [e.name, e.id]))
     const liftIds = mainLiftExercises.map((e) => e.id)
 
-    const oneRepMaxes =
+    const windowStart = new Date(Date.now() - TWELVE_WEEKS_MS)
+
+    const recentSets =
       athletes.length && liftIds.length
-        ? await prisma.athlete1RM.findMany({
-            where: { athleteId: { in: athletes.map((a) => a.id) }, exerciseId: { in: liftIds } },
-            select: { athleteId: true, exerciseId: true, value: true },
+        ? await prisma.setEntry.findMany({
+            where: {
+              weight: { gt: 0 },
+              exerciseEntry: {
+                exerciseId: { in: liftIds },
+                workout: {
+                  scheduledDate: { gte: windowStart },
+                  microcycle: { cycle: { athleteId: { in: athletes.map((a) => a.id) } } },
+                },
+              },
+            },
+            select: {
+              weight: true,
+              exerciseEntry: {
+                select: {
+                  exerciseId: true,
+                  workout: {
+                    select: { microcycle: { select: { cycle: { select: { athleteId: true } } } } },
+                  },
+                },
+              },
+            },
           })
         : []
-    const valueByAthleteAndExercise = new Map<string, number>()
-    for (const rm of oneRepMaxes) {
-      valueByAthleteAndExercise.set(`${rm.athleteId}:${rm.exerciseId}`, rm.value)
+
+    const bestByAthleteAndExercise = new Map<string, number>()
+    for (const set of recentSets) {
+      const athleteId = set.exerciseEntry.workout.microcycle.cycle.athleteId
+      const key = `${athleteId}:${set.exerciseEntry.exerciseId}`
+      const prev = bestByAthleteAndExercise.get(key) ?? 0
+      if (set.weight > prev) bestByAthleteAndExercise.set(key, set.weight)
     }
 
     const squatId = liftIdByName.get(MAIN_LIFT_NAMES.squat) ?? null
@@ -54,7 +81,7 @@ export async function GET() {
 
     const withMainLifts = athletes.map((athlete) => {
       const lookup = (exerciseId: string | null) =>
-        exerciseId ? (valueByAthleteAndExercise.get(`${athlete.id}:${exerciseId}`) ?? null) : null
+        exerciseId ? (bestByAthleteAndExercise.get(`${athlete.id}:${exerciseId}`) ?? null) : null
 
       const squat = lookup(squatId)
       const bench = lookup(benchId)
