@@ -58,6 +58,7 @@ model Account {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
+  @@index([userId])
 }
 
 model Session {
@@ -66,6 +67,8 @@ model Session {
   userId       String
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model VerificationToken {
@@ -99,6 +102,8 @@ model AthleteProfile {
   cycles      Cycle[]
 
   createdAt DateTime @default(now())
+
+  @@index([coachId])
 }
 
 // Reference catalog of exercises (seeded from the "Коэффициенты" sheet).
@@ -125,6 +130,7 @@ model Athlete1RM {
   updatedAt  DateTime        @updatedAt
 
   @@unique([athleteId, exerciseId])
+  @@index([exerciseId])
 }
 
 // Legacy non-linear fatigue coefficient curve from the original Excel "F" sheet.
@@ -181,6 +187,8 @@ model Workout {
   dayNumber     Int // 1..N within the microcycle
 
   exerciseEntries ExerciseEntry[]
+
+  @@index([microcycleId])
 }
 
 model ExerciseEntry {
@@ -197,6 +205,9 @@ model ExerciseEntry {
   skipped    Boolean         @default(false)
 
   sets SetEntry[]
+
+  @@index([workoutId])
+  @@index([exerciseId])
 }
 
 // Dynamic set list — replaces the Excel model's fixed 6-block columns.
@@ -212,4 +223,6 @@ model SetEntry {
   // Checked off by the coach/athlete once the set has actually been performed
   // (vs. just planned) — small checkbox next to the set number in the UI.
   completed       Boolean       @default(false)
+
+  @@index([exerciseEntryId])
 }
