@@ -21,6 +21,12 @@ type Props = {
 
 // A single set row. Deliberately starts empty when added (no auto-fill from the
 // previous set) and only reports changes upward — the parent owns debounced saving.
+//
+// The set-number badge doubles as the "done" toggle (tap it to check off the
+// set — it swaps to a checkmark) rather than a separate checkbox squeezed in
+// next to it. One fewer cramped element in an already tight mobile row, and
+// tapping "the number of the set you just finished" is a more natural gesture
+// than hunting for a tiny adjacent checkbox.
 export function SetRow({ set, percentOf1rm, rpe, onChange, onRemove }: Props) {
   return (
     <div className={`flex items-center gap-2 py-1 ${set.completed ? 'opacity-70' : ''}`}>
@@ -28,16 +34,15 @@ export function SetRow({ set, percentOf1rm, rpe, onChange, onRemove }: Props) {
         type="button"
         onClick={() => onChange(set.id, { completed: !set.completed })}
         aria-pressed={set.completed}
-        aria-label={`Подход ${set.setNumber} выполнен`}
-        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded border transition-colors ${
+        aria-label={`Подход ${set.setNumber}${set.completed ? ' выполнен, нажмите чтобы снять отметку' : ', нажмите чтобы отметить выполненным'}`}
+        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-sm font-medium transition-colors ${
           set.completed
             ? 'border-accent bg-accent text-on-accent'
-            : 'border-border bg-surface-2 text-transparent hover:border-accent'
+            : 'border-border bg-surface-2 text-text-secondary hover:border-accent hover:text-accent'
         }`}
       >
-        <Check className="h-3.5 w-3.5" />
+        {set.completed ? <Check className="h-4 w-4" /> : set.setNumber}
       </button>
-      <span className="w-4 text-text-secondary text-sm">{set.setNumber}</span>
 
       <Input
         type="number"
