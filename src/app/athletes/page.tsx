@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Users } from 'lucide-react'
+import { BarChart3, CalendarDays, FileDown, FileUp, Users } from 'lucide-react'
 import { Badge, Button, Card, Input } from '@/components/ui'
 import { EmptyState } from '@/components/EmptyState'
 import { InviteAthleteButton } from '@/components/InviteAthleteButton'
@@ -114,18 +114,38 @@ export default function AthletesPage() {
                   </span>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3 text-xs">
-                  <a href={`/athletes/${a.id}/cycles`} className="text-accent hover:underline">
-                    Циклы
+                <div className="flex items-center gap-4">
+                  <a
+                    href={`/athletes/${a.id}/cycles`}
+                    title="Циклы"
+                    aria-label="Циклы"
+                    className="text-text-secondary transition-colors hover:text-accent"
+                  >
+                    <CalendarDays className="h-4 w-4" />
                   </a>
-                  <a href={`/athletes/${a.id}/analytics`} className="text-accent hover:underline">
-                    Аналитика
+                  <a
+                    href={`/athletes/${a.id}/analytics`}
+                    title="Аналитика"
+                    aria-label="Аналитика"
+                    className="text-text-secondary transition-colors hover:text-accent"
+                  >
+                    <BarChart3 className="h-4 w-4" />
                   </a>
-                  <a href={`/api/athletes/${a.id}/export`} className="text-accent hover:underline">
-                    Экспорт в Excel
+                  <a
+                    href={`/api/athletes/${a.id}/export`}
+                    title="Экспорт в Excel"
+                    aria-label="Экспорт в Excel"
+                    className="text-text-secondary transition-colors hover:text-accent"
+                  >
+                    <FileDown className="h-4 w-4" />
                   </a>
-                  <a href={`/athletes/${a.id}/import`} className="text-accent hover:underline">
-                    Импорт из Excel
+                  <a
+                    href={`/athletes/${a.id}/import`}
+                    title="Импорт из Excel"
+                    aria-label="Импорт из Excel"
+                    className="text-text-secondary transition-colors hover:text-accent"
+                  >
+                    <FileUp className="h-4 w-4" />
                   </a>
                 </div>
                 {!a.userId && (
