@@ -95,8 +95,15 @@ export async function POST(req: NextRequest, { params }: { params: { athleteId: 
 
     for (const entry of validEntries) {
       const workoutId = workoutByDate.get(entry.date)!
-      const orderIndex = orderCounterByDate.get(entry.date) ?? 0
-      orderCounterByDate.set(entry.date, orderIndex + 1)
+      // Prefer the "Порядок" value that sat next to the exercise name in the
+      // source sheet — it's the coach's actual intended exercise sequence for
+      // that day, and isn't always the same as row order (e.g. a superset's
+      // second exercise can be listed with a lower order than the first). Rows
+      // that never had a value there (many don't) fall back to a per-date
+      // positional counter, same as before.
+      const fallback = orderCounterByDate.get(entry.date) ?? 0
+      orderCounterByDate.set(entry.date, fallback + 1)
+      const orderIndex = entry.sourceOrder ?? fallback
 
       const exerciseEntryId = randomUUID()
       exerciseEntriesData.push({

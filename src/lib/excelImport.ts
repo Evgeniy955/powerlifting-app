@@ -11,6 +11,11 @@ export type ParsedExerciseRow = {
   matchedExerciseId: string | null
   matchedExerciseName: string | null
   oneRepMax: number | null
+  // The "Порядок" value that sat next to the exercise name in the source sheet —
+  // the coach's intended exercise sequence for that day. Not always filled in for
+  // every row (many rows leave it blank), so it's nullable; import/confirm falls
+  // back to a positional counter when null.
+  sourceOrder: number | null
   sets: ParsedSet[]
 }
 
@@ -49,6 +54,18 @@ function cellNumber(cell: ExcelJS.Cell): number {
   return 0
 }
 
+// Like cellNumber, but distinguishes "blank" from "0" — the Порядок column is
+// only filled in on some rows, and 0 is not a value that ever appears there.
+function cellNumberOrNull(cell: ExcelJS.Cell): number | null {
+  const v = cell.value as unknown
+  if (typeof v === 'number') return v
+  if (typeof v === 'object' && v && 'result' in (v as Record<string, unknown>)) {
+    const r = (v as { result: unknown }).result
+    if (typeof r === 'number') return r
+  }
+  return null
+}
+
 function cellDate(cell: ExcelJS.Cell): Date | null {
   const v = cell.value as unknown
   if (v instanceof Date) return v
@@ -75,6 +92,7 @@ const TEMPO_NOTE_PATTERN = /^\d+\s*с(?:ек(?:унд[а-я]*)?)?\.?$/i
 type HeaderMap = {
   dateCol: number
   exerciseCol: number
+  orderCol: number | null
   oneRepMaxCol: number | null
   setBlocks: { weightCol: number; setsCol: number; repsCol: number }[]
 }
@@ -82,6 +100,7 @@ type HeaderMap = {
 function findHeader(row: ExcelJS.Row): HeaderMap | null {
   let dateCol = -1
   let exerciseCol = -1
+  let orderCol: number | null = null
   let oneRepMaxCol: number | null = null
   const weightCols: number[] = []
   const textByCol = new Map<number, string>()
@@ -91,6 +110,7 @@ function findHeader(row: ExcelJS.Row): HeaderMap | null {
     textByCol.set(colNumber, text)
     if (text === 'Дата') dateCol = colNumber
     if (text.startsWith('Упражн')) exerciseCol = colNumber
+    if (text === 'Порядок') orderCol = colNumber
     if (text === 'ПМ') oneRepMaxCol = colNumber
     if (text === 'Вес') weightCols.push(colNumber)
   })
@@ -103,7 +123,7 @@ function findHeader(row: ExcelJS.Row): HeaderMap | null {
 
   if (setBlocks.length === 0) return null
 
-  return { dateCol, exerciseCol, oneRepMaxCol, setBlocks }
+  return { dateCol, exerciseCol, orderCol, oneRepMaxCol, setBlocks }
 }
 
 /**
@@ -213,6 +233,7 @@ export async function parseWorkbookPreview(buffer: Buffer): Promise<ImportPrevie
       }
 
       const oneRepMax = header.oneRepMaxCol ? cellNumber(row.getCell(header.oneRepMaxCol)) : 0
+      const sourceOrder = header.orderCol ? cellNumberOrNull(row.getCell(header.orderCol)) : null
       const match = byNormalizedName.get(rawName.trim().toLowerCase())
 
       const parsed: ParsedExerciseRow = {
@@ -223,6 +244,7 @@ export async function parseWorkbookPreview(buffer: Buffer): Promise<ImportPrevie
         matchedExerciseId: match?.id ?? null,
         matchedExerciseName: match?.name ?? null,
         oneRepMax: oneRepMax > 0 ? oneRepMax : null,
+        sourceOrder,
         sets,
       }
 
