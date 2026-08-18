@@ -191,9 +191,10 @@ export function WeekDayTable({ workout, rpeTable }: Props) {
                         <div
                           className={`flex flex-col items-center gap-0.5 ${set.completed ? 'opacity-70' : ''}`}
                         >
-                          {/* "Done" checkbox toggle — sits in normal flow above the weight
-                              input instead of overlapping it, and gives a properly sized
-                              tap target on mobile. */}
+                          {/* Set-number pill doubles as the "done" toggle (swaps to a
+                              checkmark when tapped) — sits in normal flow above the
+                              weight input instead of overlapping it, and gives a
+                              properly sized tap target on mobile. */}
                           <button
                             type="button"
                             onClick={() =>
@@ -201,13 +202,13 @@ export function WeekDayTable({ workout, rpeTable }: Props) {
                             }
                             aria-pressed={set.completed}
                             aria-label={`Подход ${i + 1}${set.completed ? ' выполнен, нажмите чтобы снять отметку' : ', нажмите чтобы отметить выполненным'}`}
-                            className={`flex h-5 w-16 items-center justify-center rounded border transition-colors ${
+                            className={`flex h-5 w-16 items-center justify-center rounded border text-[10px] font-medium transition-colors ${
                               set.completed
                                 ? 'border-accent bg-accent text-on-accent'
-                                : 'border-border bg-surface-2 text-transparent hover:border-accent'
+                                : 'border-border bg-surface-2 text-text-secondary hover:border-accent hover:text-accent'
                             }`}
                           >
-                            <Check className="h-3 w-3" />
+                            {set.completed ? <Check className="h-3 w-3" /> : i + 1}
                           </button>
                           <input
                             type="number"

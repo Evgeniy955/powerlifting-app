@@ -29,13 +29,13 @@ export function SetRow({ set, percentOf1rm, rpe, onChange, onRemove }: Props) {
         onClick={() => onChange(set.id, { completed: !set.completed })}
         aria-pressed={set.completed}
         aria-label={`Подход ${set.setNumber}${set.completed ? ' выполнен, нажмите чтобы снять отметку' : ', нажмите чтобы отметить выполненным'}`}
-        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border transition-colors ${
+        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border text-sm font-medium transition-colors ${
           set.completed
             ? 'border-accent bg-accent text-on-accent'
-            : 'border-border bg-surface-2 text-transparent hover:border-accent'
+            : 'border-border bg-surface-2 text-text-secondary hover:border-accent hover:text-accent'
         }`}
       >
-        <Check className="h-4 w-4" />
+        {set.completed ? <Check className="h-4 w-4" /> : set.setNumber}
       </button>
 
       <Input
