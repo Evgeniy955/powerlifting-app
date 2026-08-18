@@ -204,7 +204,7 @@ export function WeekDayTable({ workout, rpeTable, athleteId, canEditOneRepMax }:
                   className={`border-b border-border last:border-b-0 ${entry.skipped ? 'opacity-50' : ''}`}
                 >
                   <td className="sticky left-0 z-10 max-w-[10rem] bg-surface px-2 py-1 font-medium">
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex flex-col items-start gap-0.5">
                       <button
                         type="button"
                         onClick={() => toggleSkipped(entry.id, !entry.skipped)}
