@@ -27,12 +27,18 @@ export type ExerciseEntryData = {
 type Props = {
   entry: ExerciseEntryData
   rpeTable: RpePoint[]
+  // 1-based position of this exercise within the day, for display only (e.g. "1.
+  // Приседания") — mirrors the "Порядок" numbering from the original spreadsheet.
+  // Derived from render order rather than entry.orderIndex directly, since
+  // orderIndex can have gaps/different bases depending on how the entry was
+  // created (import vs. manual add).
+  position: number
 }
 
 // One exercise block in the day view: dynamic set list ("+ Добавить подход"),
 // reactive metrics recomputed on every keystroke, debounced persistence to the API.
 // No auto-fill of new sets — they start empty by design.
-export function ExerciseCard({ entry, rpeTable }: Props) {
+export function ExerciseCard({ entry, rpeTable, position }: Props) {
   const [sets, setSets] = useState<SetValue[]>(entry.sets)
   const [skipped, setSkipped] = useState(entry.skipped)
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
@@ -125,6 +131,7 @@ export function ExerciseCard({ entry, rpeTable }: Props) {
           <h3
             className={`font-display text-base uppercase tracking-wide ${skipped ? 'line-through' : ''}`}
           >
+            <span className="mr-1.5 text-text-secondary">{position}.</span>
             {entry.exercise.name}
           </h3>
         </div>

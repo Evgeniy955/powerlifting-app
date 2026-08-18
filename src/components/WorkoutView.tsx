@@ -50,8 +50,8 @@ export function WorkoutView({ workoutId, initialEntries, rpeTable }: Props) {
     // scrolling through one long column.
     <div className="max-w-md mx-auto p-4 space-y-4 lg:max-w-6xl lg:space-y-0">
       <div className="space-y-4 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0 xl:grid-cols-3">
-        {entries.map((entry) => (
-          <ExerciseCard key={entry.id} entry={entry} rpeTable={rpeTable} />
+        {entries.map((entry, index) => (
+          <ExerciseCard key={entry.id} entry={entry} rpeTable={rpeTable} position={index + 1} />
         ))}
       </div>
 
