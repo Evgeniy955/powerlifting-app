@@ -102,12 +102,29 @@ export async function getMicrocycleForDisplay(microcycleId: string) {
     : []
   const oneRepMaxByExercise = new Map(oneRepMaxes.map((rm) => [rm.exerciseId, rm.value]))
 
+  // Sibling weeks in the same cycle, for prev/next navigation on the week page —
+  // ordered by weekNumber (not creation order), so "next" always means "the
+  // following week" even if weeks were created out of order (e.g. via import).
+  const siblingWeeks = await prisma.microcycle.findMany({
+    where: { cycleId: microcycle.cycleId },
+    orderBy: { weekNumber: 'asc' },
+    select: { id: true, weekNumber: true },
+  })
+  const currentIndex = siblingWeeks.findIndex((w) => w.id === microcycle.id)
+  const prevWeek = currentIndex > 0 ? siblingWeeks[currentIndex - 1] : null
+  const nextWeek =
+    currentIndex >= 0 && currentIndex < siblingWeeks.length - 1
+      ? siblingWeeks[currentIndex + 1]
+      : null
+
   return {
     id: microcycle.id,
     weekNumber: microcycle.weekNumber,
     cycleId: microcycle.cycleId,
     cycleName: microcycle.cycle.name,
     athleteId,
+    prevWeek,
+    nextWeek,
     workouts: microcycle.workouts.map((workout) => ({
       id: workout.id,
       dayNumber: workout.dayNumber,

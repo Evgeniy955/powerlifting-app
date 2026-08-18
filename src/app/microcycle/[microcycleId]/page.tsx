@@ -6,7 +6,7 @@ import { MetricsBadge } from '@/components/MetricsBadge'
 import { computeExerciseMetrics, aggregateMetrics } from '@/lib/metrics'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, ArrowRight } from 'lucide-react'
 
 // Whole-week view: every day (Workout) of a microcycle rendered on one page as a
 // dense spreadsheet-style table (WeekDayTable) — one row per exercise, one narrow
@@ -61,9 +61,35 @@ export default async function MicrocyclePage({
           >
             <ArrowLeft className="h-4 w-4" /> {microcycle.cycleName}
           </Link>
-          <h1 className="font-display text-xl uppercase tracking-wide">
-            Неделя {microcycle.weekNumber}
-          </h1>
+          <div className="flex items-center justify-center gap-3">
+            {microcycle.prevWeek ? (
+              <Link
+                href={`/microcycle/${microcycle.prevWeek.id}`}
+                aria-label={`Неделя ${microcycle.prevWeek.weekNumber}`}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-2 hover:text-accent"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Link>
+            ) : (
+              <span className="h-8 w-8 shrink-0" />
+            )}
+
+            <h1 className="font-display text-xl uppercase tracking-wide">
+              Неделя {microcycle.weekNumber}
+            </h1>
+
+            {microcycle.nextWeek ? (
+              <Link
+                href={`/microcycle/${microcycle.nextWeek.id}`}
+                aria-label={`Неделя ${microcycle.nextWeek.weekNumber}`}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-2 hover:text-accent"
+              >
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            ) : (
+              <span className="h-8 w-8 shrink-0" />
+            )}
+          </div>
         </div>
 
         {allEntryMetrics.length > 0 && (
