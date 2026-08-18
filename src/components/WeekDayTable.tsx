@@ -147,21 +147,21 @@ export function WeekDayTable({ workout, rpeTable }: Props) {
         <table className="w-full min-w-max border-collapse text-xs">
           <thead>
             <tr className="border-b border-border bg-surface-2 text-text-secondary">
-              <th className="sticky left-0 z-10 bg-surface-2 px-2 py-1 text-left font-normal">
+              <th className="sticky left-0 z-10 bg-surface-2 px-2 py-1 text-left font-bold">
                 Упражнение
               </th>
               {Array.from({ length: maxSets }).map((_, i) => (
-                <th key={i} className="px-1 py-1 text-center font-normal">
+                <th key={i} className="px-1 py-1 text-center font-bold">
                   {i + 1}
                 </th>
               ))}
               <th className="px-1 py-1" />
-              <th className="px-1.5 py-1 text-right font-normal">Тонн</th>
-              <th className="px-1.5 py-1 text-right font-normal">Срвес</th>
-              <th className="px-1.5 py-1 text-right font-normal">Инт%</th>
-              <th className="px-1.5 py-1 text-right font-normal">ПМ</th>
-              <th className="px-1.5 py-1 text-right font-normal">КПШ</th>
-              <th className="px-1.5 py-1 text-right font-normal">КО</th>
+              <th className="px-1.5 py-1 text-right font-bold">Тонн</th>
+              <th className="px-1.5 py-1 text-right font-bold">Срвес</th>
+              <th className="px-1.5 py-1 text-right font-bold">Инт%</th>
+              <th className="px-1.5 py-1 text-right font-bold">ПМ</th>
+              <th className="px-1.5 py-1 text-right font-bold">КПШ</th>
+              <th className="px-1.5 py-1 text-right font-bold">КО</th>
             </tr>
           </thead>
           <tbody>
