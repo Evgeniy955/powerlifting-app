@@ -180,7 +180,7 @@ export function WeekDayTable({ workout, rpeTable, athleteId, canEditOneRepMax }:
               <th className="px-1.5 py-1 text-right font-bold">Тонн</th>
               <th className="px-1.5 py-1 text-right font-bold">Срвес</th>
               <th className="px-1.5 py-1 text-right font-bold">Инт%</th>
-              <th className="bg-accent-2 px-1.5 py-1 text-right font-bold text-on-accent-2">ПМ</th>
+              <th className="px-1.5 py-1 text-right font-bold">ПМ</th>
               <th className="px-1.5 py-1 text-right font-bold">КПШ</th>
               <th className="px-1.5 py-1 text-right font-bold">КО</th>
             </tr>
@@ -276,7 +276,7 @@ export function WeekDayTable({ workout, rpeTable, athleteId, canEditOneRepMax }:
                   <td className={`px-1.5 py-1 text-right align-top ${zoneClass(m.relativeIntensity)}`}>
                     {Math.round(m.relativeIntensity * 100)}%
                   </td>
-                  <td className="bg-accent-2 px-1.5 py-1 text-right align-top">
+                  <td className="px-1.5 py-1 text-right align-top">
                     {canEditOneRepMax ? (
                       <input
                         type="number"
@@ -289,10 +289,12 @@ export function WeekDayTable({ workout, rpeTable, athleteId, canEditOneRepMax }:
                             parseFloat(e.target.value) || 0
                           )
                         }
-                        className="w-14 min-w-0 rounded border-none bg-surface px-1 py-0.5 text-center text-sm font-bold text-accent-2 outline-none focus:ring-1 focus:ring-on-accent-2"
+                        className="w-14 min-w-0 rounded border-none bg-accent-2 px-1 py-0.5 text-center text-sm font-bold text-on-accent-2 outline-none focus:ring-1 focus:ring-accent"
                       />
                     ) : (
-                      <span className="font-bold text-on-accent-2">{entry.oneRepMax ?? '—'}</span>
+                      <span className="rounded bg-accent-2 px-1.5 py-0.5 font-bold text-on-accent-2">
+                        {entry.oneRepMax ?? '—'}
+                      </span>
                     )}
                   </td>
                   <td className="px-1.5 py-1 text-right align-top">{m.kpsh}</td>
@@ -318,7 +320,7 @@ export function WeekDayTable({ workout, rpeTable, athleteId, canEditOneRepMax }:
               <td className={`px-1.5 py-1 text-right ${zoneClass(dayTotals.relativeIntensity)}`}>
                 {Math.round(dayTotals.relativeIntensity * 100)}%
               </td>
-              <td className="bg-accent-2 px-1.5 py-1 text-right text-on-accent-2">—</td>
+              <td className="px-1.5 py-1 text-right">—</td>
               <td className="px-1.5 py-1 text-right">{dayTotals.kpsh}</td>
               <td className="px-1.5 py-1 text-right">{dayTotals.loadCoefficient}</td>
             </tr>
