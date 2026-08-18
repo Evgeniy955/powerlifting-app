@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Check, Pencil, Trash2, X } from 'lucide-react'
+import { Check, Pencil, Trash2, UserPlus, X } from 'lucide-react'
 import { Badge, Card, Input } from '@/components/ui'
 
 export type AdminUser = {
@@ -10,7 +10,7 @@ export type AdminUser = {
   name: string | null
   role: string
   _count: { coachedAthletes: number }
-  athleteProfile: { inviteStatus: string } | null
+  athleteProfile: { id: string; inviteStatus: string; coachId: string | null } | null
 }
 
 // null/no profile and 'NONE' both mean "never actually invited by email" —
@@ -107,6 +107,31 @@ export function AdminUsersView({ initialUsers, currentUserId }: Props) {
     setUsers((prev) => prev.map((x) => (x.id === target.id ? { ...x, role: nextRole } : x)))
   }
 
+  // For an ATHLETE who already has a real account but no coach yet (self-
+  // registered, or matched by email without ever going through the invite
+  // flow) — attaches the signed-in coach directly, no email involved.
+  async function attachToMe(target: AdminUser) {
+    setError(null)
+    setPendingId(target.id)
+    const res = await fetch(`/api/admin/users/${target.id}/attach-coach`, { method: 'POST' })
+    setPendingId(null)
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      setError(body.error ?? 'Не удалось прикрепить атлета')
+      return
+    }
+
+    const updated = await res.json()
+    setUsers((prev) =>
+      prev.map((x) =>
+        x.id === target.id && x.athleteProfile
+          ? { ...x, athleteProfile: { ...x.athleteProfile, coachId: updated.coachId } }
+          : x
+      )
+    )
+  }
+
   async function deleteUser(target: AdminUser) {
     setError(null)
 
@@ -192,6 +217,17 @@ export function AdminUsersView({ initialUsers, currentUserId }: Props) {
                       </p>
                     )}
                     {u.role === 'ATHLETE' && <div className="mt-1">{inviteBadge(u)}</div>}
+                    {u.role === 'ATHLETE' && u.athleteProfile && !u.athleteProfile.coachId && (
+                      <button
+                        type="button"
+                        disabled={pendingId === u.id}
+                        onClick={() => attachToMe(u)}
+                        className="mt-1 inline-flex items-center gap-1 text-xs text-accent transition-colors hover:underline disabled:opacity-50"
+                      >
+                        <UserPlus className="h-3.5 w-3.5" />
+                        {pendingId === u.id ? 'Прикрепляем…' : 'Прикрепить к себе'}
+                      </button>
+                    )}
                   </div>
 
                   <div className="flex shrink-0 flex-col items-end gap-1">

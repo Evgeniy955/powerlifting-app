@@ -24,8 +24,9 @@ export default async function AdminUsersPage() {
       _count: { select: { coachedAthletes: true } },
       // Only meaningful for ATHLETE users — null means they were never
       // coach-invited at all (self-registered, or attached without ever
-      // going through the email invite flow).
-      athleteProfile: { select: { inviteStatus: true } },
+      // going through the email invite flow). coachId lets the card offer
+      // "attach to me" for an athlete with a real account but no coach yet.
+      athleteProfile: { select: { id: true, inviteStatus: true, coachId: true } },
     },
   })
 
