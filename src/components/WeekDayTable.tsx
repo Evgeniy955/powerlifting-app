@@ -207,20 +207,28 @@ export function WeekDayTable({ workout, rpeTable, athleteId, canEditOneRepMax }:
   const totalCols = maxSets + 8 // name + N sets + add-set + 6 metric columns
 
   return (
-    <div className="animate-slide-up overflow-hidden rounded-xl border border-border bg-surface">
-      <Link
-        href={`/workout/${workout.id}`}
-        className="flex items-center justify-between gap-2 border-b border-border bg-accent px-3 py-1.5 text-on-accent transition-opacity hover:opacity-90"
-        title="Открыть день"
-      >
-        <span className="flex items-baseline gap-2">
-          <span className="font-display text-base uppercase tracking-wide">{weekday}</span>
-          <span className="text-sm opacity-90">{dateLabel}</span>
-        </span>
-        <ChevronRight className="h-4 w-4 shrink-0 opacity-75" />
-      </Link>
+    // NOTE: overflow-hidden lives on the inner wrapper below (header + scrolling
+    // table only), not here. It used to sit on this outer div, which meant the
+    // "Добавить упражнение..." autocomplete's dropdown — anchored right at the
+    // bottom edge of this card — got clipped to zero height the instant it
+    // opened. It only needs to clip the accent-colored header bar and the
+    // horizontally-scrolling table to the card's rounded corners; the footer
+    // has no bg of its own to clip.
+    <div className="animate-slide-up rounded-xl border border-border bg-surface">
+      <div className="overflow-hidden rounded-t-xl">
+        <Link
+          href={`/workout/${workout.id}`}
+          className="flex items-center justify-between gap-2 border-b border-border bg-accent px-3 py-1.5 text-on-accent transition-opacity hover:opacity-90"
+          title="Открыть день"
+        >
+          <span className="flex items-baseline gap-2">
+            <span className="font-display text-base uppercase tracking-wide">{weekday}</span>
+            <span className="text-sm opacity-90">{dateLabel}</span>
+          </span>
+          <ChevronRight className="h-4 w-4 shrink-0 opacity-75" />
+        </Link>
 
-      <div className="overflow-x-auto">
+        <div className="overflow-x-auto">
         <table className="w-full min-w-max border-collapse text-sm">
           <thead>
             <tr className="border-b border-border bg-surface-2 text-text-secondary">
@@ -468,6 +476,7 @@ export function WeekDayTable({ workout, rpeTable, athleteId, canEditOneRepMax }:
             </tr>
           </tbody>
         </table>
+        </div>
       </div>
 
       <div className="border-t border-border p-2">
