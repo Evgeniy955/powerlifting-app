@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Users } from 'lucide-react'
-import { Badge, Button, Card, Input } from '@/components/ui'
+import Link from 'next/link'
+import { ShieldCheck, Users } from 'lucide-react'
+import { Badge, Button, Card, Input, buttonVariants } from '@/components/ui'
 import { EmptyState } from '@/components/EmptyState'
 import { InviteAthleteButton } from '@/components/InviteAthleteButton'
 import { LoadingIndicator } from '@/components/LoadingIndicator'
@@ -59,7 +60,15 @@ export default function AthletesPage() {
 
   return (
     <main className="min-h-[calc(100vh-3.5rem)] bg-bg text-text-primary p-6 max-w-md mx-auto space-y-4 lg:max-w-4xl">
-      <h1 className="font-display text-xl uppercase tracking-wide">Мои атлеты</h1>
+      <div className="flex items-center justify-between gap-2">
+        <h1 className="font-display text-xl uppercase tracking-wide">Мои атлеты</h1>
+        <Link
+          href="/admin/users"
+          className={buttonVariants({ variant: 'outline', size: 'sm', className: 'gap-1.5' })}
+        >
+          <ShieldCheck className="h-4 w-4" /> Админка
+        </Link>
+      </div>
 
       {athletes === null && <LoadingIndicator label="Загружаем атлетов" />}
 
