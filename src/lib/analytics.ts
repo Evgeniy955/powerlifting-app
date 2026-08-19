@@ -1,6 +1,7 @@
 import { prisma } from './prisma'
 import { computeExerciseMetrics, aggregateMetrics } from './metrics'
 import type { RpePoint } from './rpe'
+import { isMainLiftVariation } from './mainLifts'
 
 export type WeeklyLoadPoint = {
   weekNumber: number
@@ -159,9 +160,22 @@ export async function getCycleAnalytics(
       }
     }
   }
+  // Only squat/bench/deadlift variations are offered in the per-exercise
+  // picker — accessory and isolation work is excluded even if it was logged
+  // in this cycle (see lib/mainLifts.ts for the classification rules).
   const exercises: CycleAnalyticsExercise[] = Array.from(exerciseById.entries())
+    .filter(([, name]) => isMainLiftVariation(name))
     .map(([exerciseId, name]) => ({ exerciseId, name }))
     .sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+
+  // Defense in depth: if a caller passes an exerciseId that isn't a
+  // main-lift variation (e.g. a stale link), fall back to the whole-cycle
+  // aggregate rather than silently computing per-exercise analytics for an
+  // accessory movement.
+  if (exerciseId) {
+    const name = exerciseById.get(exerciseId)
+    if (!name || !isMainLiftVariation(name)) exerciseId = null
+  }
 
   const weeks: CycleWeeklyPoint[] = []
   const allFilteredMetrics: ReturnType<typeof computeExerciseMetrics>[] = []
