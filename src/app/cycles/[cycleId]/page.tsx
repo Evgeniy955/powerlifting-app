@@ -4,7 +4,8 @@ import { CopyLastTwoWeeksButton } from '@/components/CopyLastTwoWeeksButton'
 import { DeleteCycleButton } from '@/components/DeleteCycleButton'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
-import { Card } from '@/components/ui'
+import { Card, buttonVariants } from '@/components/ui'
+import { BarChart3 } from 'lucide-react'
 
 // Cycle overview: list of microcycles (weeks) -> workouts (days), plus the
 // coach-only "Копировать последние 2 недели" action. Access is checked against
@@ -42,7 +43,15 @@ export default async function CyclePage({ params }: { params: { cycleId: string 
         )}
       </div>
 
-      <CopyLastTwoWeeksButton cycleId={cycle.id} role={user.role} />
+      <div className="flex flex-wrap gap-2">
+        <Link
+          href={`/cycles/${cycle.id}/analytics`}
+          className={buttonVariants({ variant: 'outline', size: 'sm' })}
+        >
+          <BarChart3 className="h-4 w-4" /> Аналитика мезоцикла
+        </Link>
+        <CopyLastTwoWeeksButton cycleId={cycle.id} role={user.role} />
+      </div>
 
       <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">
         {cycle.microcycles.map((mc) => (

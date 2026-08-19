@@ -6,7 +6,8 @@ import { MetricsBadge } from '@/components/MetricsBadge'
 import { computeExerciseMetrics, aggregateMetrics } from '@/lib/metrics'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, ArrowRight } from 'lucide-react'
+import { ArrowLeft, ArrowRight, BarChart3 } from 'lucide-react'
+import { buttonVariants } from '@/components/ui'
 
 // Whole-week view: every day (Workout) of a microcycle rendered on one page as a
 // dense spreadsheet-style table (WeekDayTable) — one row per exercise, one narrow
@@ -61,6 +62,14 @@ export default async function MicrocyclePage({
           >
             <ArrowLeft className="h-4 w-4" /> {microcycle.cycleName}
           </Link>
+          <div className="mb-2">
+            <Link
+              href={`/cycles/${microcycle.cycleId}/analytics`}
+              className={buttonVariants({ variant: 'outline', size: 'sm' })}
+            >
+              <BarChart3 className="h-4 w-4" /> Аналитика мезоцикла
+            </Link>
+          </div>
           <div className="flex items-center justify-center gap-3">
             {microcycle.prevWeek ? (
               <Link
