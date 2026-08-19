@@ -29,6 +29,13 @@ export function CycleAnalyticsView({ cycleId, totalWeeks }: Props) {
   const [exerciseId, setExerciseId] = useState<string>('')
   const [fromWeek, setFromWeek] = useState<number>(1)
   const [toWeek, setToWeek] = useState<number>(totalWeeks || 1)
+  // What's actually typed in each box — kept separate from fromWeek/toWeek
+  // (the last *valid* value, used for filtering) so the field can sit empty
+  // for a moment while retyping instead of the digit being forced back the
+  // instant it's deleted. See fromWeekInvalid/toWeekInvalid below for the
+  // "can't be less than 1" warning shown while a box is in that state.
+  const [fromWeekDraft, setFromWeekDraft] = useState<string>('1')
+  const [toWeekDraft, setToWeekDraft] = useState<string>(String(totalWeeks || 1))
   const [rangeTouched, setRangeTouched] = useState(false)
 
   useEffect(() => {
@@ -40,12 +47,48 @@ export function CycleAnalyticsView({ cycleId, totalWeeks }: Props) {
       .then((json: CycleAnalytics) => {
         setData(json)
         if (!rangeTouched && json.weeks.length > 0) {
-          setFromWeek(json.weeks[0].weekNumber)
-          setToWeek(json.weeks[json.weeks.length - 1].weekNumber)
+          const first = json.weeks[0].weekNumber
+          const last = json.weeks[json.weeks.length - 1].weekNumber
+          setFromWeek(first)
+          setToWeek(last)
+          setFromWeekDraft(String(first))
+          setToWeekDraft(String(last))
         }
       })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cycleId, exerciseId])
+
+  // A box counts as invalid while it's empty, not a whole number, or below
+  // 1 — shown as a warning rather than snapping the digit back immediately,
+  // so there's a moment to actually delete "1" and type a new value.
+  function isRangeInputInvalid(raw: string): boolean {
+    const trimmed = raw.trim()
+    if (trimmed === '') return true
+    const n = Number(trimmed)
+    return !Number.isInteger(n) || n < 1
+  }
+  const fromWeekInvalid = isRangeInputInvalid(fromWeekDraft)
+  const toWeekInvalid = isRangeInputInvalid(toWeekDraft)
+
+  function handleFromWeekChange(raw: string) {
+    setRangeTouched(true)
+    setFromWeekDraft(raw)
+    if (!isRangeInputInvalid(raw)) setFromWeek(Number(raw))
+  }
+  function handleFromWeekBlur() {
+    // Left invalid (empty, 0, a fraction) after all — snap the box back to
+    // the last valid value instead of leaving it stuck showing something
+    // that was never applied to the table/charts below.
+    if (isRangeInputInvalid(fromWeekDraft)) setFromWeekDraft(String(fromWeek))
+  }
+  function handleToWeekChange(raw: string) {
+    setRangeTouched(true)
+    setToWeekDraft(raw)
+    if (!isRangeInputInvalid(raw)) setToWeek(Number(raw))
+  }
+  function handleToWeekBlur() {
+    if (isRangeInputInvalid(toWeekDraft)) setToWeekDraft(String(toWeek))
+  }
 
   const filteredWeeks = useMemo(() => {
     if (!data) return []
@@ -69,8 +112,12 @@ export function CycleAnalyticsView({ cycleId, totalWeeks }: Props) {
   function resetRange() {
     if (!data || data.weeks.length === 0) return
     setRangeTouched(false)
-    setFromWeek(data.weeks[0].weekNumber)
-    setToWeek(data.weeks[data.weeks.length - 1].weekNumber)
+    const first = data.weeks[0].weekNumber
+    const last = data.weeks[data.weeks.length - 1].weekNumber
+    setFromWeek(first)
+    setToWeek(last)
+    setFromWeekDraft(String(first))
+    setToWeekDraft(String(last))
   }
 
   if (!data) {
@@ -104,12 +151,14 @@ export function CycleAnalyticsView({ cycleId, totalWeeks }: Props) {
             type="number"
             min={1}
             className="w-20"
-            value={fromWeek}
-            onChange={(e) => {
-              setRangeTouched(true)
-              setFromWeek(Number(e.target.value) || 1)
-            }}
+            value={fromWeekDraft}
+            onChange={(e) => handleFromWeekChange(e.target.value)}
+            onBlur={handleFromWeekBlur}
+            aria-invalid={fromWeekInvalid}
           />
+          {fromWeekInvalid && (
+            <p className="mt-1 w-32 text-xs text-danger">Не может быть меньше 1</p>
+          )}
         </div>
         <div>
           <label className="mb-1 block text-xs text-text-secondary">По микроцикл</label>
@@ -117,12 +166,14 @@ export function CycleAnalyticsView({ cycleId, totalWeeks }: Props) {
             type="number"
             min={1}
             className="w-20"
-            value={toWeek}
-            onChange={(e) => {
-              setRangeTouched(true)
-              setToWeek(Number(e.target.value) || 1)
-            }}
+            value={toWeekDraft}
+            onChange={(e) => handleToWeekChange(e.target.value)}
+            onBlur={handleToWeekBlur}
+            aria-invalid={toWeekInvalid}
           />
+          {toWeekInvalid && (
+            <p className="mt-1 w-32 text-xs text-danger">Не может быть меньше 1</p>
+          )}
         </div>
         <Button variant="ghost" size="sm" onClick={resetRange}>
           Сбросить диапазон
