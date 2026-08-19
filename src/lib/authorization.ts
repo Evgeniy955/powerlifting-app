@@ -12,6 +12,18 @@ export async function assertAthleteBelongsToCoach(athleteId: string, coachId: st
   return athlete
 }
 
+// Same coach-or-self ownership check as ownsAthlete(), but as a standalone
+// assertion that resolves the AthleteProfile itself — for routes/pages keyed
+// directly by athleteId (e.g. Спортпит) rather than by some nested id that
+// needs walking up to an athlete first, like the assertCanAccess* helpers
+// below.
+export async function assertAthleteAccessible(athleteId: string, user: SessionUser) {
+  const athlete = await prisma.athleteProfile.findUnique({ where: { id: athleteId } })
+  if (!athlete) throw new NotFoundError('Атлет не найден')
+  if (!ownsAthlete(athlete, user)) throw new ForbiddenError('Нет доступа к этому атлету')
+  return athlete
+}
+
 // Walks workoutId -> microcycle -> cycle -> athlete and checks ownership. Returns
 // the resolved chain so callers (e.g. the change-notification queue) can reuse it
 // instead of re-querying.
@@ -39,6 +51,16 @@ export async function assertCanAccessExerciseEntry(entryId: string, user: Sessio
   const athlete = workout.microcycle.cycle.athlete
   if (!ownsAthlete(athlete, user)) throw new ForbiddenError('Нет доступа к этому упражнению')
   return { entry, workout, microcycle: workout.microcycle, cycle: workout.microcycle.cycle, athlete }
+}
+
+export async function assertCanAccessSupplement(supplementId: string, user: SessionUser) {
+  const supplement = await prisma.supplement.findUnique({
+    where: { id: supplementId },
+    include: { athlete: true },
+  })
+  if (!supplement) throw new NotFoundError('Запись не найдена')
+  if (!ownsAthlete(supplement.athlete, user)) throw new ForbiddenError('Нет доступа к этой записи')
+  return supplement
 }
 
 export async function assertCanAccessSet(setId: string, user: SessionUser) {

@@ -100,10 +100,27 @@ model AthleteProfile {
 
   oneRepMaxes Athlete1RM[]
   cycles      Cycle[]
+  supplements Supplement[]
 
   createdAt DateTime @default(now())
 
   @@index([coachId])
+}
+
+// Athlete-managed supplement intake log ("Спортпит") — a name plus an
+// intake period (startDate required, endDate null while still taking it).
+// Purely informational, not linked to any training-load calculation.
+model Supplement {
+  id        String         @id @default(uuid())
+  athleteId String
+  athlete   AthleteProfile @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  name      String
+  startDate DateTime
+  endDate   DateTime?
+  notes     String?
+  createdAt DateTime       @default(now())
+
+  @@index([athleteId])
 }
 
 // Reference catalog of exercises (seeded from the "Коэффициенты" sheet).

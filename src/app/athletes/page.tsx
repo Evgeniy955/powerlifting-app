@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { BarChart3, FileDown, FileUp, Users } from 'lucide-react'
+import { BarChart3, FileDown, FileUp, Pill, Users } from 'lucide-react'
 import { Badge, Button, Card, Input } from '@/components/ui'
 import { EmptyState } from '@/components/EmptyState'
 import { InviteAthleteButton } from '@/components/InviteAthleteButton'
@@ -153,6 +153,14 @@ export default function AthletesPage() {
                     className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-500 text-white shadow-card transition-transform hover:scale-110 hover:brightness-110"
                   >
                     <FileUp className="h-4 w-4" />
+                  </a>
+                  <a
+                    href={`/athletes/${a.id}/supplements`}
+                    title="Спортпит"
+                    aria-label="Спортпит"
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-rose-500 text-white shadow-card transition-transform hover:scale-110 hover:brightness-110"
+                  >
+                    <Pill className="h-4 w-4" />
                   </a>
                 </div>
                 {!a.userId && (
