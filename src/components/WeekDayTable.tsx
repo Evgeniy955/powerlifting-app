@@ -7,6 +7,7 @@ import { ExerciseAutocomplete, type ExerciseOption } from './ExerciseAutocomplet
 import type { ExerciseEntryData } from './ExerciseCard'
 import { computeExerciseMetrics, aggregateMetrics } from '@/lib/metrics'
 import type { RpePoint } from '@/lib/rpe'
+import { TRAINING_GROUP_LABEL, isTrainingGroup, trainingGroupColor } from '@/lib/trainingGroups'
 
 const WEEKDAY_SHORT = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']
 
@@ -364,6 +365,17 @@ export function WeekDayTable({
                         </div>
                       ) : (
                         <span className={`block w-full break-words ${entry.skipped ? 'line-through' : ''}`}>
+                          {/* Block-color dot — Базовые/СФП/ОФП, same palette as
+                              the admin exercise page. Nothing shown for an
+                              exercise that hasn't been sorted into a block yet,
+                              so an unset state doesn't read as a 4th color. */}
+                          {isTrainingGroup(entry.exercise.trainingGroup) && (
+                            <span
+                              title={TRAINING_GROUP_LABEL[entry.exercise.trainingGroup]}
+                              aria-label={TRAINING_GROUP_LABEL[entry.exercise.trainingGroup]}
+                              className={`mr-1 inline-block h-2 w-2 shrink-0 rounded-full align-middle ${trainingGroupColor(entry.exercise.trainingGroup).dot}`}
+                            />
+                          )}
                           <span className="text-text-secondary">{index + 1}. </span>
                           {entry.exercise.name}
                           {entry.multiplier !== 1 && (

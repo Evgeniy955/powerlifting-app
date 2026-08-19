@@ -3,6 +3,7 @@ import { requireUser } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import { WeekDayTable } from '@/components/WeekDayTable'
 import { MetricsBadge } from '@/components/MetricsBadge'
+import { TrainingGroupLegend } from '@/components/TrainingGroupLegend'
 import { computeExerciseMetrics, aggregateMetrics } from '@/lib/metrics'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
@@ -111,6 +112,8 @@ export default async function MicrocyclePage({
             fatigueIndex={weekTotals.fatigueIndex}
           />
         )}
+
+        <TrainingGroupLegend />
       </div>
 
       {microcycle.workouts.length === 0 ? (
