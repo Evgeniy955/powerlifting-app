@@ -3,6 +3,7 @@ import { requireUser } from '@/lib/session'
 import { redirect } from 'next/navigation'
 import { AdminUsersView } from '@/components/AdminUsersView'
 import { AdminPendingInvites } from '@/components/AdminPendingInvites'
+import Link from 'next/link'
 
 // Coach-only role management screen. There's no separate ADMIN role in this
 // app — COACH already is the privileged tier — so this is just "who's a coach
@@ -50,6 +51,16 @@ export default async function AdminUsersPage() {
   return (
     <main className="min-h-[calc(100vh-3.5rem)] bg-bg text-text-primary p-6 max-w-md mx-auto space-y-6 lg:max-w-4xl">
       <div>
+        <div className="mb-2 flex items-center gap-2 text-sm">
+          <span className="text-accent">Пользователи</span>
+          <span className="text-text-secondary">·</span>
+          <Link
+            href="/admin/exercises"
+            className="text-text-secondary transition-colors hover:text-accent hover:underline"
+          >
+            Упражнения
+          </Link>
+        </div>
         <h1 className="font-display text-xl uppercase tracking-wide">Пользователи</h1>
         <p className="text-sm text-text-secondary">
           Роль «Тренер» открывает доступ к атлетам, планированию и этой странице.
