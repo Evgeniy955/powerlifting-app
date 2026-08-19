@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { BarChart3, FileDown, FileUp, Users } from 'lucide-react'
+import { FileDown, FileUp, Users } from 'lucide-react'
 import { Badge, Button, Card, Input } from '@/components/ui'
 import { EmptyState } from '@/components/EmptyState'
 import { InviteAthleteButton } from '@/components/InviteAthleteButton'
@@ -130,14 +130,10 @@ export default function AthletesPage() {
                 </div>
 
                 <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
-                  <a
-                    href={`/athletes/${a.id}/analytics`}
-                    title="Аналитика"
-                    aria-label="Аналитика"
-                    className="flex h-8 w-8 items-center justify-center rounded-full bg-violet-500 text-white shadow-card transition-transform hover:scale-110 hover:brightness-110"
-                  >
-                    <BarChart3 className="h-4 w-4" />
-                  </a>
+                  {/* No athlete-wide analytics shortcut here on purpose — analytics
+                      is scoped to a training cycle ("Аналитика мезоцикла" on the
+                      cycle/microcycle pages), reached via Циклы below, not a
+                      standalone per-athlete view. */}
                   <a
                     href={`/api/athletes/${a.id}/export`}
                     title="Экспорт в Excel"
