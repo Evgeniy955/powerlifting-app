@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { Check, Pencil, Search, Trash2, X } from 'lucide-react'
-import { Badge, Card, Input, Select } from '@/components/ui'
+import { Badge, Card, Input, Select, useToast } from '@/components/ui'
 import { classifyMainLift, type MainLift } from '@/lib/mainLifts'
 import {
   TRAINING_GROUPS,
@@ -49,6 +49,7 @@ const GROUP_LABEL: Record<GroupKey, string> = {
 // that's actually in use is blocked by the API (409) rather than cascading
 // through training history.
 export function AdminExercisesView({ initialExercises }: Props) {
+  const toast = useToast()
   const [exercises, setExercises] = useState(initialExercises)
   const [query, setQuery] = useState('')
   const [pendingId, setPendingId] = useState<string | null>(null)
@@ -94,37 +95,47 @@ export function AdminExercisesView({ initialExercises }: Props) {
   async function saveEdit(ex: AdminExercise) {
     setError(null)
     setPendingId(ex.id)
-    const res = await fetch(`/api/admin/exercises/${ex.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: draftName,
-        category: draftCategory.trim() || null,
-        impactCoefficient: draftImpact,
-      }),
-    })
-    setPendingId(null)
+    try {
+      const res = await fetch(`/api/admin/exercises/${ex.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: draftName,
+          category: draftCategory.trim() || null,
+          impactCoefficient: draftImpact,
+        }),
+      })
 
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}))
-      setError(body.error ?? 'Не удалось сохранить изменения')
-      return
-    }
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        const message = body.error ?? 'Не удалось сохранить изменения'
+        setError(message)
+        toast({ title: 'Не удалось сохранить', description: message, variant: 'error' })
+        return
+      }
 
-    const updated = await res.json()
-    setExercises((prev) =>
-      prev.map((x) =>
-        x.id === ex.id
-          ? {
-              ...x,
-              name: updated.name,
-              category: updated.category,
-              impactCoefficient: updated.impactCoefficient,
-            }
-          : x
+      const updated = await res.json()
+      setExercises((prev) =>
+        prev.map((x) =>
+          x.id === ex.id
+            ? {
+                ...x,
+                name: updated.name,
+                category: updated.category,
+                impactCoefficient: updated.impactCoefficient,
+              }
+            : x
+        )
       )
-    )
-    setEditingId(null)
+      setEditingId(null)
+    } catch (e) {
+      console.error('saveEdit failed', e)
+      const message = 'Проблема с сетью — изменения не сохранены'
+      setError(message)
+      toast({ title: 'Не удалось сохранить', description: message, variant: 'error' })
+    } finally {
+      setPendingId(null)
+    }
   }
 
   // The "move to block" action — a coach picks Базовые/СФП/ОФП/Без блока
@@ -136,20 +147,34 @@ export function AdminExercisesView({ initialExercises }: Props) {
       prev.map((x) => (x.id === ex.id ? { ...x, trainingGroup: group } : x))
     )
 
-    const res = await fetch(`/api/admin/exercises/${ex.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ trainingGroup: group }),
-    })
-
-    if (!res.ok) {
-      // Roll back on failure — the optimistic move above already re-sorted
-      // the card into the target section.
+    function rollback() {
       setExercises((prev) =>
         prev.map((x) => (x.id === ex.id ? { ...x, trainingGroup: previous } : x))
       )
-      const body = await res.json().catch(() => ({}))
-      setError(body.error ?? 'Не удалось переместить упражнение')
+    }
+
+    try {
+      const res = await fetch(`/api/admin/exercises/${ex.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trainingGroup: group }),
+      })
+
+      if (!res.ok) {
+        // Roll back — the optimistic move above already re-sorted the card
+        // into the target section.
+        rollback()
+        const body = await res.json().catch(() => ({}))
+        const message = body.error ?? 'Не удалось переместить упражнение'
+        setError(message)
+        toast({ title: 'Не удалось переместить', description: message, variant: 'error' })
+      }
+    } catch (e) {
+      console.error('moveToGroup failed', e)
+      rollback()
+      const message = 'Проблема с сетью — упражнение не перемещено'
+      setError(message)
+      toast({ title: 'Не удалось переместить', description: message, variant: 'error' })
     }
   }
 
@@ -168,16 +193,27 @@ export function AdminExercisesView({ initialExercises }: Props) {
     if (!window.confirm(`Удалить упражнение «${ex.name}» из каталога?`)) return
 
     setPendingId(ex.id)
-    const res = await fetch(`/api/admin/exercises/${ex.id}`, { method: 'DELETE' })
-    setPendingId(null)
+    try {
+      const res = await fetch(`/api/admin/exercises/${ex.id}`, { method: 'DELETE' })
 
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}))
-      setError(body.error ?? 'Не удалось удалить упражнение')
-      return
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        const message = body.error ?? 'Не удалось удалить упражнение'
+        setError(message)
+        toast({ title: 'Не удалось удалить', description: message, variant: 'error' })
+        return
+      }
+
+      setExercises((prev) => prev.filter((x) => x.id !== ex.id))
+      toast({ title: `«${ex.name}» удалено`, variant: 'success' })
+    } catch (e) {
+      console.error('deleteExercise failed', e)
+      const message = 'Проблема с сетью — упражнение не удалено'
+      setError(message)
+      toast({ title: 'Не удалось удалить', description: message, variant: 'error' })
+    } finally {
+      setPendingId(null)
     }
-
-    setExercises((prev) => prev.filter((x) => x.id !== ex.id))
   }
 
   function renderCard(ex: AdminExercise) {
