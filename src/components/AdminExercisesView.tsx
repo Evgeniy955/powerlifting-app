@@ -1,8 +1,8 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Check, Pencil, Search, Trash2, X } from 'lucide-react'
-import { Badge, Card, Input, Select, useToast } from '@/components/ui'
+import { Check, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
+import { Badge, Button, Card, Input, Select, useToast } from '@/components/ui'
 import { classifyMainLift, type MainLift } from '@/lib/mainLifts'
 import {
   TRAINING_GROUPS,
@@ -69,6 +69,12 @@ export function AdminExercisesView({ initialExercises }: Props) {
   const [draftName, setDraftName] = useState('')
   const [draftCategory, setDraftCategory] = useState('')
   const [draftImpact, setDraftImpact] = useState(1)
+
+  const [showCreate, setShowCreate] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [newCategory, setNewCategory] = useState('')
+  const [newImpact, setNewImpact] = useState(1)
+  const [creating, setCreating] = useState(false)
 
   const grouped = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -232,6 +238,67 @@ export function AdminExercisesView({ initialExercises }: Props) {
     }
   }
 
+  // Creates a brand-new catalog row from here (mirrors the workout-page
+  // "Создать «...»" quick-add, but coaches sometimes want to pre-seed
+  // exercises before anyone logs them). New rows come back with no
+  // trainingGroup, so they land in "Без блока" until sorted — same as the
+  // quick-add path.
+  async function createExercise() {
+    setError(null)
+    const name = newName.trim()
+    if (!name) {
+      setError('Название обязательно')
+      return
+    }
+
+    setCreating(true)
+    try {
+      const res = await fetch('/api/exercises', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          category: newCategory.trim() || null,
+          impactCoefficient: newImpact,
+        }),
+      })
+
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        const message = body.error ?? 'Не удалось создать упражнение'
+        setError(message)
+        toast({ title: 'Не удалось создать', description: message, variant: 'error' })
+        return
+      }
+
+      setExercises((prev) =>
+        [
+          ...prev,
+          {
+            id: body.id,
+            name: body.name,
+            category: body.category,
+            impactCoefficient: body.impactCoefficient,
+            trainingGroup: body.trainingGroup ?? null,
+            _count: { exerciseEntries: 0, oneRepMaxes: 0 },
+          },
+        ].sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+      )
+      toast({ title: `«${body.name}» добавлено`, variant: 'success' })
+      setNewName('')
+      setNewCategory('')
+      setNewImpact(1)
+      setShowCreate(false)
+    } catch (e) {
+      console.error('createExercise failed', e)
+      const message = 'Проблема с сетью — упражнение не создано'
+      setError(message)
+      toast({ title: 'Не удалось создать', description: message, variant: 'error' })
+    } finally {
+      setCreating(false)
+    }
+  }
+
   function renderCard(ex: AdminExercise) {
     const lift = classifyMainLift(ex.name)
     const usage = ex._count.exerciseEntries + ex._count.oneRepMaxes
@@ -352,6 +419,64 @@ export function AdminExercisesView({ initialExercises }: Props) {
 
   return (
     <div className="space-y-5">
+      {showCreate ? (
+        <Card padding="sm" className="space-y-2">
+          <p className="font-display text-sm font-bold uppercase tracking-wide text-text-primary">
+            Новое упражнение
+          </p>
+          <Input
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            placeholder="Название"
+            fieldSize="sm"
+            className="w-full"
+            autoFocus
+          />
+          <Input
+            value={newCategory}
+            onChange={(e) => setNewCategory(e.target.value)}
+            placeholder="Категория (необязательно)"
+            fieldSize="sm"
+            className="w-full"
+          />
+          <label className="flex items-center gap-2 text-xs text-text-secondary">
+            Коэфф. воздействия
+            <Input
+              type="number"
+              step="0.1"
+              min="0.1"
+              value={newImpact}
+              onChange={(e) => setNewImpact(parseFloat(e.target.value) || 1)}
+              fieldSize="sm"
+              className="w-20"
+            />
+          </label>
+          <div className="flex items-center gap-2 pt-1">
+            <Button size="sm" disabled={creating} onClick={createExercise}>
+              <Check className="h-3.5 w-3.5" /> Создать
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setShowCreate(false)
+                setError(null)
+                setNewName('')
+                setNewCategory('')
+                setNewImpact(1)
+              }}
+            >
+              <X className="h-3.5 w-3.5" /> Отмена
+            </Button>
+          </div>
+        </Card>
+      ) : (
+        <Button type="button" variant="outline" size="sm" onClick={() => setShowCreate(true)}>
+          <Plus className="h-3.5 w-3.5" /> Добавить упражнение
+        </Button>
+      )}
+
       <div className="relative">
         <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-secondary" />
         <Input

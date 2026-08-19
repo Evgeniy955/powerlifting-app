@@ -6,6 +6,13 @@ import Link from 'next/link'
 
 // Coach-only exercise catalog management. No separate ADMIN role in this
 // app — COACH is already the privileged tier, same as /admin/users.
+// force-dynamic: this list changes whenever a coach creates/deletes/moves an
+// exercise from here or from the workout-page quick-add. revalidatePath()
+// on those mutations already covers normal navigation, but this is
+// defense-in-depth against any caching path that might skip it (e.g. a
+// direct hard navigation right after a mutation elsewhere).
+export const dynamic = 'force-dynamic'
+
 export default async function AdminExercisesPage() {
   const user = await requireUser()
   if (user.role !== 'COACH') redirect('/')
