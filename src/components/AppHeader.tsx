@@ -60,12 +60,20 @@ export async function AppHeader() {
                 </>
               )}
               {user.role === 'ATHLETE' && athleteProfileId && (
-                <Link
-                  href={`/athletes/${athleteProfileId}/cycles`}
-                  className="hidden text-sm text-accent transition-colors hover:underline md:inline"
-                >
-                  Мои планы
-                </Link>
+                <>
+                  <Link
+                    href={`/athletes/${athleteProfileId}/cycles`}
+                    className="hidden text-sm text-accent transition-colors hover:underline md:inline"
+                  >
+                    Мои планы
+                  </Link>
+                  <Link
+                    href={`/athletes/${athleteProfileId}/supplements`}
+                    className="hidden text-sm text-text-secondary transition-colors hover:text-accent hover:underline md:inline"
+                  >
+                    Спортпит
+                  </Link>
+                </>
               )}
             </>
           )}
