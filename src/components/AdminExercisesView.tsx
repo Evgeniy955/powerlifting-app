@@ -7,6 +7,9 @@ import { classifyMainLift, type MainLift } from '@/lib/mainLifts'
 import {
   TRAINING_GROUPS,
   TRAINING_GROUP_LABEL,
+  TRAINING_GROUP_COLOR,
+  UNASSIGNED_GROUP_COLOR,
+  trainingGroupColor,
   type TrainingGroup,
 } from '@/lib/trainingGroups'
 
@@ -40,12 +43,15 @@ const GROUP_LABEL: Record<GroupKey, string> = {
 
 // Distinct, saturated color per block (vs. the muted text-secondary used
 // everywhere else) so the section headings actually stand out at a glance —
-// "Без блока" gets the warning color on purpose, as a nudge to sort it.
+// shared with the colored left border on each card (renderCard below) and
+// with WeekDayTable's per-row dot, so a block reads the same color
+// everywhere in the app. "Без блока" gets a muted neutral on purpose, so it
+// reads as "unsorted" rather than a fourth real block.
 const GROUP_HEADING_CLASS: Record<GroupKey, string> = {
-  BASE: 'text-accent border-accent',
-  SPP: 'text-accent-2 border-accent-2',
-  GPP: 'text-zone-low border-zone-low',
-  UNASSIGNED: 'text-zone-moderate border-zone-moderate',
+  BASE: `${TRAINING_GROUP_COLOR.BASE.text} ${TRAINING_GROUP_COLOR.BASE.border}`,
+  SPP: `${TRAINING_GROUP_COLOR.SPP.text} ${TRAINING_GROUP_COLOR.SPP.border}`,
+  GPP: `${TRAINING_GROUP_COLOR.GPP.text} ${TRAINING_GROUP_COLOR.GPP.border}`,
+  UNASSIGNED: `${UNASSIGNED_GROUP_COLOR.text} ${UNASSIGNED_GROUP_COLOR.border}`,
 }
 
 // Coach-only exercise catalog management: rename, retag category/impact
@@ -302,10 +308,11 @@ export function AdminExercisesView({ initialExercises }: Props) {
   function renderCard(ex: AdminExercise) {
     const lift = classifyMainLift(ex.name)
     const usage = ex._count.exerciseEntries + ex._count.oneRepMaxes
+    const color = trainingGroupColor(ex.trainingGroup)
 
     return (
       <li key={ex.id}>
-        <Card padding="sm" className="space-y-2">
+        <Card padding="sm" className={`space-y-2 border-l-4 ${color.borderLeft}`}>
           {editingId === ex.id ? (
             <div className="space-y-2">
               <Input
