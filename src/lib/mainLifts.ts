@@ -32,8 +32,13 @@ const EXACT_OVERRIDES: Record<string, MainLift | null> = {
   'дожим с 8 см': 'bench',
   'дожим с 10 см': 'bench',
   'жим в раме (дожим)': 'bench',
-  'жим гантелей лежа на гор скамье': 'bench',
-  'жим гантелей лежа на накл скамье': 'bench',
+  // Dumbbell press variations aren't a competition bench-press specificity
+  // variation — excluded from analytics regardless of stance/pause/etc.
+  'жим гантелей лежа на гор скамье': null,
+  'жим гантелей лежа на накл скамье': null,
+  'жим гантелей': null,
+  'жим гантелей сидя': null,
+  'жим гантелей с паузой': null,
   'жим с цепями (штанга+цепи)': 'bench',
   'жим лежа средним хватом': 'bench',
   'скоростной жим': 'bench',
@@ -56,22 +61,32 @@ const EXACT_OVERRIDES: Record<string, MainLift | null> = {
   'подтягивание': null,
   'тяга верхнего блока к груди': null,
   'тяга нижнего блока к животу': null,
+  // Bent-over barbell row and stiff-leg/Romanian deadlift ("мёртвая тяга")
+  // are back/posterior-chain accessories, not a deadlift specificity variation.
+  'тяга шт': null,
+  'тяга штанги': null,
+  'тяга штанги в наклоне': null,
+  'тяга штанги в наклоне к поясу': null,
+  'мертвая тяга': null,
 }
 
 // Keywords that mark a name as an accessory/isolation exercise even when it
 // also contains a lift keyword (checked before the keyword fallback below) —
 // mainly a safety net for custom exercise names a coach might add that
 // aren't in the seeded catalog above.
-const ACCESSORY_KEYWORDS = /трицепс|бицепс|кроссовер|французск|разгиб\.|подъем\s|стоя|жим\s*ног|блок|подтяг|прямых\s*ног/i
+const ACCESSORY_KEYWORDS = /трицепс|бицепс|кроссовер|французск|разгиб\.|подъем\s|стоя|жим\s*ног|блок|подтяг|прямых\s*ног|гантел/i
 
 export function classifyMainLift(exerciseName: string): MainLift | null {
-  const key = exerciseName.trim().toLowerCase()
+  const key = exerciseName.trim().toLowerCase().replace(/ё/g, 'е')
   if (key in EXACT_OVERRIDES) return EXACT_OVERRIDES[key]
 
   if (ACCESSORY_KEYWORDS.test(key)) return null
 
   if (key.includes('присед')) return 'squat'
-  if (key.includes('тяг')) return 'deadlift'
+  // "тяга" alone isn't enough — bent-over rows, lat pulldowns, and RDLs
+  // ("тяга на прямых ногах"/"мёртвая тяга") all contain it too. Only the
+  // становая (conventional/sumo/deficit/pause/...) family counts.
+  if (key.includes('станов') && key.includes('тяг')) return 'deadlift'
   if (key.includes('жим')) return 'bench'
 
   return null
