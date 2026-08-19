@@ -38,6 +38,16 @@ const GROUP_LABEL: Record<GroupKey, string> = {
   UNASSIGNED: 'Без блока',
 }
 
+// Distinct, saturated color per block (vs. the muted text-secondary used
+// everywhere else) so the section headings actually stand out at a glance —
+// "Без блока" gets the warning color on purpose, as a nudge to sort it.
+const GROUP_HEADING_CLASS: Record<GroupKey, string> = {
+  BASE: 'text-accent border-accent',
+  SPP: 'text-accent-2 border-accent-2',
+  GPP: 'text-zone-low border-zone-low',
+  UNASSIGNED: 'text-zone-moderate border-zone-moderate',
+}
+
 // Coach-only exercise catalog management: rename, retag category/impact
 // coefficient, delete unused rows, and — the point of this component —
 // "move" an exercise between the Базовые/СФП/ОФП training blocks via a
@@ -362,7 +372,9 @@ export function AdminExercisesView({ initialExercises }: Props) {
           if (items.length === 0) return null
           return (
             <div key={key} className="space-y-2">
-              <h2 className="flex items-center gap-2 font-display text-sm uppercase tracking-wide text-text-secondary">
+              <h2
+                className={`flex items-center gap-2 border-b-2 pb-1 font-display text-base font-bold uppercase tracking-wide ${GROUP_HEADING_CLASS[key]}`}
+              >
                 {GROUP_LABEL[key]}
                 <span className="text-xs font-normal normal-case text-text-secondary">
                   {items.length}
