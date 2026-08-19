@@ -188,6 +188,20 @@ model Cycle {
   weeks     Int
   createdAt DateTime       @default(now())
 
+  // Season-periodization tags — a Cycle already *is* one mesocycle (a
+  // contiguous block of weeks with its own start date), so it doubles as the
+  // "Мезоциклы" row of the periodization timeline. periodType/stageType group
+  // several consecutive Cycles into the "Периоды"/"Этапы" rows above it — a
+  // period/stage boundary always falls on a mesocycle boundary in practice, so
+  // no separate date-ranged Period/Stage table is needed, just these tags.
+  // All three are plain strings (not enums), same reasoning as
+  // ExerciseCatalog.trainingGroup: free-text presets, not a fixed set, and
+  // SQLite (local dev) doesn't support Prisma enums. Null until a coach tags
+  // the plan from the periodization page.
+  periodType    String?
+  stageType     String?
+  mesocycleType String?
+
   microcycles Microcycle[]
 }
 
@@ -196,6 +210,10 @@ model Microcycle {
   cycleId    String
   cycle      Cycle  @relation(fields: [cycleId], references: [id], onDelete: Cascade)
   weekNumber Int
+
+  // "Микроциклы" row of the periodization timeline — same free-text-preset
+  // pattern as Cycle.mesocycleType above. Null until tagged.
+  microcycleType String?
 
   workouts Workout[]
 
