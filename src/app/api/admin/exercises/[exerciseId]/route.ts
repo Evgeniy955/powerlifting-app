@@ -83,15 +83,23 @@ export async function PATCH(req: NextRequest, { params }: { params: { exerciseId
   }
 }
 
-// DELETE /api/admin/exercises/:exerciseId — coach-only. Refuses to delete an
-// exercise that's actually in use (logged in any workout, or has a tracked
-// 1RM) instead of cascading — that would silently wipe out real training
-// history/PRs for every athlete who ever used it. Only unused catalog rows
-// (added by mistake, or never assigned to anyone) can be removed this way;
-// an in-use exercise can still be renamed instead.
-export async function DELETE(_req: NextRequest, { params }: { params: { exerciseId: string } }) {
+// DELETE /api/admin/exercises/:exerciseId[?force=true] — coach-only.
+//
+// By default, refuses to delete an exercise that's actually in use (logged
+// in any workout, or has a tracked 1RM) — returns 409 with the usage counts
+// so the client can warn before retrying.
+//
+// With ?force=true, the coach has explicitly confirmed they want to delete
+// it anyway: every ExerciseEntry referencing it (and, via the schema's
+// existing cascade, their SetEntry rows) and every Athlete1RM referencing
+// it are deleted first, in a transaction, then the catalog row itself. This
+// is permanent and removes the exercise from training history for every
+// athlete who ever logged it — the client is expected to have already made
+// that consequence explicit before calling this route with force=true.
+export async function DELETE(req: NextRequest, { params }: { params: { exerciseId: string } }) {
   try {
     await requireCoach()
+    const force = req.nextUrl.searchParams.get('force') === 'true'
 
     const existing = await prisma.exerciseCatalog.findUnique({
       where: { id: params.exerciseId },
@@ -102,16 +110,29 @@ export async function DELETE(_req: NextRequest, { params }: { params: { exercise
     }
 
     const usageCount = existing._count.exerciseEntries + existing._count.oneRepMaxes
-    if (usageCount > 0) {
+    if (usageCount > 0 && !force) {
       return NextResponse.json(
         {
-          error: `Упражнение используется (записей в тренировках: ${existing._count.exerciseEntries}, 1ПМ: ${existing._count.oneRepMaxes}) — удаление заблокировано, чтобы не потерять историю тренировок. Можно переименовать вместо удаления.`,
+          error: `Упражнение используется (записей в тренировках: ${existing._count.exerciseEntries}, 1ПМ: ${existing._count.oneRepMaxes}).`,
+          usage: {
+            exerciseEntries: existing._count.exerciseEntries,
+            oneRepMaxes: existing._count.oneRepMaxes,
+          },
         },
         { status: 409 }
       )
     }
 
-    await prisma.exerciseCatalog.delete({ where: { id: params.exerciseId } })
+    if (usageCount > 0) {
+      await prisma.$transaction([
+        prisma.exerciseEntry.deleteMany({ where: { exerciseId: params.exerciseId } }),
+        prisma.athlete1RM.deleteMany({ where: { exerciseId: params.exerciseId } }),
+        prisma.exerciseCatalog.delete({ where: { id: params.exerciseId } }),
+      ])
+    } else {
+      await prisma.exerciseCatalog.delete({ where: { id: params.exerciseId } })
+    }
+
     return NextResponse.json({ ok: true })
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })

@@ -182,19 +182,25 @@ export function AdminExercisesView({ initialExercises }: Props) {
     setError(null)
 
     const usage = ex._count.exerciseEntries + ex._count.oneRepMaxes
+    let force = false
+
     if (usage > 0) {
-      window.alert(
+      const confirmed = window.confirm(
         `«${ex.name}» используется (записей в тренировках: ${ex._count.exerciseEntries}, ` +
-          `1ПМ: ${ex._count.oneRepMaxes}) — удалить нельзя, чтобы не потерять историю ` +
-          `тренировок. Можно переименовать вместо удаления.`
+          `1ПМ: ${ex._count.oneRepMaxes}). Вы уверены, что хотите удалить? Упражнение ` +
+          `пропадёт и из истории тренировок, и из сохранённых 1ПМ — отменить это будет нельзя.`
       )
-      return
+      if (!confirmed) return
+      force = true
+    } else {
+      if (!window.confirm(`Удалить упражнение «${ex.name}» из каталога?`)) return
     }
-    if (!window.confirm(`Удалить упражнение «${ex.name}» из каталога?`)) return
 
     setPendingId(ex.id)
     try {
-      const res = await fetch(`/api/admin/exercises/${ex.id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/admin/exercises/${ex.id}${force ? '?force=true' : ''}`, {
+        method: 'DELETE',
+      })
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
@@ -315,7 +321,11 @@ export function AdminExercisesView({ initialExercises }: Props) {
                   disabled={pendingId === ex.id}
                   onClick={() => deleteExercise(ex)}
                   aria-label="Удалить упражнение"
-                  title={usage > 0 ? 'Используется — удалить нельзя' : 'Удалить упражнение'}
+                  title={
+                    usage > 0
+                      ? 'Используется — удаление сотрёт историю тренировок и 1ПМ'
+                      : 'Удалить упражнение'
+                  }
                   className="text-text-secondary transition-colors hover:text-danger disabled:opacity-50"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
