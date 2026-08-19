@@ -83,10 +83,13 @@ export function classifyMainLift(exerciseName: string): MainLift | null {
   if (ACCESSORY_KEYWORDS.test(key)) return null
 
   if (key.includes('присед')) return 'squat'
-  // "тяга" alone isn't enough — bent-over rows, lat pulldowns, and RDLs
-  // ("тяга на прямых ногах"/"мёртвая тяга") all contain it too. Only the
-  // становая (conventional/sumo/deficit/pause/...) family counts.
-  if (key.includes('станов') && key.includes('тяг')) return 'deadlift'
+  // The seeded/imported catalog names deadlift variations "Тяга ...", not
+  // "Становая тяга ..." — so this only needs the "тяг" root itself. The
+  // ACCESSORY_KEYWORDS check above (блок, подтяг, прямых ног, ...) and the
+  // EXACT_OVERRIDES table already strip out bent-over rows, lat pulldowns,
+  // pull-ups and RDLs ("тяга на прямых ногах"/"мёртвая тяга"/"тяга штанги в
+  // наклоне") before we ever get here.
+  if (key.includes('тяг')) return 'deadlift'
   if (key.includes('жим')) return 'bench'
 
   return null
