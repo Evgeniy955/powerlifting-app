@@ -283,12 +283,22 @@ export function WeekDayTable({
           <tbody>
             {entries.map((entry, index) => {
               const m = perEntryMetrics.get(entry.id)!
+              // Same left-accent-stripe treatment as the admin exercise cards —
+              // the standalone dot next to the name was too easy to miss in a
+              // dense table, so the whole row leads with a 4px block-color bar.
+              // border-l-transparent keeps unset exercises aligned with sorted
+              // ones instead of the column jumping by 4px row to row.
+              const blockBorder = isTrainingGroup(entry.exercise.trainingGroup)
+                ? trainingGroupColor(entry.exercise.trainingGroup).borderLeft
+                : 'border-l-transparent'
               return (
                 <tr
                   key={entry.id}
                   className={`border-b border-border last:border-b-0 ${entry.skipped ? 'opacity-50' : ''}`}
                 >
-                  <td className="sticky left-0 z-10 w-40 max-w-[10rem] bg-surface px-2 py-1 font-medium align-top">
+                  <td
+                    className={`sticky left-0 z-10 w-40 max-w-[10rem] border-l-4 bg-surface px-2 py-1 font-medium align-top ${blockBorder}`}
+                  >
                     <div className="flex w-full flex-col items-start gap-0.5">
                       <div className="flex items-center gap-1">
                         <button
