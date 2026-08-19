@@ -34,6 +34,9 @@ type Props = {
   // 1RM is athlete-wide (not per-day), and the API that upserts it is coach-only —
   // athletes viewing their own week see the value read-only, same as before.
   canEditOneRepMax: boolean
+  // Coach-only: lets the "Добавить упражнение..." / edit-exercise autocompletes
+  // create a brand-new ExerciseCatalog row when the search comes up empty.
+  canCreateExercise: boolean
 }
 
 // Spreadsheet-dense day view — one compact table per day instead of a stack of
@@ -43,7 +46,13 @@ type Props = {
 // right (Тоннаж/Сред.вес/Инт%/ПМ/КПШ/КО), a day-totals row at the bottom. The ПМ
 // column is highlighted (bg-accent-2) and, for a coach, editable — it's the one
 // figure everything else on the row (%1RM, Инт%, КО) is computed from.
-export function WeekDayTable({ workout, rpeTable, athleteId, canEditOneRepMax }: Props) {
+export function WeekDayTable({
+  workout,
+  rpeTable,
+  athleteId,
+  canEditOneRepMax,
+  canCreateExercise,
+}: Props) {
   const [entries, setEntries] = useState<ExerciseEntryData[]>(workout.exerciseEntries)
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
@@ -299,6 +308,7 @@ export function WeekDayTable({ workout, rpeTable, athleteId, canEditOneRepMax }:
                           <ExerciseAutocomplete
                             onSelect={setDraftExercise}
                             placeholder={draftExercise?.name ?? entry.exercise.name}
+                            canCreate={canCreateExercise}
                           />
                           <div className="flex items-center gap-1">
                             <label className="flex items-center gap-1 text-[10px] text-text-secondary">
@@ -480,7 +490,11 @@ export function WeekDayTable({ workout, rpeTable, athleteId, canEditOneRepMax }:
       </div>
 
       <div className="border-t border-border p-2">
-        <ExerciseAutocomplete onSelect={handleAddExercise} placeholder="Добавить упражнение..." />
+        <ExerciseAutocomplete
+          onSelect={handleAddExercise}
+          placeholder="Добавить упражнение..."
+          canCreate={canCreateExercise}
+        />
       </div>
     </div>
   )

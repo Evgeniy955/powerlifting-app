@@ -10,11 +10,19 @@ type Props = {
   workoutId: string
   initialEntries: ExerciseEntryData[]
   rpeTable: RpePoint[]
+  // Coach-only: lets the add-exercise / edit-exercise autocompletes create a
+  // brand-new ExerciseCatalog row when the search comes up empty.
+  canCreateExercise?: boolean
 }
 
 // Orchestrates the exercise cards for a single training day and lets the user
 // (coach or athlete) add another exercise on the fly via the autocomplete.
-export function WorkoutView({ workoutId, initialEntries, rpeTable }: Props) {
+export function WorkoutView({
+  workoutId,
+  initialEntries,
+  rpeTable,
+  canCreateExercise = false,
+}: Props) {
   const [entries, setEntries] = useState<ExerciseEntryData[]>(initialEntries)
 
   async function handleAddExercise(exercise: ExerciseOption) {
@@ -61,13 +69,14 @@ export function WorkoutView({ workoutId, initialEntries, rpeTable }: Props) {
             rpeTable={rpeTable}
             position={index + 1}
             onRemove={handleRemoveExercise}
+            canCreateExercise={canCreateExercise}
           />
         ))}
       </div>
 
       <Card className="lg:mt-4">
         <p className="text-sm text-text-secondary mb-2">Добавить упражнение</p>
-        <ExerciseAutocomplete onSelect={handleAddExercise} />
+        <ExerciseAutocomplete onSelect={handleAddExercise} canCreate={canCreateExercise} />
       </Card>
     </div>
   )

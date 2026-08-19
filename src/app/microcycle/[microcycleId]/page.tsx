@@ -126,6 +126,7 @@ export default async function MicrocyclePage({
               rpeTable={rpeTable}
               athleteId={microcycle.athleteId}
               canEditOneRepMax={user.role === 'COACH'}
+              canCreateExercise={user.role === 'COACH'}
             />
           ))}
         </div>

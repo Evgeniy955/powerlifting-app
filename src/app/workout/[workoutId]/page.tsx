@@ -1,18 +1,31 @@
 import { getWorkoutForDisplay, getRpeTable } from '@/lib/workout'
 import { WorkoutView } from '@/components/WorkoutView'
-import { notFound } from 'next/navigation'
+import { prisma } from '@/lib/prisma'
+import { requireUser } from '@/lib/session'
+import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
 
 // Server component: loads the workout + RPE table once, then hands off to the
 // client-side WorkoutView for the interactive, reactive editing experience.
 export default async function WorkoutPage({ params }: { params: { workoutId: string } }) {
+  const user = await requireUser()
+
   const [workout, rpeTable] = await Promise.all([
     getWorkoutForDisplay(params.workoutId),
     getRpeTable(),
   ])
 
   if (!workout) notFound()
+
+  // This page had no ownership check at all before — any signed-in user could
+  // open any workout by id. Matches the same check every other cycle/week/day
+  // page in the app already does.
+  const athlete = await prisma.athleteProfile.findUnique({ where: { id: workout.athleteId } })
+  if (!athlete) notFound()
+  const owns =
+    user.role === 'COACH' ? athlete.coachId === user.id : athlete.userId === user.id
+  if (!owns) redirect('/')
 
   return (
     <main className="min-h-[calc(100vh-3.5rem)] bg-bg text-text-primary py-6">
@@ -63,6 +76,7 @@ export default async function WorkoutPage({ params }: { params: { workoutId: str
         workoutId={workout.id}
         initialEntries={workout.exerciseEntries}
         rpeTable={rpeTable}
+        canCreateExercise={user.role === 'COACH'}
       />
     </main>
   )
