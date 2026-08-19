@@ -20,6 +20,10 @@ export type ExerciseEntryData = {
     name: string
     category: string | null
     impactCoefficient: number
+    // "BASE" | "SPP" | "GPP" | null — used by WeekDayTable's Итого row to
+    // decide which exercises count toward Тоннаж/Срвес/Инт% (only Базовые +
+    // СФП); not used by this card itself.
+    trainingGroup: string | null
   }
   oneRepMax: number | null
   sets: SetValue[]

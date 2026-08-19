@@ -68,6 +68,7 @@ export async function getWorkoutForDisplay(workoutId: string) {
         name: entry.exercise.name,
         category: entry.exercise.category,
         impactCoefficient: entry.exercise.impactCoefficient,
+        trainingGroup: entry.exercise.trainingGroup,
       },
       oneRepMax: oneRepMaxByExercise.get(entry.exerciseId) ?? null,
       sets: entry.sets.map((s) => ({
@@ -159,6 +160,7 @@ export async function getMicrocycleForDisplay(microcycleId: string) {
           name: entry.exercise.name,
           category: entry.exercise.category,
           impactCoefficient: entry.exercise.impactCoefficient,
+          trainingGroup: entry.exercise.trainingGroup,
         },
         oneRepMax: oneRepMaxByExercise.get(entry.exerciseId) ?? null,
         sets: entry.sets.map((s) => ({
