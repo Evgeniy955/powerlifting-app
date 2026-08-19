@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from 'react'
 import { ArrowRight } from 'lucide-react'
-import { Button, Card, Checkbox, Dropzone, Input, useToast } from '@/components/ui'
-import type { ImportPreview, ParsedExerciseRow } from '@/lib/excelImport'
+import { Button, Card, Dropzone, Input, useToast } from '@/components/ui'
+import type { DuplicateSuggestion, ImportPreview, ParsedExerciseRow } from '@/lib/excelImport'
 
 type Props = { params: { athleteId: string } }
 
@@ -11,10 +11,24 @@ function nameKey(name: string) {
   return name.trim().toLowerCase()
 }
 
+// What happens to a unique unrecognized name on confirm:
+//  - 'create' — add it as a brand-new catalog exercise (the old default for
+//    every unrecognized row).
+//  - 'link'   — don't create anything; use the suggested existing exercise
+//    instead, on the assumption it's just a spelling/inflection variant
+//    ("Приседания" vs "Приседание"). Only a valid choice when a
+//    possibleDuplicate suggestion exists.
+//  - 'skip'   — not a real exercise (a note, a typo row, etc.) — leave its
+//    rows out of the import entirely.
+type UnrecognizedAction = 'create' | 'link' | 'skip'
+
 // Coach-only screen: upload an .xlsx/.xlsm training log, review what got recognized
-// vs. not (exercise names must match the ExerciseCatalog exactly, case-insensitive),
-// optionally add unrecognized names to the catalog on the fly (coefficient 1.0,
-// editable later), name the resulting cycle, then confirm to commit into the DB.
+// vs. not (exercise names must match the ExerciseCatalog exactly, case-insensitive).
+// Unrecognized names that look like a near-duplicate of an existing catalog exercise
+// are flagged with a suggestion instead of being silently created — the coach picks
+// per name whether to reuse the existing exercise, add it as genuinely new (coefficient
+// 1.0, editable later), or skip it. Then names the resulting cycle and confirms to
+// commit into the DB.
 export default function ImportPage({ params }: Props) {
   const { athleteId } = params
   const toast = useToast()
@@ -23,22 +37,34 @@ export default function ImportPage({ params }: Props) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<{ cycleId: string; workoutsCreated: number; exerciseEntriesCreated: number } | null>(null)
-  const [selectedNames, setSelectedNames] = useState<Set<string>>(new Set())
+  const [actions, setActions] = useState<Map<string, UnrecognizedAction>>(new Map())
 
   const uniqueUnrecognized = useMemo(() => {
     if (!preview) return []
-    const seen = new Map<string, number>()
+    const seen = new Map<
+      string,
+      { count: number; displayName: string; possibleDuplicate: DuplicateSuggestion | null }
+    >()
     for (const e of preview.unrecognized) {
       const key = nameKey(e.rawName)
-      seen.set(key, (seen.get(key) ?? 0) + 1)
+      const existing = seen.get(key)
+      if (existing) {
+        existing.count++
+      } else {
+        // show the first original-cased occurrence for display
+        seen.set(key, { count: 1, displayName: e.rawName, possibleDuplicate: e.possibleDuplicate })
+      }
     }
-    return Array.from(seen.entries()).map(([key, count]) => ({
-      key,
-      // show the first original-cased occurrence for display
-      displayName: preview.unrecognized.find((e) => nameKey(e.rawName) === key)!.rawName,
-      count,
-    }))
+    return Array.from(seen.entries()).map(([key, v]) => ({ key, ...v }))
   }, [preview])
+
+  function setAction(key: string, action: UnrecognizedAction) {
+    setActions((prev) => {
+      const next = new Map(prev)
+      next.set(key, action)
+      return next
+    })
+  }
 
   async function handleFile(file: File) {
     setError(null)
@@ -57,9 +83,16 @@ export default function ImportPage({ params }: Props) {
       }
       const json: ImportPreview = await res.json()
       setPreview(json)
-      // Default: all unrecognized names selected for auto-creation.
-      const keys = new Set(json.unrecognized.map((e) => nameKey(e.rawName)))
-      setSelectedNames(keys)
+      // Default: names with a suggested existing match are linked to it
+      // (avoids creating a near-duplicate); everything else defaults to
+      // creating a new catalog exercise, same as before.
+      const initial = new Map<string, UnrecognizedAction>()
+      for (const e of json.unrecognized) {
+        const key = nameKey(e.rawName)
+        if (initial.has(key)) continue
+        initial.set(key, e.possibleDuplicate ? 'link' : 'create')
+      }
+      setActions(initial)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка')
     } finally {
@@ -67,24 +100,25 @@ export default function ImportPage({ params }: Props) {
     }
   }
 
-  function toggleName(key: string) {
-    setSelectedNames((prev) => {
-      const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
-  }
-
   async function handleConfirm() {
     if (!preview) return
     setLoading(true)
     setError(null)
     try {
-      // Create any selected unrecognized exercises in the catalog first (coefficient
-      // 1.0 by default — edit later), then fold their rows into the import payload.
       const nameToId = new Map<string, string>()
-      const namesToCreate = uniqueUnrecognized.filter((u) => selectedNames.has(u.key))
+
+      // Names the coach chose to treat as an existing exercise instead of
+      // creating a near-duplicate — the id is already known from the
+      // fuzzy-match suggestion, no API call needed.
+      for (const u of uniqueUnrecognized) {
+        if (actions.get(u.key) === 'link' && u.possibleDuplicate) {
+          nameToId.set(u.key, u.possibleDuplicate.exerciseId)
+        }
+      }
+
+      // Create any names the coach confirmed are genuinely new (coefficient
+      // 1.0 by default — edit later), then fold their rows into the import payload.
+      const namesToCreate = uniqueUnrecognized.filter((u) => actions.get(u.key) === 'create')
 
       for (const u of namesToCreate) {
         const res = await fetch('/api/exercises', {
@@ -136,7 +170,10 @@ export default function ImportPage({ params }: Props) {
 
   const totalToImport =
     (preview?.recognized.length ?? 0) +
-    (preview?.unrecognized.filter((e) => selectedNames.has(nameKey(e.rawName))).length ?? 0)
+    (preview?.unrecognized.filter((e) => {
+      const action = actions.get(nameKey(e.rawName))
+      return action === 'create' || action === 'link'
+    }).length ?? 0)
 
   return (
     <main className="min-h-[calc(100vh-3.5rem)] bg-bg text-text-primary p-6 max-w-2xl mx-auto space-y-4 lg:max-w-4xl">
@@ -173,24 +210,60 @@ export default function ImportPage({ params }: Props) {
             <Card padding="sm" className="space-y-2">
               <p className="text-sm text-zone-moderate">
                 Не найдено в справочнике: {uniqueUnrecognized.length} уникальных названий
-                ({preview.unrecognized.length} строк). Отмеченные будут добавлены в
-                справочник с коэффициентом воздействия 1.0 (можно поправить позже) и
-                импортированы вместе с остальным. Сними галочку, если строка — не
-                упражнение (пометки, опечатки и т.п.).
+                ({preview.unrecognized.length} строк). Похожие на уже существующие
+                упражнения отмечены отдельно — выбери, использовать ли существующее
+                (чтобы не плодить дубликаты вроде «Приседания» / «Приседание»), добавить
+                как новое, или пропустить (если это не упражнение — пометка, опечатка
+                и т.п.).
               </p>
-              <div className="max-h-64 overflow-auto text-xs space-y-1">
-                {uniqueUnrecognized.map((u) => (
-                  <Checkbox
-                    key={u.key}
-                    checked={selectedNames.has(u.key)}
-                    onChange={() => toggleName(u.key)}
-                    label={
-                      <>
+              <div className="max-h-80 overflow-auto space-y-2 text-xs">
+                {uniqueUnrecognized.map((u) => {
+                  const action = actions.get(u.key) ?? (u.possibleDuplicate ? 'link' : 'create')
+                  return (
+                    <div key={u.key} className="rounded-lg border border-border p-2 space-y-1.5">
+                      <p>
                         «{u.displayName}» <span className="text-text-secondary">×{u.count}</span>
-                      </>
-                    }
-                  />
-                ))}
+                      </p>
+                      {u.possibleDuplicate && (
+                        <p className="text-zone-moderate">
+                          Похоже на «{u.possibleDuplicate.exerciseName}» в справочнике (
+                          {Math.round(u.possibleDuplicate.score * 100)}% совпадение)
+                        </p>
+                      )}
+                      <div className="flex flex-wrap items-center gap-3">
+                        {u.possibleDuplicate && (
+                          <label className="flex items-center gap-1.5">
+                            <input
+                              type="radio"
+                              name={`action-${u.key}`}
+                              checked={action === 'link'}
+                              onChange={() => setAction(u.key, 'link')}
+                            />
+                            Это «{u.possibleDuplicate.exerciseName}»
+                          </label>
+                        )}
+                        <label className="flex items-center gap-1.5">
+                          <input
+                            type="radio"
+                            name={`action-${u.key}`}
+                            checked={action === 'create'}
+                            onChange={() => setAction(u.key, 'create')}
+                          />
+                          Новое упражнение
+                        </label>
+                        <label className="flex items-center gap-1.5">
+                          <input
+                            type="radio"
+                            name={`action-${u.key}`}
+                            checked={action === 'skip'}
+                            onChange={() => setAction(u.key, 'skip')}
+                          />
+                          Пропустить
+                        </label>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             </Card>
           )}

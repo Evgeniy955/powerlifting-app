@@ -3,6 +3,19 @@ import { prisma } from './prisma'
 
 export type ParsedSet = { weight: number; reps: number }
 
+// A guess that an unrecognized row's exercise name is actually a spelling or
+// inflection variant of something already in the catalog (e.g. "Приседания"
+// entered where the catalog already has "Приседание") rather than a genuinely
+// new exercise. Purely a suggestion for the coach to confirm on the import
+// screen — never applied automatically, so it can't silently merge two
+// exercises that only look similar (e.g. "Жим лежа" vs "Жим лежа с паузой",
+// which must stay distinct).
+export type DuplicateSuggestion = {
+  exerciseId: string
+  exerciseName: string
+  score: number
+}
+
 export type ParsedExerciseRow = {
   date: string // ISO date
   sheetName: string
@@ -10,6 +23,9 @@ export type ParsedExerciseRow = {
   rawName: string
   matchedExerciseId: string | null
   matchedExerciseName: string | null
+  // Only set for rows that didn't match the catalog exactly — see
+  // findPossibleDuplicate() below.
+  possibleDuplicate: DuplicateSuggestion | null
   oneRepMax: number | null
   // The "Порядок" value that sat next to the exercise name in the source sheet —
   // the coach's intended exercise sequence for that day. Not always filled in for
@@ -124,6 +140,105 @@ function findHeader(row: ExcelJS.Row): HeaderMap | null {
   if (setBlocks.length === 0) return null
 
   return { dateCol, exerciseCol, orderCol, oneRepMaxCol, setBlocks }
+}
+
+function normalizeForMatch(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/ё/g, 'е')
+    .replace(/[.,;:!?()"'«»]/g, '')
+    .replace(/\s+/g, ' ')
+}
+
+// Plain Levenshtein edit distance (single-row DP) — exercise names are short
+// enough that this doesn't need to be fast, just correct.
+function levenshtein(a: string, b: string): number {
+  const m = a.length
+  const n = b.length
+  if (m === 0) return n
+  if (n === 0) return m
+  let prev = Array.from({ length: n + 1 }, (_, j) => j)
+  for (let i = 1; i <= m; i++) {
+    const cur = [i]
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost)
+    }
+    prev = cur
+  }
+  return prev[n]
+}
+
+function stringSimilarity(a: string, b: string): number {
+  const maxLen = Math.max(a.length, b.length)
+  if (maxLen === 0) return 1
+  return 1 - levenshtein(a, b) / maxLen
+}
+
+// Crude Russian suffix strip — just enough to fold plural/case endings onto a
+// shared stem for duplicate detection ("приседания" / "приседание" /
+// "приседаний" all -> "приседани"). Not a real stemmer; doesn't need to be,
+// this only feeds a "does this look like the same word" heuristic.
+function crudeStem(word: string): string {
+  if (word.length <= 5) return word
+  return word.replace(
+    /(ями|ами|ого|его|ому|ему|ыми|ими|ой|ый|ий|ое|ее|ая|яя|ы|и|а|я|о|е|й)$/,
+    ''
+  )
+}
+
+function sortedTokenStems(normalized: string): string[] {
+  return normalized
+    .split(' ')
+    .filter(Boolean)
+    .map(crudeStem)
+    .sort()
+}
+
+// Suggests an existing catalog exercise that a freshly-imported, unmatched
+// name might actually be a spelling/inflection variant of, e.g. "Приседания"
+// where the catalog already has "Приседание" — rather than a genuinely new
+// exercise. Two independent signals, either is enough to surface a
+// suggestion:
+//   1. the normalized token stems match exactly (handles plural/case
+//      endings and word-order swaps like "тяга становая" / "становая тяга")
+//   2. whole-string edit-distance similarity is high (handles typos)
+// Both are intentionally conservative about length so that a short name
+// doesn't accidentally "match" an unrelated short name, and neither
+// conflates two names that differ by an extra clarifying word (e.g. "Жим
+// лежа" vs "Жим лежа с паузой" — different token count, different length —
+// since those are deliberately distinct catalog entries, not duplicates.
+export function findPossibleDuplicate(
+  rawName: string,
+  catalog: { id: string; name: string }[]
+): DuplicateSuggestion | null {
+  const norm = normalizeForMatch(rawName)
+  if (norm.length < 4) return null
+  const stems = sortedTokenStems(norm)
+
+  let best: DuplicateSuggestion | null = null
+  for (const ex of catalog) {
+    const exNorm = normalizeForMatch(ex.name)
+    if (exNorm === norm) continue
+
+    const exStems = sortedTokenStems(exNorm)
+    const stemsMatch =
+      stems.length > 0 &&
+      stems.length === exStems.length &&
+      stems.every((s, i) => s === exStems[i])
+
+    const score = stringSimilarity(norm, exNorm)
+    const scoreMatch = score >= 0.84 && Math.max(norm.length, exNorm.length) >= 6
+
+    if (!stemsMatch && !scoreMatch) continue
+
+    const finalScore = stemsMatch ? Math.max(score, 0.9) : score
+    if (!best || finalScore > best.score) {
+      best = { exerciseId: ex.id, exerciseName: ex.name, score: finalScore }
+    }
+  }
+  return best
 }
 
 /**
@@ -243,6 +358,7 @@ export async function parseWorkbookPreview(buffer: Buffer): Promise<ImportPrevie
         rawName,
         matchedExerciseId: match?.id ?? null,
         matchedExerciseName: match?.name ?? null,
+        possibleDuplicate: match ? null : findPossibleDuplicate(rawName, catalog),
         oneRepMax: oneRepMax > 0 ? oneRepMax : null,
         sourceOrder,
         sets,
