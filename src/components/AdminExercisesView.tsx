@@ -2,14 +2,20 @@
 
 import { useMemo, useState } from 'react'
 import { Check, Pencil, Search, Trash2, X } from 'lucide-react'
-import { Badge, Card, Input } from '@/components/ui'
+import { Badge, Card, Input, Select } from '@/components/ui'
 import { classifyMainLift, type MainLift } from '@/lib/mainLifts'
+import {
+  TRAINING_GROUPS,
+  TRAINING_GROUP_LABEL,
+  type TrainingGroup,
+} from '@/lib/trainingGroups'
 
 export type AdminExercise = {
   id: string
   name: string
   category: string | null
   impactCoefficient: number
+  trainingGroup: string | null
   _count: { exerciseEntries: number; oneRepMaxes: number }
 }
 
@@ -23,13 +29,25 @@ const LIFT_LABEL: Record<MainLift, string> = {
   deadlift: 'Тяга',
 }
 
+const UNASSIGNED = 'UNASSIGNED' as const
+type GroupKey = TrainingGroup | typeof UNASSIGNED
+
+const GROUP_ORDER: GroupKey[] = [...TRAINING_GROUPS, UNASSIGNED]
+const GROUP_LABEL: Record<GroupKey, string> = {
+  ...TRAINING_GROUP_LABEL,
+  UNASSIGNED: 'Без блока',
+}
+
 // Coach-only exercise catalog management: rename, retag category/impact
-// coefficient, and delete unused rows. Renaming here is the whole feature —
-// ExerciseEntry/Athlete1RM only ever store the exerciseId and read the name
-// live off this table via the relation, so a save here shows up immediately
-// in every program/week/day that uses this exercise, no extra propagation
-// needed. Deleting a row that's actually in use is blocked by the API
-// (409) rather than cascading through training history.
+// coefficient, delete unused rows, and — the point of this component —
+// "move" an exercise between the Базовые/СФП/ОФП training blocks via a
+// per-card select, grouped into one section per block (plus "Без блока" for
+// anything not yet classified). Renaming/moving needs no propagation step:
+// ExerciseEntry/Athlete1RM only ever store the exerciseId and read
+// name/category/trainingGroup live off this table via the relation, so a
+// save shows up immediately everywhere the exercise is used. Deleting a row
+// that's actually in use is blocked by the API (409) rather than cascading
+// through training history.
 export function AdminExercisesView({ initialExercises }: Props) {
   const [exercises, setExercises] = useState(initialExercises)
   const [query, setQuery] = useState('')
@@ -41,12 +59,28 @@ export function AdminExercisesView({ initialExercises }: Props) {
   const [draftCategory, setDraftCategory] = useState('')
   const [draftImpact, setDraftImpact] = useState(1)
 
-  const filtered = useMemo(() => {
+  const grouped = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return exercises
-    return exercises.filter(
-      (ex) => ex.name.toLowerCase().includes(q) || (ex.category ?? '').toLowerCase().includes(q)
-    )
+    const filtered = q
+      ? exercises.filter(
+          (ex) => ex.name.toLowerCase().includes(q) || (ex.category ?? '').toLowerCase().includes(q)
+        )
+      : exercises
+
+    const byGroup: Record<GroupKey, AdminExercise[]> = {
+      BASE: [],
+      SPP: [],
+      GPP: [],
+      UNASSIGNED: [],
+    }
+    for (const ex of filtered) {
+      const key: GroupKey =
+        ex.trainingGroup === 'BASE' || ex.trainingGroup === 'SPP' || ex.trainingGroup === 'GPP'
+          ? ex.trainingGroup
+          : UNASSIGNED
+      byGroup[key].push(ex)
+    }
+    return byGroup
   }, [exercises, query])
 
   function startEdit(ex: AdminExercise) {
@@ -93,6 +127,32 @@ export function AdminExercisesView({ initialExercises }: Props) {
     setEditingId(null)
   }
 
+  // The "move to block" action — a coach picks Базовые/СФП/ОФП/Без блока
+  // from the select and this fires immediately, no separate save step.
+  async function moveToGroup(ex: AdminExercise, group: TrainingGroup | null) {
+    setError(null)
+    const previous = ex.trainingGroup
+    setExercises((prev) =>
+      prev.map((x) => (x.id === ex.id ? { ...x, trainingGroup: group } : x))
+    )
+
+    const res = await fetch(`/api/admin/exercises/${ex.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ trainingGroup: group }),
+    })
+
+    if (!res.ok) {
+      // Roll back on failure — the optimistic move above already re-sorted
+      // the card into the target section.
+      setExercises((prev) =>
+        prev.map((x) => (x.id === ex.id ? { ...x, trainingGroup: previous } : x))
+      )
+      const body = await res.json().catch(() => ({}))
+      setError(body.error ?? 'Не удалось переместить упражнение')
+    }
+  }
+
   async function deleteExercise(ex: AdminExercise) {
     setError(null)
 
@@ -120,8 +180,122 @@ export function AdminExercisesView({ initialExercises }: Props) {
     setExercises((prev) => prev.filter((x) => x.id !== ex.id))
   }
 
+  function renderCard(ex: AdminExercise) {
+    const lift = classifyMainLift(ex.name)
+    const usage = ex._count.exerciseEntries + ex._count.oneRepMaxes
+
+    return (
+      <li key={ex.id}>
+        <Card padding="sm" className="space-y-2">
+          {editingId === ex.id ? (
+            <div className="space-y-2">
+              <Input
+                value={draftName}
+                onChange={(e) => setDraftName(e.target.value)}
+                placeholder="Название"
+                fieldSize="sm"
+                className="w-full"
+              />
+              <Input
+                value={draftCategory}
+                onChange={(e) => setDraftCategory(e.target.value)}
+                placeholder="Категория"
+                fieldSize="sm"
+                className="w-full"
+              />
+              <label className="flex items-center gap-2 text-xs text-text-secondary">
+                Коэфф. воздействия
+                <Input
+                  type="number"
+                  step="0.1"
+                  min="0.1"
+                  value={draftImpact}
+                  onChange={(e) => setDraftImpact(parseFloat(e.target.value) || 1)}
+                  fieldSize="sm"
+                  className="w-20"
+                />
+              </label>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={pendingId === ex.id}
+                  onClick={() => saveEdit(ex)}
+                  className="inline-flex items-center gap-1 text-xs text-accent transition-colors hover:underline disabled:opacity-50"
+                >
+                  <Check className="h-3.5 w-3.5" /> Сохранить
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingId(null)}
+                  className="inline-flex items-center gap-1 text-xs text-text-secondary transition-colors hover:text-danger"
+                >
+                  <X className="h-3.5 w-3.5" /> Отмена
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate font-medium">{ex.name}</p>
+                <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                  {ex.category && <Badge tone="neutral">{ex.category}</Badge>}
+                  {lift && <Badge tone="accent">{LIFT_LABEL[lift]}</Badge>}
+                </div>
+                <p className="mt-1 text-xs text-text-secondary">
+                  {usage > 0
+                    ? `Используется: записей в тренировках — ${ex._count.exerciseEntries}, 1ПМ — ${ex._count.oneRepMaxes}`
+                    : 'Не используется'}
+                </p>
+                <Select
+                  value={ex.trainingGroup ?? ''}
+                  onChange={(e) =>
+                    moveToGroup(ex, e.target.value === '' ? null : (e.target.value as TrainingGroup))
+                  }
+                  aria-label="Переместить в блок"
+                  fieldSize="sm"
+                  className="mt-2"
+                >
+                  <option value="">Без блока</option>
+                  {TRAINING_GROUPS.map((g) => (
+                    <option key={g} value={g}>
+                      {TRAINING_GROUP_LABEL[g]}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+
+              <div className="flex shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => startEdit(ex)}
+                  aria-label="Редактировать упражнение"
+                  title="Редактировать упражнение"
+                  className="text-text-secondary transition-colors hover:text-accent"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  disabled={pendingId === ex.id}
+                  onClick={() => deleteExercise(ex)}
+                  aria-label="Удалить упражнение"
+                  title={usage > 0 ? 'Используется — удалить нельзя' : 'Удалить упражнение'}
+                  className="text-text-secondary transition-colors hover:text-danger disabled:opacity-50"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
+        </Card>
+      </li>
+    )
+  }
+
+  const totalShown = GROUP_ORDER.reduce((sum, key) => sum + grouped[key].length, 0)
+
   return (
-    <div className="space-y-3">
+    <div className="space-y-5">
       <div className="relative">
         <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-secondary" />
         <Input
@@ -134,106 +308,27 @@ export function AdminExercisesView({ initialExercises }: Props) {
 
       {error && <p className="text-sm text-danger">{error}</p>}
 
-      <ul className="animate-fade-in space-y-2 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0 xl:grid-cols-3">
-        {filtered.map((ex) => {
-          const lift = classifyMainLift(ex.name)
-          const usage = ex._count.exerciseEntries + ex._count.oneRepMaxes
+      {totalShown === 0 ? (
+        <p className="text-sm text-text-secondary">Ничего не найдено.</p>
+      ) : (
+        GROUP_ORDER.map((key) => {
+          const items = grouped[key]
+          if (items.length === 0) return null
           return (
-            <li key={ex.id}>
-              <Card padding="sm" className="space-y-2">
-                {editingId === ex.id ? (
-                  <div className="space-y-2">
-                    <Input
-                      value={draftName}
-                      onChange={(e) => setDraftName(e.target.value)}
-                      placeholder="Название"
-                      fieldSize="sm"
-                      className="w-full"
-                    />
-                    <Input
-                      value={draftCategory}
-                      onChange={(e) => setDraftCategory(e.target.value)}
-                      placeholder="Категория"
-                      fieldSize="sm"
-                      className="w-full"
-                    />
-                    <label className="flex items-center gap-2 text-xs text-text-secondary">
-                      Коэфф. воздействия
-                      <Input
-                        type="number"
-                        step="0.1"
-                        min="0.1"
-                        value={draftImpact}
-                        onChange={(e) => setDraftImpact(parseFloat(e.target.value) || 1)}
-                        fieldSize="sm"
-                        className="w-20"
-                      />
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        disabled={pendingId === ex.id}
-                        onClick={() => saveEdit(ex)}
-                        className="inline-flex items-center gap-1 text-xs text-accent transition-colors hover:underline disabled:opacity-50"
-                      >
-                        <Check className="h-3.5 w-3.5" /> Сохранить
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setEditingId(null)}
-                        className="inline-flex items-center gap-1 text-xs text-text-secondary transition-colors hover:text-danger"
-                      >
-                        <X className="h-3.5 w-3.5" /> Отмена
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate font-medium">{ex.name}</p>
-                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                        {ex.category && <Badge tone="neutral">{ex.category}</Badge>}
-                        {lift && <Badge tone="accent">{LIFT_LABEL[lift]}</Badge>}
-                      </div>
-                      <p className="mt-1 text-xs text-text-secondary">
-                        {usage > 0
-                          ? `Используется: записей в тренировках — ${ex._count.exerciseEntries}, 1ПМ — ${ex._count.oneRepMaxes}`
-                          : 'Не используется'}
-                      </p>
-                    </div>
-
-                    <div className="flex shrink-0 items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => startEdit(ex)}
-                        aria-label="Редактировать упражнение"
-                        title="Редактировать упражнение"
-                        className="text-text-secondary transition-colors hover:text-accent"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        disabled={pendingId === ex.id}
-                        onClick={() => deleteExercise(ex)}
-                        aria-label="Удалить упражнение"
-                        title={usage > 0 ? 'Используется — удалить нельзя' : 'Удалить упражнение'}
-                        className="text-text-secondary transition-colors hover:text-danger disabled:opacity-50"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </Card>
-            </li>
+            <div key={key} className="space-y-2">
+              <h2 className="flex items-center gap-2 font-display text-sm uppercase tracking-wide text-text-secondary">
+                {GROUP_LABEL[key]}
+                <span className="text-xs font-normal normal-case text-text-secondary">
+                  {items.length}
+                </span>
+              </h2>
+              <ul className="animate-fade-in space-y-2 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0 xl:grid-cols-3">
+                {items.map(renderCard)}
+              </ul>
+            </div>
           )
-        })}
-
-        {filtered.length === 0 && (
-          <li className="text-sm text-text-secondary">Ничего не найдено.</li>
-        )}
-      </ul>
+        })
+      )}
     </div>
   )
 }

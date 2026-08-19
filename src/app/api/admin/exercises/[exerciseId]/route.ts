@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireCoach, statusForAuthError } from '@/lib/session'
+import { isTrainingGroup } from '@/lib/trainingGroups'
 
-// PATCH /api/admin/exercises/:exerciseId { name?, category?, impactCoefficient? }
+// PATCH /api/admin/exercises/:exerciseId { name?, category?, impactCoefficient?, trainingGroup? }
 // Coach-only. Renaming here updates every training program that uses this
 // exercise immediately — ExerciseEntry and Athlete1RM only store the
 // exerciseId, the display name is always read live off ExerciseCatalog via
 // the relation, never copied onto the entry. Nothing else to invalidate.
+// trainingGroup is the "move to Базовые/СФП/ОФП" action — pass null to
+// unassign.
 export async function PATCH(req: NextRequest, { params }: { params: { exerciseId: string } }) {
   try {
     await requireCoach()
@@ -15,8 +18,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { exerciseId
       name?: string
       category?: string | null
       impactCoefficient?: number
+      trainingGroup?: string | null
     }
-    const data: { name?: string; category?: string | null; impactCoefficient?: number } = {}
+    const data: {
+      name?: string
+      category?: string | null
+      impactCoefficient?: number
+      trainingGroup?: string | null
+    } = {}
 
     if (body.name !== undefined) {
       const name = body.name.trim()
@@ -36,6 +45,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { exerciseId
         )
       }
       data.impactCoefficient = body.impactCoefficient
+    }
+    if (body.trainingGroup !== undefined) {
+      if (body.trainingGroup !== null && !isTrainingGroup(body.trainingGroup)) {
+        return NextResponse.json(
+          { error: 'Блок должен быть BASE, SPP, GPP или null' },
+          { status: 400 }
+        )
+      }
+      data.trainingGroup = body.trainingGroup
     }
 
     if (Object.keys(data).length === 0) {

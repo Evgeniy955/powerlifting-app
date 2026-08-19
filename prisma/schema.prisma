@@ -113,6 +113,12 @@ model ExerciseCatalog {
   name              String  @unique
   category          String? // e.g. "Приседания", "Жим", "Тяга", "Вспомогательное"
   impactCoefficient Float   @default(1.0)
+  // "BASE" | "SPP" | "GPP" — Базовые / СФП / ОФП training-block classification.
+  // A separate axis from `category` (movement pattern): a coach assigns this
+  // manually from the admin exercise page ("move" an exercise into a block).
+  // Null until assigned — plain string, not an enum, same reasoning as
+  // User.role/AthleteProfile.inviteStatus elsewhere in this schema.
+  trainingGroup     String?
 
   oneRepMaxes     Athlete1RM[]
   exerciseEntries ExerciseEntry[]
