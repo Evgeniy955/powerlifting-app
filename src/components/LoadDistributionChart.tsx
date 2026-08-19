@@ -28,7 +28,7 @@ export function LoadDistributionChart({ data }: Props) {
   }
 
   const chartData = data.map((p) => ({
-    label: `${p.cycleName} · нед.${p.weekNumber}`,
+    label: `${p.cycleName} · МЦ${p.weekNumber}`,
     tonnage: p.tonnage,
     kpsh: p.kpsh,
   }))

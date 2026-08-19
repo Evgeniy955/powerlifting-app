@@ -37,12 +37,21 @@ type Props = {
   // Removes this exercise from the day's plan (ExerciseEntry row + its sets) —
   // not the ExerciseCatalog entry, which stays intact for every other day/athlete.
   onRemove: (entryId: string) => void
+  // Coach-only: lets the edit-exercise autocomplete create a brand-new
+  // ExerciseCatalog row when the search comes up empty.
+  canCreateExercise?: boolean
 }
 
 // One exercise block in the day view: dynamic set list ("+ Добавить подход"),
 // reactive metrics recomputed on every keystroke, debounced persistence to the API.
 // No auto-fill of new sets — they start empty by design.
-export function ExerciseCard({ entry, rpeTable, position, onRemove }: Props) {
+export function ExerciseCard({
+  entry,
+  rpeTable,
+  position,
+  onRemove,
+  canCreateExercise = false,
+}: Props) {
   const [sets, setSets] = useState<SetValue[]>(entry.sets)
   const [skipped, setSkipped] = useState(entry.skipped)
   // Which catalog exercise this entry points to and its "Множ" multiplier —
@@ -204,6 +213,7 @@ export function ExerciseCard({ entry, rpeTable, position, onRemove }: Props) {
             <ExerciseAutocomplete
               onSelect={setDraftExercise}
               placeholder={draftExercise?.name ?? exercise.name}
+              canCreate={canCreateExercise}
             />
           </div>
           <label className="flex items-center gap-1 text-xs text-text-secondary">

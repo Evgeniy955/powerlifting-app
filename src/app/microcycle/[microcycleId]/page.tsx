@@ -6,7 +6,8 @@ import { MetricsBadge } from '@/components/MetricsBadge'
 import { computeExerciseMetrics, aggregateMetrics } from '@/lib/metrics'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, ArrowRight } from 'lucide-react'
+import { ArrowLeft, ArrowRight, BarChart3 } from 'lucide-react'
+import { buttonVariants } from '@/components/ui'
 
 // Whole-week view: every day (Workout) of a microcycle rendered on one page as a
 // dense spreadsheet-style table (WeekDayTable) — one row per exercise, one narrow
@@ -61,11 +62,19 @@ export default async function MicrocyclePage({
           >
             <ArrowLeft className="h-4 w-4" /> {microcycle.cycleName}
           </Link>
+          <div className="mb-2">
+            <Link
+              href={`/cycles/${microcycle.cycleId}/analytics`}
+              className={buttonVariants({ variant: 'outline', size: 'sm' })}
+            >
+              <BarChart3 className="h-4 w-4" /> Аналитика мезоцикла
+            </Link>
+          </div>
           <div className="flex items-center justify-center gap-3">
             {microcycle.prevWeek ? (
               <Link
                 href={`/microcycle/${microcycle.prevWeek.id}`}
-                aria-label={`Неделя ${microcycle.prevWeek.weekNumber}`}
+                aria-label={`Микроцикл ${microcycle.prevWeek.weekNumber}`}
                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-2 hover:text-accent"
               >
                 <ArrowLeft className="h-4 w-4" />
@@ -75,13 +84,13 @@ export default async function MicrocyclePage({
             )}
 
             <h1 className="font-display text-xl uppercase tracking-wide">
-              Неделя {microcycle.weekNumber}
+              Микроцикл {microcycle.weekNumber}
             </h1>
 
             {microcycle.nextWeek ? (
               <Link
                 href={`/microcycle/${microcycle.nextWeek.id}`}
-                aria-label={`Неделя ${microcycle.nextWeek.weekNumber}`}
+                aria-label={`Микроцикл ${microcycle.nextWeek.weekNumber}`}
                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-2 hover:text-accent"
               >
                 <ArrowRight className="h-4 w-4" />
@@ -106,7 +115,7 @@ export default async function MicrocyclePage({
 
       {microcycle.workouts.length === 0 ? (
         <p className="text-center text-sm text-text-secondary">
-          В этой неделе пока нет тренировок.
+          В этом микроцикле пока нет тренировок.
         </p>
       ) : (
         <div className="mx-auto max-w-md space-y-3 px-4 lg:max-w-6xl">
@@ -117,6 +126,7 @@ export default async function MicrocyclePage({
               rpeTable={rpeTable}
               athleteId={microcycle.athleteId}
               canEditOneRepMax={user.role === 'COACH'}
+              canCreateExercise={user.role === 'COACH'}
             />
           ))}
         </div>
