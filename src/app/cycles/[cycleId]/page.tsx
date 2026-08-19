@@ -60,7 +60,7 @@ export default async function CyclePage({ params }: { params: { cycleId: string 
               href={`/microcycle/${mc.id}`}
               className="mb-2 block text-sm text-text-secondary transition-colors duration-150 hover:text-accent"
             >
-              Неделя {mc.weekNumber}
+              Микроцикл {mc.weekNumber}
               {mc.workouts[0] && ` · ${mc.workouts[0].scheduledDate.toISOString().slice(0, 10)}`}
             </Link>
             <div className="flex flex-wrap gap-2">

@@ -74,7 +74,7 @@ export default async function MicrocyclePage({
             {microcycle.prevWeek ? (
               <Link
                 href={`/microcycle/${microcycle.prevWeek.id}`}
-                aria-label={`Неделя ${microcycle.prevWeek.weekNumber}`}
+                aria-label={`Микроцикл ${microcycle.prevWeek.weekNumber}`}
                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-2 hover:text-accent"
               >
                 <ArrowLeft className="h-4 w-4" />
@@ -84,13 +84,13 @@ export default async function MicrocyclePage({
             )}
 
             <h1 className="font-display text-xl uppercase tracking-wide">
-              Неделя {microcycle.weekNumber}
+              Микроцикл {microcycle.weekNumber}
             </h1>
 
             {microcycle.nextWeek ? (
               <Link
                 href={`/microcycle/${microcycle.nextWeek.id}`}
-                aria-label={`Неделя ${microcycle.nextWeek.weekNumber}`}
+                aria-label={`Микроцикл ${microcycle.nextWeek.weekNumber}`}
                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-2 hover:text-accent"
               >
                 <ArrowRight className="h-4 w-4" />
@@ -115,7 +115,7 @@ export default async function MicrocyclePage({
 
       {microcycle.workouts.length === 0 ? (
         <p className="text-center text-sm text-text-secondary">
-          В этой неделе пока нет тренировок.
+          В этом микроцикле пока нет тренировок.
         </p>
       ) : (
         <div className="mx-auto max-w-md space-y-3 px-4 lg:max-w-6xl">

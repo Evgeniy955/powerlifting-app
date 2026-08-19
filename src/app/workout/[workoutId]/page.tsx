@@ -21,7 +21,7 @@ export default async function WorkoutPage({ params }: { params: { workoutId: str
           href={`/microcycle/${workout.microcycleId}`}
           className="mb-2 inline-flex items-center gap-1.5 text-sm text-text-secondary hover:text-accent"
         >
-          <ArrowLeft className="h-4 w-4" /> Неделя {workout.weekNumber}
+          <ArrowLeft className="h-4 w-4" /> Микроцикл {workout.weekNumber}
         </Link>
 
         <div className="flex items-center justify-center gap-3">
@@ -39,7 +39,7 @@ export default async function WorkoutPage({ params }: { params: { workoutId: str
 
           <div>
             <h1 className="font-display text-xl uppercase tracking-wide">
-              Неделя {workout.weekNumber} · День {workout.dayNumber}
+              Микроцикл {workout.weekNumber} · День {workout.dayNumber}
             </h1>
             <p className="text-sm text-text-secondary">
               {workout.scheduledDate.toISOString().slice(0, 10)}

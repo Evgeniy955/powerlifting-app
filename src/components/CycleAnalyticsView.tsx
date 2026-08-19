@@ -99,7 +99,7 @@ export function CycleAnalyticsView({ cycleId, totalWeeks }: Props) {
         </div>
 
         <div>
-          <label className="mb-1 block text-xs text-text-secondary">С недели</label>
+          <label className="mb-1 block text-xs text-text-secondary">С микроцикла</label>
           <Input
             type="number"
             min={1}
@@ -112,7 +112,7 @@ export function CycleAnalyticsView({ cycleId, totalWeeks }: Props) {
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs text-text-secondary">По неделю</label>
+          <label className="mb-1 block text-xs text-text-secondary">По микроцикл</label>
           <Input
             type="number"
             min={1}
@@ -142,14 +142,14 @@ export function CycleAnalyticsView({ cycleId, totalWeeks }: Props) {
 
       {filteredWeeks.length === 0 ? (
         <p className="text-sm text-text-secondary">
-          Нет тренировок {exerciseId ? 'по этому упражнению' : ''} за выбранный диапазон недель.
+          Нет тренировок {exerciseId ? 'по этому упражнению' : ''} за выбранный диапазон микроциклов.
         </p>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-border bg-surface shadow-card">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-surface-2 text-xs uppercase tracking-wide text-text-secondary">
-                <th className="px-3 py-2 text-left">Неделя</th>
+                <th className="px-3 py-2 text-left">Микроцикл</th>
                 <th className="px-3 py-2 text-right">Тоннаж</th>
                 <th className="px-3 py-2 text-right">Сред.вес</th>
                 <th className="px-3 py-2 text-right">Инт.отн</th>
