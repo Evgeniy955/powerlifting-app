@@ -45,7 +45,9 @@ type Props = {
 // exercise rows, one narrow column per set (weight/reps/%1RM), totals on the
 // right (Тоннаж/Сред.вес/Инт%/ПМ/КПШ/КО), a day-totals row at the bottom. The ПМ
 // column is highlighted (bg-accent-2) and, for a coach, editable — it's the one
-// figure everything else on the row (%1RM, Инт%, КО) is computed from.
+// figure everything else on the row (%1RM, Инт%, КО) is computed from. The
+// Итого row's Тоннаж/Сред.вес/Инт% only count exercises in the Базовые/СФП
+// blocks (see dayTotals below) — КПШ/КО stay summed across every exercise.
 export function WeekDayTable({
   workout,
   rpeTable,
@@ -85,10 +87,28 @@ export function WeekDayTable({
     [entries, rpeTable]
   )
 
-  const dayTotals = useMemo(
-    () => aggregateMetrics(Array.from(perEntryMetrics.values())),
-    [perEntryMetrics]
-  )
+  // Итого row: Тоннаж/Срвес/Инт% only count exercises in the Базовые/СФП
+  // training blocks (ОФП and unclassified exercises are accessory/prep work
+  // that shouldn't inflate the day's load figures) — but КПШ/КО stay summed
+  // across every exercise, same as before, per the coach's explicit split
+  // between "load" and "КО".
+  const dayTotals = useMemo(() => {
+    const allMetrics = Array.from(perEntryMetrics.values())
+    const loadMetrics = entries
+      .filter((e) => e.exercise.trainingGroup === 'BASE' || e.exercise.trainingGroup === 'SPP')
+      .map((e) => perEntryMetrics.get(e.id)!)
+
+    const loadTotals = aggregateMetrics(loadMetrics)
+    const allTotals = aggregateMetrics(allMetrics)
+
+    return {
+      tonnage: loadTotals.tonnage,
+      avgWeight: loadTotals.avgWeight,
+      relativeIntensity: loadTotals.relativeIntensity,
+      kpsh: allTotals.kpsh,
+      loadCoefficient: allTotals.loadCoefficient,
+    }
+  }, [perEntryMetrics, entries])
 
   const maxSets = Math.max(1, ...entries.map((e) => e.sets.length))
 
@@ -206,6 +226,7 @@ export function WeekDayTable({
           name: exercise.name,
           category: exercise.category,
           impactCoefficient: exercise.impactCoefficient,
+          trainingGroup: exercise.trainingGroup,
         },
         oneRepMax: null,
         sets: [],

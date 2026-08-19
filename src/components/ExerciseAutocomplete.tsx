@@ -9,6 +9,7 @@ export type ExerciseOption = {
   name: string
   category: string | null
   impactCoefficient: number
+  trainingGroup: string | null
 }
 
 type Props = {

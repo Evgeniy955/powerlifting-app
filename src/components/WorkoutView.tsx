@@ -44,6 +44,7 @@ export function WorkoutView({
           name: exercise.name,
           category: exercise.category,
           impactCoefficient: exercise.impactCoefficient,
+          trainingGroup: exercise.trainingGroup,
         },
         oneRepMax: null,
         sets: [],
