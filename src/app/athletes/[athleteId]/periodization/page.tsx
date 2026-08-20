@@ -8,12 +8,14 @@ import { EmptyState } from '@/components/EmptyState'
 import { athleteDisplayName } from '@/lib/athlete'
 
 // Season overview for one athlete — the classic Период/Этап/Мезоцикл/Микроцикл
-// planning sheet, reproduced as a top-down hierarchy: Период (own date range)
-// contains one or more Этапы (own date range), each of which one or more
-// Мезоциклы (= existing training-plan Cycles, attached via Cycle.stageId)
-// with their own Микроциклы (weeks) underneath, same as everywhere else in
-// the app. Периоды/Этапы are real dated entities now, not tags derived from
-// the mesocycles inside them.
+// planning sheet, reproduced as a spreadsheet-style table: one column per
+// mesocycle (Cycle/training plan), four fixed rows underneath (Период / Этап /
+// Мезоцикл / Микроцикл). Периоды/Этапы are real dated entities (own
+// startDate/endDate, added independently), not tags derived from the
+// mesocycles inside them — each column cascades: pick a Период, which reveals
+// the Этап dropdown scoped to it, which reveals the Мезоцикл (attach an
+// existing plan or create a new one), whose Микроциклы (weeks) show
+// underneath. A coach must add at least one Период before the table appears.
 export default async function PeriodizationPage({
   params,
 }: {
@@ -30,19 +32,16 @@ export default async function PeriodizationPage({
         include: {
           stages: {
             orderBy: { startDate: 'asc' },
-            include: {
-              cycles: {
-                orderBy: { startDate: 'asc' },
-                include: { microcycles: { orderBy: { weekNumber: 'asc' } } },
-              },
-            },
+            select: { id: true, name: true, startDate: true, endDate: true },
           },
         },
       },
       cycles: {
-        where: { stageId: null },
         orderBy: { startDate: 'asc' },
-        select: { id: true, name: true, startDate: true, weeks: true },
+        include: {
+          stage: { select: { periodId: true } },
+          microcycles: { orderBy: { weekNumber: 'asc' } },
+        },
       },
     },
   })
@@ -61,31 +60,27 @@ export default async function PeriodizationPage({
       name: stage.name,
       startDate: stage.startDate.toISOString(),
       endDate: stage.endDate.toISOString(),
-      cycles: stage.cycles.map((cycle) => ({
-        id: cycle.id,
-        name: cycle.name,
-        startDate: cycle.startDate.toISOString(),
-        weeks: cycle.weeks,
-        mesocycleType: cycle.mesocycleType,
-        microcycles: cycle.microcycles.map((mc) => ({
-          id: mc.id,
-          weekNumber: mc.weekNumber,
-          microcycleType: mc.microcycleType,
-        })),
-      })),
     })),
   }))
 
-  const unassignedCycles = athlete.cycles.map((cycle) => ({
+  const columns = athlete.cycles.map((cycle) => ({
     id: cycle.id,
     name: cycle.name,
     startDate: cycle.startDate.toISOString(),
     weeks: cycle.weeks,
+    mesocycleType: cycle.mesocycleType,
+    stageId: cycle.stageId,
+    periodId: cycle.stage?.periodId ?? null,
+    microcycles: cycle.microcycles.map((mc) => ({
+      id: mc.id,
+      weekNumber: mc.weekNumber,
+      microcycleType: mc.microcycleType,
+    })),
   }))
 
   return (
-    <main className="min-h-[calc(100vh-3.5rem)] bg-bg text-text-primary p-6 max-w-md mx-auto space-y-4 lg:max-w-4xl">
-      <div>
+    <main className="min-h-[calc(100vh-3.5rem)] bg-bg text-text-primary p-6 max-w-md mx-auto space-y-4 lg:max-w-none">
+      <div className="mx-auto max-w-6xl">
         <Link
           href={`/athletes/${athlete.id}/cycles`}
           className="mb-2 inline-flex items-center gap-1.5 text-sm text-text-secondary hover:text-accent"
@@ -97,20 +92,22 @@ export default async function PeriodizationPage({
         </h1>
       </div>
 
-      {periods.length === 0 && unassignedCycles.length === 0 && user.role !== 'COACH' ? (
-        <EmptyState
-          icon={CalendarX}
-          title="Периодизация ещё не составлена"
-          description="Тренер пока не разбил подготовку на периоды."
-        />
-      ) : (
-        <PeriodizationView
-          athleteId={athlete.id}
-          periods={periods}
-          unassignedCycles={unassignedCycles}
-          canEdit={user.role === 'COACH'}
-        />
-      )}
+      <div className="mx-auto max-w-6xl">
+        {periods.length === 0 && !(user.role === 'COACH') ? (
+          <EmptyState
+            icon={CalendarX}
+            title="Периодизация ещё не составлена"
+            description="Тренер пока не разбил подготовку на периоды."
+          />
+        ) : (
+          <PeriodizationView
+            athleteId={athlete.id}
+            periods={periods}
+            columns={columns}
+            canEdit={user.role === 'COACH'}
+          />
+        )}
+      </div>
     </main>
   )
 }
