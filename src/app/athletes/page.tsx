@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { FileDown, FileUp, Pill, Users } from 'lucide-react'
+import { CalendarRange, FileDown, FileUp, Pill, Users } from 'lucide-react'
 import { Badge, Button, Card, Input } from '@/components/ui'
 import { EmptyState } from '@/components/EmptyState'
 import { InviteAthleteButton } from '@/components/InviteAthleteButton'
@@ -157,6 +157,14 @@ export default function AthletesPage() {
                     className="flex h-8 w-8 items-center justify-center rounded-full bg-rose-500 text-white shadow-card transition-transform hover:scale-110 hover:brightness-110"
                   >
                     <Pill className="h-4 w-4" />
+                  </a>
+                  <a
+                    href={`/athletes/${a.id}/periodization`}
+                    title="Периодизация"
+                    aria-label="Периодизация"
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-sky-500 text-white shadow-card transition-transform hover:scale-110 hover:brightness-110"
+                  >
+                    <CalendarRange className="h-4 w-4" />
                   </a>
                 </div>
                 {!a.userId && (
