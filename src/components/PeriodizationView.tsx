@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { useToast } from '@/components/ui'
 import {
@@ -97,6 +98,13 @@ function groupConsecutive(
 
 const CELL_W = 'min-w-[92px] max-w-[92px]'
 
+type EditingTarget =
+  | { kind: 'mesocycle'; cycleId: string }
+  | { kind: 'microcycle'; cycleId: string; microcycleId: string }
+  | null
+
+type Point = { top: number; left: number }
+
 // Season overview timeline — reproduces the classic Период/Этап/Мезоцикл/
 // Микроцикл periodization sheet. Периоды/Этапы are derived, merged,
 // read-only rows (colored, so the season's shape is visible at a glance);
@@ -106,9 +114,51 @@ const CELL_W = 'min-w-[92px] max-w-[92px]'
 // directly. Микроциклы are edited individually, one cell each.
 export function PeriodizationView({ athleteId: _athleteId, cycles: initialCycles, canEdit }: Props) {
   const [cycles, setCycles] = useState(initialCycles)
-  const [editingCycleId, setEditingCycleId] = useState<string | null>(null)
-  const [editingMicrocycleId, setEditingMicrocycleId] = useState<string | null>(null)
+  // The editor popup is portaled straight to document.body (see the render
+  // at the bottom) instead of living inside the scrollable table wrapper —
+  // a <div overflow-x-auto> forces its overflow-y to clip too (a standard
+  // CSS quirk: browsers won't let one axis stay "visible" once the other is
+  // "auto"), so an absolutely-positioned dropdown anchored inside it used to
+  // get cut off after its first couple of rows. `editorPos` is the fixed
+  // viewport coordinate to render it at, captured from the trigger button's
+  // own position at click time.
+  const [editing, setEditing] = useState<EditingTarget>(null)
+  const [editorPos, setEditorPos] = useState<Point | null>(null)
   const toast = useToast()
+
+  function targetKey(t: EditingTarget): string | null {
+    if (!t) return null
+    return t.kind === 'mesocycle' ? `meso:${t.cycleId}` : `micro:${t.microcycleId}`
+  }
+
+  function openEditor(target: EditingTarget, e: React.MouseEvent<HTMLButtonElement>) {
+    if (targetKey(editing) === targetKey(target)) {
+      setEditing(null)
+      setEditorPos(null)
+      return
+    }
+    const rect = e.currentTarget.getBoundingClientRect()
+    // Clamp so the popup (max width ~208px, see MesocycleEditor/
+    // MicrocycleEditor) doesn't get pushed off the right edge of the
+    // viewport for a cell near the end of a long, horizontally-scrolled row.
+    const left = Math.min(rect.left, window.innerWidth - 220)
+    setEditorPos({ top: rect.bottom + 4, left: Math.max(8, left) })
+    setEditing(target)
+  }
+
+  function closeEditor() {
+    setEditing(null)
+    setEditorPos(null)
+  }
+
+  const editingCycle =
+    editing?.kind === 'mesocycle' ? cycles.find((c) => c.id === editing.cycleId) ?? null : null
+  const editingMicrocycle =
+    editing?.kind === 'microcycle'
+      ? cycles
+          .find((c) => c.id === editing.cycleId)
+          ?.microcycles.find((m) => m.id === editing.microcycleId) ?? null
+      : null
 
   const columns = useMemo(() => buildColumns(cycles), [cycles])
   const periodGroups = useMemo(
@@ -254,10 +304,10 @@ export function PeriodizationView({ athleteId: _athleteId, cycles: initialCycles
                   {canEdit ? (
                     <button
                       type="button"
-                      onClick={() =>
-                        setEditingCycleId(editingCycleId === g.column.cycleId ? null : g.column.cycleId)
-                      }
-                      className="w-full rounded px-1 py-0.5 text-center transition-colors hover:bg-surface-2"
+                      onClick={(e) => openEditor({ kind: 'mesocycle', cycleId: g.column.cycleId }, e)}
+                      className={`w-full rounded px-1 py-0.5 text-center transition-colors hover:bg-surface-2 ${
+                        targetKey(editing) === `meso:${g.column.cycleId}` ? 'bg-surface-2' : ''
+                      }`}
                     >
                       {g.column.cycle.mesocycleType || (
                         <span className="text-text-secondary">не указан</span>
@@ -265,13 +315,6 @@ export function PeriodizationView({ athleteId: _athleteId, cycles: initialCycles
                     </button>
                   ) : (
                     g.column.cycle.mesocycleType || <span className="text-text-secondary">—</span>
-                  )}
-                  {editingCycleId === g.column.cycleId && (
-                    <MesocycleEditor
-                      cycle={g.column.cycle}
-                      onChange={(patch) => patchCycle(g.column.cycleId, patch)}
-                      onClose={() => setEditingCycleId(null)}
-                    />
                   )}
                 </td>
               ))}
@@ -288,24 +331,20 @@ export function PeriodizationView({ athleteId: _athleteId, cycles: initialCycles
                   {canEdit ? (
                     <button
                       type="button"
-                      onClick={() =>
-                        setEditingMicrocycleId(
-                          editingMicrocycleId === col.microcycleId ? null : col.microcycleId
+                      onClick={(e) =>
+                        openEditor(
+                          { kind: 'microcycle', cycleId: col.cycleId, microcycleId: col.microcycleId },
+                          e
                         )
                       }
-                      className="w-full rounded px-1 py-0.5 text-center transition-colors hover:bg-surface-2"
+                      className={`w-full rounded px-1 py-0.5 text-center transition-colors hover:bg-surface-2 ${
+                        targetKey(editing) === `micro:${col.microcycleId}` ? 'bg-surface-2' : ''
+                      }`}
                     >
                       {col.microcycleType || <span className="text-text-secondary">—</span>}
                     </button>
                   ) : (
                     col.microcycleType || <span className="text-text-secondary">—</span>
-                  )}
-                  {editingMicrocycleId === col.microcycleId && (
-                    <MicrocycleEditor
-                      value={col.microcycleType}
-                      onChange={(value) => patchMicrocycle(col.cycleId, col.microcycleId, value)}
-                      onClose={() => setEditingMicrocycleId(null)}
-                    />
                   )}
                 </td>
               ))}
@@ -313,6 +352,32 @@ export function PeriodizationView({ athleteId: _athleteId, cycles: initialCycles
           </tbody>
         </table>
       </div>
+
+      {editorPos &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <>
+            {/* Click-outside-to-close backdrop — sits below the popup itself */}
+            <div className="fixed inset-0 z-30" onClick={closeEditor} />
+            {editingCycle && (
+              <MesocycleEditor
+                cycle={editingCycle}
+                position={editorPos}
+                onChange={(patch) => patchCycle(editingCycle.id, patch)}
+                onClose={closeEditor}
+              />
+            )}
+            {editing?.kind === 'microcycle' && (
+              <MicrocycleEditor
+                value={editingMicrocycle?.microcycleType ?? null}
+                position={editorPos}
+                onChange={(value) => patchMicrocycle(editing.cycleId, editing.microcycleId, value)}
+                onClose={closeEditor}
+              />
+            )}
+          </>,
+          document.body
+        )}
     </div>
   )
 }
@@ -389,15 +454,20 @@ function DateField({
 
 function MesocycleEditor({
   cycle,
+  position,
   onChange,
   onClose,
 }: {
   cycle: PeriodizationCycle
+  position: Point
   onChange: (patch: Record<string, string | null>) => void
   onClose: () => void
 }) {
   return (
-    <div className="absolute left-0 top-full z-20 mt-1 w-52 space-y-1.5 rounded-lg border border-border bg-surface p-2 text-left shadow-elevated">
+    <div
+      style={{ top: position.top, left: position.left }}
+      className="fixed z-40 w-52 space-y-1.5 rounded-lg border border-border bg-surface p-2 text-left shadow-elevated"
+    >
       <div className="flex items-center justify-between">
         <span className="text-[10px] font-bold uppercase tracking-wide text-text-secondary">
           {cycle.name}
@@ -440,15 +510,20 @@ function MesocycleEditor({
 
 function MicrocycleEditor({
   value,
+  position,
   onChange,
   onClose,
 }: {
   value: string | null
+  position: Point
   onChange: (value: string | null) => void
   onClose: () => void
 }) {
   return (
-    <div className="absolute left-0 top-full z-20 mt-1 w-44 space-y-1.5 rounded-lg border border-border bg-surface p-2 text-left shadow-elevated">
+    <div
+      style={{ top: position.top, left: position.left }}
+      className="fixed z-40 w-44 space-y-1.5 rounded-lg border border-border bg-surface p-2 text-left shadow-elevated"
+    >
       <div className="flex items-center justify-end">
         <button
           type="button"
