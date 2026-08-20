@@ -101,10 +101,49 @@ model AthleteProfile {
   oneRepMaxes Athlete1RM[]
   cycles      Cycle[]
   supplements Supplement[]
+  periods     Period[]
 
   createdAt DateTime @default(now())
 
   @@index([coachId])
+}
+
+// Top level of the season-periodization hierarchy ("Периоды" — e.g.
+// "Подготовительный"/"Соревновательный"/"Переходной"), each with its own
+// date range set independently by the coach (not derived from the
+// mesocycles inside it). Replaces the earlier Cycle.periodType tag —
+// a Period is now a real entity so several Cycles (mesocycles) can be
+// grouped under it via the Stages in between, and its span can be edited
+// with a date-range picker directly.
+model Period {
+  id        String         @id @default(uuid())
+  athleteId String
+  athlete   AthleteProfile @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  createdAt DateTime       @default(now())
+
+  stages Stage[]
+
+  @@index([athleteId])
+}
+
+// Middle level ("Этапы" — e.g. "Обще-подготовительный"). Always belongs to
+// exactly one Period; a Period can have several Stages. Own date range,
+// independent of the Cycles (mesocycles) attached under it.
+model Stage {
+  id        String   @id @default(uuid())
+  periodId  String
+  period    Period   @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  createdAt DateTime @default(now())
+
+  cycles Cycle[]
+
+  @@index([periodId])
 }
 
 // Athlete-managed supplement intake log ("Спортпит") — a name plus an
@@ -188,21 +227,24 @@ model Cycle {
   weeks     Int
   createdAt DateTime       @default(now())
 
-  // Season-periodization tags — a Cycle already *is* one mesocycle (a
-  // contiguous block of weeks with its own start date), so it doubles as the
-  // "Мезоциклы" row of the periodization timeline. periodType/stageType group
-  // several consecutive Cycles into the "Периоды"/"Этапы" rows above it — a
-  // period/stage boundary always falls on a mesocycle boundary in practice, so
-  // no separate date-ranged Period/Stage table is needed, just these tags.
-  // All three are plain strings (not enums), same reasoning as
-  // ExerciseCatalog.trainingGroup: free-text presets, not a fixed set, and
-  // SQLite (local dev) doesn't support Prisma enums. Null until a coach tags
-  // the plan from the periodization page.
-  periodType    String?
-  stageType     String?
+  // A Cycle already *is* one mesocycle (a contiguous block of weeks with its
+  // own start date), so it doubles as the "Мезоциклы" row of the
+  // periodization timeline. mesocycleType is its free-text preset tag, same
+  // reasoning as ExerciseCatalog.trainingGroup (not an enum — SQLite local
+  // dev doesn't support them). Null until a coach tags the plan.
   mesocycleType String?
 
+  // Attaches this mesocycle under a Stage in the periodization hierarchy.
+  // Nullable — a plan can exist without being placed in the timeline yet
+  // (the periodization page's "unassigned plans" list), and detaching it
+  // (or deleting the Stage/Period above it) just clears this back to null
+  // rather than deleting the actual training plan.
+  stageId String?
+  stage   Stage?  @relation(fields: [stageId], references: [id], onDelete: SetNull)
+
   microcycles Microcycle[]
+
+  @@index([stageId])
 }
 
 model Microcycle {

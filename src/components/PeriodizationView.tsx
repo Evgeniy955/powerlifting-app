@@ -1,545 +1,692 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { createPortal } from 'react-dom'
-import { X } from 'lucide-react'
-import { useToast } from '@/components/ui'
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { Plus, Pencil, Trash2, Unlink } from 'lucide-react'
+import { Button, Card, Dialog, Input, Select, useToast } from '@/components/ui'
+import { CreatePlanDialog } from '@/components/CreatePlanDialog'
 import {
-  MESOCYCLE_PRESETS,
-  MICROCYCLE_PRESETS,
   PERIOD_PRESETS,
   STAGE_PRESETS,
+  MESOCYCLE_PRESETS,
+  MICROCYCLE_PRESETS,
   periodColor,
   stageColor,
 } from '@/lib/periodization'
 
-export type PeriodizationCycle = {
+type PeriodizationMicrocycle = {
+  id: string
+  weekNumber: number
+  microcycleType: string | null
+}
+
+type PeriodizationCycle = {
   id: string
   name: string
-  startDate: string // ISO
+  startDate: string
   weeks: number
-  periodType: string | null
-  stageType: string | null
   mesocycleType: string | null
-  microcycles: {
-    id: string
-    weekNumber: number
-    microcycleType: string | null
-  }[]
+  microcycles: PeriodizationMicrocycle[]
+}
+
+type PeriodizationStage = {
+  id: string
+  name: string
+  startDate: string
+  endDate: string
+  cycles: PeriodizationCycle[]
+}
+
+type PeriodizationPeriod = {
+  id: string
+  name: string
+  startDate: string
+  endDate: string
+  stages: PeriodizationStage[]
+}
+
+type UnassignedCycle = {
+  id: string
+  name: string
+  startDate: string
+  weeks: number
 }
 
 type Props = {
   athleteId: string
-  cycles: PeriodizationCycle[]
+  periods: PeriodizationPeriod[]
+  unassignedCycles: UnassignedCycle[]
   canEdit: boolean
 }
 
-// One flattened timeline column = one microcycle (week), carrying its own
-// computed date range plus a reference to the cycle (mesocycle) it belongs
-// to, so every row can be derived from this single ordered list.
-type Column = {
-  cycleId: string
-  cycle: PeriodizationCycle
-  microcycleId: string
-  weekNumber: number
-  microcycleType: string | null
-  startDate: Date
-  endDate: Date
+function fmt(iso: string) {
+  return iso.slice(0, 10)
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000
+type MutateFn = (url: string, method: string, body?: unknown, successTitle?: string) => Promise<void>
 
-function dateLabel(d: Date): string {
-  return d.toISOString().slice(0, 10).split('-').reverse().join('.')
-}
-
-function buildColumns(cycles: PeriodizationCycle[]): Column[] {
-  const columns: Column[] = []
-  for (const cycle of cycles) {
-    const cycleStart = new Date(cycle.startDate)
-    for (const mc of cycle.microcycles) {
-      const start = new Date(cycleStart.getTime() + (mc.weekNumber - 1) * 7 * DAY_MS)
-      const end = new Date(start.getTime() + 6 * DAY_MS)
-      columns.push({
-        cycleId: cycle.id,
-        cycle,
-        microcycleId: mc.id,
-        weekNumber: mc.weekNumber,
-        microcycleType: mc.microcycleType,
-        startDate: start,
-        endDate: end,
-      })
-    }
-  }
-  return columns
-}
-
-// Merges consecutive columns that share the same group key into one spanning
-// cell — used for the Периоды/Этапы/Мезоциклы rows. Two cycles that happen to
-// share the same tag (e.g. two "Базовый" mesocycles back to back) still stay
-// separate groups if includeCycleBoundary is set, since each is still its
-// own distinct plan/click target underneath.
-function groupConsecutive(
-  columns: Column[],
-  keyFn: (col: Column) => string
-): { key: string; start: number; span: number; column: Column }[] {
-  const groups: { key: string; start: number; span: number; column: Column }[] = []
-  columns.forEach((col, i) => {
-    const key = keyFn(col)
-    const last = groups[groups.length - 1]
-    if (last && last.key === key) {
-      last.span++
-    } else {
-      groups.push({ key, start: i, span: 1, column: col })
-    }
-  })
-  return groups
-}
-
-const CELL_W = 'min-w-[92px] max-w-[92px]'
-
-type EditingTarget =
-  | { kind: 'mesocycle'; cycleId: string }
-  | { kind: 'microcycle'; cycleId: string; microcycleId: string }
-  | null
-
-type Point = { top: number; left: number }
-
-// Season overview timeline — reproduces the classic Период/Этап/Мезоцикл/
-// Микроцикл periodization sheet. Периоды/Этапы are derived, merged,
-// read-only rows (colored, so the season's shape is visible at a glance);
-// Период/Этап/Тип мезоцикла are all edited together from the Мезоциклы row
-// below them, since all three live on the same Cycle record — there's no
-// sensible way to edit a sub-slice of a merged multi-cycle Период cell
-// directly. Микроциклы are edited individually, one cell each.
-export function PeriodizationView({ athleteId: _athleteId, cycles: initialCycles, canEdit }: Props) {
-  const [cycles, setCycles] = useState(initialCycles)
-  // The editor popup is portaled straight to document.body (see the render
-  // at the bottom) instead of living inside the scrollable table wrapper —
-  // a <div overflow-x-auto> forces its overflow-y to clip too (a standard
-  // CSS quirk: browsers won't let one axis stay "visible" once the other is
-  // "auto"), so an absolutely-positioned dropdown anchored inside it used to
-  // get cut off after its first couple of rows. `editorPos` is the fixed
-  // viewport coordinate to render it at, captured from the trigger button's
-  // own position at click time.
-  const [editing, setEditing] = useState<EditingTarget>(null)
-  const [editorPos, setEditorPos] = useState<Point | null>(null)
+// Every write in this view is a plain fetch + router.refresh() — the page
+// above is a server component, so refresh() just re-runs its query and
+// hands fresh props back down. Simpler and more robust than hand-rolled
+// optimistic state for a tree this shape (Period -> Stage -> Cycle ->
+// Microcycle), at the cost of a round trip per edit — acceptable for a
+// coach editing a season plan, not a hot path.
+export function PeriodizationView({ athleteId, periods, unassignedCycles, canEdit }: Props) {
+  const router = useRouter()
   const toast = useToast()
 
-  function targetKey(t: EditingTarget): string | null {
-    if (!t) return null
-    return t.kind === 'mesocycle' ? `meso:${t.cycleId}` : `micro:${t.microcycleId}`
-  }
-
-  function openEditor(target: EditingTarget, e: React.MouseEvent<HTMLButtonElement>) {
-    if (targetKey(editing) === targetKey(target)) {
-      setEditing(null)
-      setEditorPos(null)
-      return
-    }
-    const rect = e.currentTarget.getBoundingClientRect()
-    // Clamp so the popup (max width ~208px, see MesocycleEditor/
-    // MicrocycleEditor) doesn't get pushed off the right edge of the
-    // viewport for a cell near the end of a long, horizontally-scrolled row.
-    const left = Math.min(rect.left, window.innerWidth - 220)
-    setEditorPos({ top: rect.bottom + 4, left: Math.max(8, left) })
-    setEditing(target)
-  }
-
-  function closeEditor() {
-    setEditing(null)
-    setEditorPos(null)
-  }
-
-  const editingCycle =
-    editing?.kind === 'mesocycle' ? cycles.find((c) => c.id === editing.cycleId) ?? null : null
-  const editingMicrocycle =
-    editing?.kind === 'microcycle'
-      ? cycles
-          .find((c) => c.id === editing.cycleId)
-          ?.microcycles.find((m) => m.id === editing.microcycleId) ?? null
-      : null
-
-  const columns = useMemo(() => buildColumns(cycles), [cycles])
-  const periodGroups = useMemo(
-    () => groupConsecutive(columns, (c) => c.cycle.periodType ?? ''),
-    [columns]
-  )
-  const stageGroups = useMemo(
-    () => groupConsecutive(columns, (c) => `${c.cycle.periodType ?? ''}::${c.cycle.stageType ?? ''}`),
-    [columns]
-  )
-  const mesocycleGroups = useMemo(() => groupConsecutive(columns, (c) => c.cycleId), [columns])
-
-  async function patchCycle(cycleId: string, patch: Record<string, string | null>) {
-    const previous = cycles
-    setCycles((prev) => prev.map((c) => (c.id === cycleId ? { ...c, ...patch } : c)))
+  const handleMutate: MutateFn = async (url, method, body, successTitle) => {
     try {
-      const res = await fetch(`/api/cycles/${cycleId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(patch),
+      const res = await fetch(url, {
+        method,
+        headers: body ? { 'Content-Type': 'application/json' } : undefined,
+        body: body ? JSON.stringify(body) : undefined,
       })
       if (!res.ok) {
-        setCycles(previous)
-        const body = await res.json().catch(() => ({}))
-        toast({
-          title: 'Не удалось сохранить',
-          description: body.error ?? 'Ошибка',
-          variant: 'error',
-        })
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error ?? 'Не удалось сохранить')
       }
-    } catch {
-      setCycles(previous)
-      toast({ title: 'Проблема с сетью — не сохранено', variant: 'error' })
-    }
-  }
-
-  async function patchMicrocycle(cycleId: string, microcycleId: string, microcycleType: string | null) {
-    const previous = cycles
-    setCycles((prev) =>
-      prev.map((c) =>
-        c.id !== cycleId
-          ? c
-          : {
-              ...c,
-              microcycles: c.microcycles.map((mc) =>
-                mc.id === microcycleId ? { ...mc, microcycleType } : mc
-              ),
-            }
-      )
-    )
-    try {
-      const res = await fetch(`/api/microcycles/${microcycleId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ microcycleType }),
-      })
-      if (!res.ok) {
-        setCycles(previous)
-        const body = await res.json().catch(() => ({}))
-        toast({
-          title: 'Не удалось сохранить',
-          description: body.error ?? 'Ошибка',
-          variant: 'error',
-        })
-      }
-    } catch {
-      setCycles(previous)
-      toast({ title: 'Проблема с сетью — не сохранено', variant: 'error' })
+      router.refresh()
+      if (successTitle) toast({ title: successTitle, variant: 'success' })
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Ошибка'
+      toast({ title: 'Не удалось сохранить', description: message, variant: 'error' })
     }
   }
 
   return (
-    <div className="mx-auto max-w-full space-y-2">
+    <div className="space-y-4">
       {canEdit && (
-        <p className="text-xs text-text-secondary">
-          Период / Этап / Тип мезоцикла задаются вместе — кликни по ячейке в строке «Мезоциклы».
-          Тип микроцикла — по ячейке в строке «Микроциклы».
-        </p>
+        <div className="flex justify-end">
+          <PeriodFormDialog
+            athleteId={athleteId}
+            trigger={(open) => (
+              <Button size="sm" onClick={open}>
+                <Plus className="h-4 w-4" /> Добавить период
+              </Button>
+            )}
+            onSaved={() => router.refresh()}
+          />
+        </div>
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-border bg-surface shadow-card">
-        <table className="w-full min-w-max border-collapse text-xs">
-          <tbody>
-            {/* Дата начала — week numbers + Пн/Вс date range, two lines per cell */}
-            <tr className="border-b border-border">
-              <RowLabel>Дата начала</RowLabel>
-              {columns.map((col, i) => (
-                <td
-                  key={col.microcycleId}
-                  className={`${CELL_W} border-l border-border px-1.5 py-1 text-center align-top`}
-                >
-                  <div className="font-display text-[11px] text-text-secondary">{i + 1}</div>
-                  <div>{dateLabel(col.startDate)}</div>
-                  <div>{dateLabel(col.endDate)}</div>
-                </td>
-              ))}
-            </tr>
+      {periods.length === 0 && (
+        <Card padding="md" className="text-center text-sm text-text-secondary">
+          Периодов пока нет.{canEdit && ' Добавь первый период — внутри него можно будет создать этапы.'}
+        </Card>
+      )}
 
-            {/* Периоды — merged, colored, read-only */}
-            <tr className="border-b border-border">
-              <RowLabel>Периоды</RowLabel>
-              {periodGroups.map((g) => {
-                const color = periodColor(g.column.cycle.periodType)
-                return (
-                  <td
-                    key={`period-${g.start}`}
-                    colSpan={g.span}
-                    className={`border-l border-border px-1.5 py-1.5 text-center font-display font-bold uppercase tracking-wide ${color.bg} ${color.text}`}
-                  >
-                    {g.column.cycle.periodType || '—'}
-                  </td>
-                )
-              })}
-            </tr>
+      {periods.map((period) => (
+        <PeriodCard
+          key={period.id}
+          period={period}
+          canEdit={canEdit}
+          athleteId={athleteId}
+          unassignedCycles={unassignedCycles}
+          onMutate={handleMutate}
+        />
+      ))}
 
-            {/* Этапы — merged, colored by parent период, read-only */}
-            <tr className="border-b border-border">
-              <RowLabel>Этапы</RowLabel>
-              {stageGroups.map((g) => {
-                const color = stageColor(g.column.cycle.periodType)
-                return (
-                  <td
-                    key={`stage-${g.start}`}
-                    colSpan={g.span}
-                    className={`border-l border-border px-1.5 py-1.5 text-center font-medium ${color.bg} ${color.text}`}
-                  >
-                    {g.column.cycle.stageType || '—'}
-                  </td>
-                )
-              })}
-            </tr>
-
-            {/* Мезоциклы — merged by cycle boundary, clickable to edit
-                период/этап/тип мезоцикла together */}
-            <tr className="border-b border-border">
-              <RowLabel>Мезоциклы</RowLabel>
-              {mesocycleGroups.map((g) => (
-                <td
-                  key={`meso-${g.start}`}
-                  colSpan={g.span}
-                  className="relative border-l border-border px-1.5 py-1.5 text-center align-top"
-                >
-                  {canEdit ? (
-                    <button
-                      type="button"
-                      onClick={(e) => openEditor({ kind: 'mesocycle', cycleId: g.column.cycleId }, e)}
-                      className={`w-full rounded px-1 py-0.5 text-center transition-colors hover:bg-surface-2 ${
-                        targetKey(editing) === `meso:${g.column.cycleId}` ? 'bg-surface-2' : ''
-                      }`}
-                    >
-                      {g.column.cycle.mesocycleType || (
-                        <span className="text-text-secondary">не указан</span>
-                      )}
-                    </button>
-                  ) : (
-                    g.column.cycle.mesocycleType || <span className="text-text-secondary">—</span>
-                  )}
-                </td>
-              ))}
-            </tr>
-
-            {/* Микроциклы — one cell each, clickable to edit its own type */}
-            <tr>
-              <RowLabel>Микроциклы</RowLabel>
-              {columns.map((col) => (
-                <td
-                  key={col.microcycleId}
-                  className={`${CELL_W} relative border-l border-border px-1.5 py-1.5 text-center align-top`}
-                >
-                  {canEdit ? (
-                    <button
-                      type="button"
-                      onClick={(e) =>
-                        openEditor(
-                          { kind: 'microcycle', cycleId: col.cycleId, microcycleId: col.microcycleId },
-                          e
-                        )
-                      }
-                      className={`w-full rounded px-1 py-0.5 text-center transition-colors hover:bg-surface-2 ${
-                        targetKey(editing) === `micro:${col.microcycleId}` ? 'bg-surface-2' : ''
-                      }`}
-                    >
-                      {col.microcycleType || <span className="text-text-secondary">—</span>}
-                    </button>
-                  ) : (
-                    col.microcycleType || <span className="text-text-secondary">—</span>
-                  )}
-                </td>
-              ))}
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      {editorPos &&
-        typeof document !== 'undefined' &&
-        createPortal(
-          <>
-            {/* Click-outside-to-close backdrop — sits below the popup itself */}
-            <div className="fixed inset-0 z-30" onClick={closeEditor} />
-            {editingCycle && (
-              <MesocycleEditor
-                cycle={editingCycle}
-                position={editorPos}
-                onChange={(patch) => patchCycle(editingCycle.id, patch)}
-                onClose={closeEditor}
-              />
-            )}
-            {editing?.kind === 'microcycle' && (
-              <MicrocycleEditor
-                value={editingMicrocycle?.microcycleType ?? null}
-                position={editorPos}
-                onChange={(value) => patchMicrocycle(editing.cycleId, editing.microcycleId, value)}
-                onClose={closeEditor}
-              />
-            )}
-          </>,
-          document.body
-        )}
+      {unassignedCycles.length > 0 && (
+        <Card padding="md" className="space-y-2">
+          <p className="text-sm font-medium text-text-secondary">Планы вне периодизации</p>
+          <div className="space-y-1">
+            {unassignedCycles.map((cycle) => (
+              <div key={cycle.id} className="flex items-center justify-between text-sm">
+                <Link href={`/cycles/${cycle.id}`} className="hover:text-accent">
+                  {cycle.name}
+                </Link>
+                <span className="text-xs text-text-secondary">
+                  {fmt(cycle.startDate)} · {cycle.weeks} нед.
+                </span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
     </div>
   )
 }
 
-function RowLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <td className="sticky left-0 z-10 w-28 min-w-[7rem] bg-surface-2 px-2 py-1.5 text-left font-display text-[11px] font-bold uppercase tracking-wide text-text-secondary">
-      {children}
-    </td>
-  )
-}
-
-// Closed dropdown for every periodization tag field — each one (Период,
-// Этап, Тип мезоцикла, Тип микроцикла) is a standard, fixed set of
-// periodization terms. Saves immediately on change, no separate save step,
-// same as AdminExercisesView's "move to block" select.
-function PresetSelect({
-  label,
-  value,
-  presets,
-  onSave,
+function PeriodCard({
+  period,
+  canEdit,
+  athleteId,
+  unassignedCycles,
+  onMutate,
 }: {
-  label: string
-  value: string | null
-  presets: readonly string[]
-  onSave: (next: string | null) => void
+  period: PeriodizationPeriod
+  canEdit: boolean
+  athleteId: string
+  unassignedCycles: UnassignedCycle[]
+  onMutate: MutateFn
 }) {
+  const router = useRouter()
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const color = periodColor(period.name)
+
   return (
-    <label className="flex flex-col gap-0.5 text-left text-[10px] text-text-secondary">
-      {label}
-      <select
-        value={value ?? ''}
-        onChange={(e) => onSave(e.target.value || null)}
-        className="rounded border border-border bg-surface px-1.5 py-1 text-xs text-text-primary outline-none focus:border-accent"
-      >
-        <option value="">не указан</option>
-        {presets.map((p) => (
-          <option key={p} value={p}>
-            {p}
-          </option>
+    <Card padding="none" className="overflow-hidden">
+      <div className={`flex flex-wrap items-center justify-between gap-2 px-4 py-3 ${color.bg} ${color.text}`}>
+        <div>
+          <p className="font-display text-sm uppercase tracking-wide">{period.name}</p>
+          <p className="text-xs opacity-80">
+            {fmt(period.startDate)} – {fmt(period.endDate)}
+          </p>
+        </div>
+        {canEdit && (
+          <div className="flex items-center gap-1">
+            <PeriodFormDialog
+              athleteId={athleteId}
+              period={period}
+              trigger={(open) => (
+                <button
+                  onClick={open}
+                  className="rounded p-1.5 hover:bg-black/10"
+                  aria-label="Редактировать период"
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
+              )}
+              onSaved={() => router.refresh()}
+            />
+            <button
+              onClick={() => setConfirmDelete(true)}
+              className="rounded p-1.5 hover:bg-black/10"
+              aria-label="Удалить период"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-3 p-3">
+        {period.stages.map((stage) => (
+          <StageCard
+            key={stage.id}
+            stage={stage}
+            periodName={period.name}
+            canEdit={canEdit}
+            athleteId={athleteId}
+            unassignedCycles={unassignedCycles}
+            onMutate={onMutate}
+          />
         ))}
-      </select>
-    </label>
+
+        {canEdit && (
+          <StageFormDialog
+            periodId={period.id}
+            trigger={(open) => (
+              <Button variant="outline" size="sm" onClick={open}>
+                <Plus className="h-4 w-4" /> Добавить этап
+              </Button>
+            )}
+            onSaved={() => router.refresh()}
+          />
+        )}
+
+        {!canEdit && period.stages.length === 0 && (
+          <p className="text-sm text-text-secondary">Этапы ещё не добавлены.</p>
+        )}
+      </div>
+
+      <Dialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title="Удалить период?"
+        description={`«${period.name}» — удалятся все этапы внутри него. Прикреплённые планы (мезоциклы) не удаляются, просто открепляются.`}
+      >
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" size="sm" onClick={() => setConfirmDelete(false)}>
+            Отмена
+          </Button>
+          <Button
+            variant="danger"
+            size="sm"
+            onClick={() => {
+              setConfirmDelete(false)
+              onMutate(`/api/periods/${period.id}`, 'DELETE', undefined, 'Период удалён')
+            }}
+          >
+            Удалить
+          </Button>
+        </div>
+      </Dialog>
+    </Card>
   )
 }
 
-// Editing this shifts the whole mesocycle (and every workout day already
-// scheduled inside it — see the PATCH route) forward/back together, so the
-// week structure stays intact instead of drifting out of sync with the
-// dates shown in the "Дата начала" row above.
-function DateField({
-  label,
-  value,
-  onSave,
+function StageCard({
+  stage,
+  periodName,
+  canEdit,
+  athleteId,
+  unassignedCycles,
+  onMutate,
 }: {
-  label: string
-  value: string // ISO
-  onSave: (next: string) => void
+  stage: PeriodizationStage
+  periodName: string
+  canEdit: boolean
+  athleteId: string
+  unassignedCycles: UnassignedCycle[]
+  onMutate: MutateFn
 }) {
+  const router = useRouter()
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [attachValue, setAttachValue] = useState('')
+  const color = stageColor(periodName)
+
+  async function handleAttach(cycleId: string) {
+    if (!cycleId) return
+    await onMutate(`/api/cycles/${cycleId}`, 'PATCH', { stageId: stage.id }, 'План прикреплён')
+    setAttachValue('')
+  }
+
   return (
-    <label className="flex flex-col gap-0.5 text-left text-[10px] text-text-secondary">
-      {label}
-      <input
-        type="date"
-        defaultValue={value.slice(0, 10)}
-        onChange={(e) => {
-          if (e.target.value) onSave(e.target.value)
-        }}
-        className="rounded border border-border bg-surface px-1.5 py-1 text-xs text-text-primary outline-none focus:border-accent"
-      />
-    </label>
+    <div className="rounded-lg border border-border">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-surface-2 px-3 py-2">
+        <div className="flex items-center gap-2">
+          <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${color.bg}`} />
+          <div>
+            <p className="text-sm font-medium">{stage.name}</p>
+            <p className="text-xs text-text-secondary">
+              {fmt(stage.startDate)} – {fmt(stage.endDate)}
+            </p>
+          </div>
+        </div>
+        {canEdit && (
+          <div className="flex items-center gap-1">
+            <StageFormDialog
+              periodId=""
+              stage={stage}
+              trigger={(open) => (
+                <button onClick={open} className="rounded p-1.5 hover:bg-surface" aria-label="Редактировать этап">
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+              )}
+              onSaved={() => router.refresh()}
+            />
+            <button
+              onClick={() => setConfirmDelete(true)}
+              className="rounded p-1.5 hover:bg-surface"
+              aria-label="Удалить этап"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-2 p-3">
+        {stage.cycles.length === 0 && (
+          <p className="text-sm text-text-secondary">Мезоциклы ещё не привязаны.</p>
+        )}
+        {stage.cycles.map((cycle) => (
+          <MesocycleRow key={cycle.id} cycle={cycle} onMutate={onMutate} canEdit={canEdit} />
+        ))}
+
+        {canEdit && (
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <Select
+              fieldSize="sm"
+              value={attachValue}
+              onChange={(e) => {
+                setAttachValue(e.target.value)
+                handleAttach(e.target.value)
+              }}
+              disabled={unassignedCycles.length === 0}
+            >
+              <option value="">
+                {unassignedCycles.length === 0 ? 'Нет свободных планов' : 'Прикрепить существующий план...'}
+              </option>
+              {unassignedCycles.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} ({fmt(c.startDate)})
+                </option>
+              ))}
+            </Select>
+            <CreatePlanDialog
+              athleteId={athleteId}
+              stageId={stage.id}
+              trigger={(open) => (
+                <Button variant="outline" size="sm" onClick={open}>
+                  <Plus className="h-4 w-4" /> Новый план
+                </Button>
+              )}
+              onCreated={() => router.refresh()}
+            />
+          </div>
+        )}
+      </div>
+
+      <Dialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title="Удалить этап?"
+        description={`«${stage.name}» — прикреплённые планы (мезоциклы) не удаляются, просто открепляются.`}
+      >
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" size="sm" onClick={() => setConfirmDelete(false)}>
+            Отмена
+          </Button>
+          <Button
+            variant="danger"
+            size="sm"
+            onClick={() => {
+              setConfirmDelete(false)
+              onMutate(`/api/stages/${stage.id}`, 'DELETE', undefined, 'Этап удалён')
+            }}
+          >
+            Удалить
+          </Button>
+        </div>
+      </Dialog>
+    </div>
   )
 }
 
-function MesocycleEditor({
+function MesocycleRow({
   cycle,
-  position,
-  onChange,
-  onClose,
+  canEdit,
+  onMutate,
 }: {
   cycle: PeriodizationCycle
-  position: Point
-  onChange: (patch: Record<string, string | null>) => void
-  onClose: () => void
+  canEdit: boolean
+  onMutate: MutateFn
 }) {
+  const [expanded, setExpanded] = useState(false)
+
   return (
-    <div
-      style={{ top: position.top, left: position.left }}
-      className="fixed z-40 w-52 space-y-1.5 rounded-lg border border-border bg-surface p-2 text-left shadow-elevated"
-    >
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] font-bold uppercase tracking-wide text-text-secondary">
-          {cycle.name}
-        </span>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Закрыть"
-          className="text-text-secondary hover:text-danger"
-        >
-          <X className="h-3 w-3" />
-        </button>
+    <div className="rounded-md border border-border bg-surface p-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <Link href={`/cycles/${cycle.id}`} className="text-sm font-medium hover:text-accent">
+            {cycle.name}
+          </Link>
+          <p className="text-xs text-text-secondary">
+            {fmt(cycle.startDate)} · {cycle.weeks} нед.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {canEdit ? (
+            <Select
+              fieldSize="sm"
+              value={cycle.mesocycleType ?? ''}
+              onChange={(e) =>
+                onMutate(`/api/cycles/${cycle.id}`, 'PATCH', { mesocycleType: e.target.value || null })
+              }
+            >
+              <option value="">не указан</option>
+              {MESOCYCLE_PRESETS.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </Select>
+          ) : (
+            cycle.mesocycleType && <span className="text-xs text-text-secondary">{cycle.mesocycleType}</span>
+          )}
+          <button onClick={() => setExpanded((v) => !v)} className="text-xs text-accent hover:underline">
+            {expanded ? 'Скрыть недели' : `Недели (${cycle.microcycles.length})`}
+          </button>
+          {canEdit && (
+            <button
+              onClick={() => onMutate(`/api/cycles/${cycle.id}`, 'PATCH', { stageId: null }, 'План откреплён')}
+              className="rounded p-1 text-text-secondary hover:bg-surface-2 hover:text-danger"
+              aria-label="Открепить план"
+              title="Открепить от этапа"
+            >
+              <Unlink className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
       </div>
-      <DateField
-        label="Дата начала"
-        value={cycle.startDate}
-        onSave={(v) => onChange({ startDate: v })}
-      />
-      <PresetSelect
-        label="Период"
-        value={cycle.periodType}
-        presets={PERIOD_PRESETS}
-        onSave={(v) => onChange({ periodType: v })}
-      />
-      <PresetSelect
-        label="Этап"
-        value={cycle.stageType}
-        presets={STAGE_PRESETS}
-        onSave={(v) => onChange({ stageType: v })}
-      />
-      <PresetSelect
-        label="Тип мезоцикла"
-        value={cycle.mesocycleType}
-        presets={MESOCYCLE_PRESETS}
-        onSave={(v) => onChange({ mesocycleType: v })}
-      />
+
+      {expanded && (
+        <div className="mt-2 flex flex-wrap gap-1.5 border-t border-border pt-2">
+          {cycle.microcycles.map((mc) => (
+            <label key={mc.id} className="flex items-center gap-1 rounded-md bg-surface-2 px-1.5 py-1 text-xs">
+              <span className="text-text-secondary">Нед {mc.weekNumber}</span>
+              {canEdit ? (
+                <select
+                  value={mc.microcycleType ?? ''}
+                  onChange={(e) =>
+                    onMutate(`/api/microcycles/${mc.id}`, 'PATCH', {
+                      microcycleType: e.target.value || null,
+                    })
+                  }
+                  className="rounded border-none bg-transparent text-xs outline-none"
+                >
+                  <option value="">—</option>
+                  {MICROCYCLE_PRESETS.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <span>{mc.microcycleType ?? '—'}</span>
+              )}
+            </label>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
 
-function MicrocycleEditor({
-  value,
-  position,
-  onChange,
-  onClose,
+function PeriodFormDialog({
+  athleteId,
+  period,
+  trigger,
+  onSaved,
 }: {
-  value: string | null
-  position: Point
-  onChange: (value: string | null) => void
-  onClose: () => void
+  athleteId: string
+  period?: PeriodizationPeriod
+  trigger: (open: () => void) => React.ReactNode
+  onSaved: () => void
 }) {
+  const toast = useToast()
+  const [open, setOpen] = useState(false)
+  const [name, setName] = useState(period?.name ?? PERIOD_PRESETS[0])
+  const [startDate, setStartDate] = useState(period ? fmt(period.startDate) : '')
+  const [endDate, setEndDate] = useState(period ? fmt(period.endDate) : '')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  function openDialog() {
+    setName(period?.name ?? PERIOD_PRESETS[0])
+    setStartDate(period ? fmt(period.startDate) : '')
+    setEndDate(period ? fmt(period.endDate) : '')
+    setError(null)
+    setOpen(true)
+  }
+
+  async function handleSave() {
+    if (!startDate || !endDate) {
+      setError('Укажите обе даты')
+      return
+    }
+    setLoading(true)
+    setError(null)
+    try {
+      const url = period ? `/api/periods/${period.id}` : `/api/athletes/${athleteId}/periods`
+      const res = await fetch(url, {
+        method: period ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, startDate, endDate }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error ?? 'Не удалось сохранить')
+      }
+      toast({ title: period ? 'Период обновлён' : 'Период добавлен', variant: 'success' })
+      setOpen(false)
+      onSaved()
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Ошибка'
+      setError(message)
+      toast({ title: 'Не удалось сохранить', description: message, variant: 'error' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
-    <div
-      style={{ top: position.top, left: position.left }}
-      className="fixed z-40 w-44 space-y-1.5 rounded-lg border border-border bg-surface p-2 text-left shadow-elevated"
-    >
-      <div className="flex items-center justify-end">
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Закрыть"
-          className="text-text-secondary hover:text-danger"
-        >
-          <X className="h-3 w-3" />
-        </button>
-      </div>
-      <PresetSelect
-        label="Тип микроцикла"
-        value={value}
-        presets={MICROCYCLE_PRESETS}
-        onSave={onChange}
-      />
-    </div>
+    <>
+      {trigger(openDialog)}
+      <Dialog open={open} onOpenChange={setOpen} title={period ? 'Редактировать период' : 'Новый период'}>
+        <div className="space-y-3">
+          <label className="block text-xs text-text-secondary">
+            Название
+            <Select value={name} onChange={(e) => setName(e.target.value)} className="mt-1 w-full">
+              {PERIOD_PRESETS.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </Select>
+          </label>
+          <div className="flex gap-2">
+            <label className="block flex-1 text-xs text-text-secondary">
+              Начало
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="mt-1 w-full"
+              />
+            </label>
+            <label className="block flex-1 text-xs text-text-secondary">
+              Конец
+              <Input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="mt-1 w-full"
+              />
+            </label>
+          </div>
+          {error && <p className="text-xs text-danger">{error}</p>}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => setOpen(false)}>
+              Отмена
+            </Button>
+            <Button size="sm" onClick={handleSave} disabled={loading}>
+              {loading ? 'Сохраняю...' : 'Сохранить'}
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+    </>
+  )
+}
+
+function StageFormDialog({
+  periodId,
+  stage,
+  trigger,
+  onSaved,
+}: {
+  periodId: string
+  stage?: PeriodizationStage
+  trigger: (open: () => void) => React.ReactNode
+  onSaved: () => void
+}) {
+  const toast = useToast()
+  const [open, setOpen] = useState(false)
+  const [name, setName] = useState(stage?.name ?? STAGE_PRESETS[0])
+  const [startDate, setStartDate] = useState(stage ? fmt(stage.startDate) : '')
+  const [endDate, setEndDate] = useState(stage ? fmt(stage.endDate) : '')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  function openDialog() {
+    setName(stage?.name ?? STAGE_PRESETS[0])
+    setStartDate(stage ? fmt(stage.startDate) : '')
+    setEndDate(stage ? fmt(stage.endDate) : '')
+    setError(null)
+    setOpen(true)
+  }
+
+  async function handleSave() {
+    if (!startDate || !endDate) {
+      setError('Укажите обе даты')
+      return
+    }
+    setLoading(true)
+    setError(null)
+    try {
+      const url = stage ? `/api/stages/${stage.id}` : `/api/periods/${periodId}/stages`
+      const res = await fetch(url, {
+        method: stage ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, startDate, endDate }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error ?? 'Не удалось сохранить')
+      }
+      toast({ title: stage ? 'Этап обновлён' : 'Этап добавлен', variant: 'success' })
+      setOpen(false)
+      onSaved()
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Ошибка'
+      setError(message)
+      toast({ title: 'Не удалось сохранить', description: message, variant: 'error' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <>
+      {trigger(openDialog)}
+      <Dialog open={open} onOpenChange={setOpen} title={stage ? 'Редактировать этап' : 'Новый этап'}>
+        <div className="space-y-3">
+          <label className="block text-xs text-text-secondary">
+            Название
+            <Select value={name} onChange={(e) => setName(e.target.value)} className="mt-1 w-full">
+              {STAGE_PRESETS.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </Select>
+          </label>
+          <div className="flex gap-2">
+            <label className="block flex-1 text-xs text-text-secondary">
+              Начало
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="mt-1 w-full"
+              />
+            </label>
+            <label className="block flex-1 text-xs text-text-secondary">
+              Конец
+              <Input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="mt-1 w-full"
+              />
+            </label>
+          </div>
+          {error && <p className="text-xs text-danger">{error}</p>}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => setOpen(false)}>
+              Отмена
+            </Button>
+            <Button size="sm" onClick={handleSave} disabled={loading}>
+              {loading ? 'Сохраняю...' : 'Сохранить'}
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+    </>
   )
 }

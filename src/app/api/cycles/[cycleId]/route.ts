@@ -5,10 +5,11 @@ import { assertAthleteBelongsToCoach } from '@/lib/authorization'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
-// PATCH /api/cycles/:cycleId { periodType?, stageType?, mesocycleType?, startDate? } —
-// coach-only. Tags this cycle (= one mesocycle) with its place in the season
-// periodization timeline (/athletes/[athleteId]/periodization); pass null to
-// clear a tag back to "not set". Doesn't touch name/weeks — those are still
+// PATCH /api/cycles/:cycleId { mesocycleType?, stageId?, startDate? } —
+// coach-only. mesocycleType tags this cycle (= one mesocycle) with its
+// "Мезоциклы" preset; pass null to clear it. stageId attaches/detaches this
+// mesocycle to/from a Stage in the periodization hierarchy (pass null to
+// detach back to "unassigned"). Doesn't touch name/weeks — those are still
 // only editable at creation.
 //
 // startDate moves the whole mesocycle: every already-scheduled Workout under
@@ -27,15 +28,24 @@ export async function PATCH(req: NextRequest, { params }: { params: { cycleId: s
     await assertAthleteBelongsToCoach(cycle.athleteId, coach.id)
 
     const body = (await req.json()) as {
-      periodType?: string | null
-      stageType?: string | null
       mesocycleType?: string | null
+      stageId?: string | null
       startDate?: string
     }
     const data: Record<string, string | null | Date> = {}
-    if ('periodType' in body) data.periodType = body.periodType?.trim() || null
-    if ('stageType' in body) data.stageType = body.stageType?.trim() || null
     if ('mesocycleType' in body) data.mesocycleType = body.mesocycleType?.trim() || null
+    if ('stageId' in body) {
+      if (body.stageId) {
+        const stage = await prisma.stage.findUnique({
+          where: { id: body.stageId },
+          include: { period: true },
+        })
+        if (!stage || stage.period.athleteId !== cycle.athleteId) {
+          return NextResponse.json({ error: 'Этап не найден' }, { status: 400 })
+        }
+      }
+      data.stageId = body.stageId ?? null
+    }
 
     let deltaDays = 0
     if (body.startDate) {

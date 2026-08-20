@@ -39,6 +39,10 @@ export async function POST(req: NextRequest, { params }: { params: { athleteId: 
       startDate: string
       weeks?: number
       weekdays: number[]
+      // Optional — lets a plan be created already attached to a Stage in the
+      // periodization hierarchy (the Stage's "+ Добавить мезоцикл" -> "Создать
+      // новый план" flow), instead of always landing "unassigned".
+      stageId?: string
     }
     const weeks = body.weeks ?? 12
     const weekdays = Array.from(new Set(body.weekdays ?? []))
@@ -54,6 +58,15 @@ export async function POST(req: NextRequest, { params }: { params: { athleteId: 
     }
     if (weekdays.length === 0 || weekdays.some((d) => d < 0 || d > 6)) {
       return NextResponse.json({ error: 'Выберите хотя бы один день тренировок' }, { status: 400 })
+    }
+    if (body.stageId) {
+      const stage = await prisma.stage.findUnique({
+        where: { id: body.stageId },
+        include: { period: true },
+      })
+      if (!stage || stage.period.athleteId !== params.athleteId) {
+        return NextResponse.json({ error: 'Этап не найден' }, { status: 400 })
+      }
     }
 
     const startDate = new Date(body.startDate)
@@ -86,7 +99,14 @@ export async function POST(req: NextRequest, { params }: { params: { athleteId: 
 
     await prisma.$transaction([
       prisma.cycle.create({
-        data: { id: cycleId, athleteId: params.athleteId, name: body.name.trim(), startDate, weeks },
+        data: {
+          id: cycleId,
+          athleteId: params.athleteId,
+          name: body.name.trim(),
+          startDate,
+          weeks,
+          stageId: body.stageId ?? null,
+        },
       }),
       prisma.microcycle.createMany({ data: microcyclesData }),
       prisma.workout.createMany({ data: workoutsData }),
