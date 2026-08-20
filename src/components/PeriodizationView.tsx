@@ -854,8 +854,8 @@ function PeriodFormDialog({
       setError('Укажите дату начала')
       return
     }
-    if (durationWeeks < 12 || durationWeeks > 52) {
-      setError('Длительность: от 12 до 52 недель')
+    if (durationWeeks < 1) {
+      setError('Длительность должна быть не меньше 1 недели')
       return
     }
     setLoading(true)
@@ -906,8 +906,7 @@ function PeriodFormDialog({
             Длительность (недель)
             <Input
               type="number"
-              min={12}
-              max={52}
+              min={1}
               value={durationWeeks}
               onChange={(e) => setDurationWeeks(Number(e.target.value))}
               className="mt-1 w-full"
