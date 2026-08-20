@@ -302,7 +302,6 @@ export function PeriodizationView({ athleteId: _athleteId, cycles: initialCycles
                   )}
                   {editingMicrocycleId === col.microcycleId && (
                     <MicrocycleEditor
-                      microcycleId={col.microcycleId}
                       value={col.microcycleType}
                       onChange={(value) => patchMicrocycle(col.cycleId, col.microcycleId, value)}
                       onClose={() => setEditingMicrocycleId(null)}
@@ -326,54 +325,10 @@ function RowLabel({ children }: { children: React.ReactNode }) {
   )
 }
 
-// Inline "type into a datalist-backed input" editor — presets show up as
-// native browser suggestions but any free text is still accepted, since a
-// coach's own periodization vocabulary varies. Saves on blur, same as the
-// rest of the app's inline-edit fields.
-function PresetField({
-  label,
-  value,
-  presets,
-  onSave,
-  listId,
-}: {
-  label: string
-  value: string | null
-  presets: readonly string[]
-  onSave: (next: string | null) => void
-  listId: string
-}) {
-  const [draft, setDraft] = useState(value ?? '')
-  return (
-    <label className="flex flex-col gap-0.5 text-left text-[10px] text-text-secondary">
-      {label}
-      <input
-        list={listId}
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={() => {
-          const next = draft.trim() || null
-          if (next !== (value ?? null)) onSave(next)
-        }}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
-        }}
-        className="rounded border border-border bg-surface px-1.5 py-1 text-xs text-text-primary outline-none focus:border-accent"
-      />
-      <datalist id={listId}>
-        {presets.map((p) => (
-          <option key={p} value={p} />
-        ))}
-      </datalist>
-    </label>
-  )
-}
-
-// Closed dropdown — used for Период, Этап and Тип мезоцикла, which are each
-// a fixed set of standard periodization terms (unlike Тип микроцикла, which
-// stays an open-ended preset list via PresetField below). Saves immediately
-// on change, no separate save step, same as AdminExercisesView's "move to
-// block" select.
+// Closed dropdown for every periodization tag field — each one (Период,
+// Этап, Тип мезоцикла, Тип микроцикла) is a standard, fixed set of
+// periodization terms. Saves immediately on change, no separate save step,
+// same as AdminExercisesView's "move to block" select.
 function PresetSelect({
   label,
   value,
@@ -451,12 +406,10 @@ function MesocycleEditor({
 }
 
 function MicrocycleEditor({
-  microcycleId,
   value,
   onChange,
   onClose,
 }: {
-  microcycleId: string
   value: string | null
   onChange: (value: string | null) => void
   onClose: () => void
@@ -473,11 +426,10 @@ function MicrocycleEditor({
           <X className="h-3 w-3" />
         </button>
       </div>
-      <PresetField
+      <PresetSelect
         label="Тип микроцикла"
         value={value}
         presets={MICROCYCLE_PRESETS}
-        listId={`microcycle-presets-${microcycleId}`}
         onSave={onChange}
       />
     </div>

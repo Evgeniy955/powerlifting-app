@@ -4,10 +4,12 @@
 // (/athletes/[athleteId]/periodization), reproducing the classic
 // Период → Этап → Мезоцикл → Микроцикл planning sheet.
 //
-// All four lists are free-text presets, not enums — same reasoning as
-// ExerciseCatalog.trainingGroup in lib/trainingGroups.ts: a select offers
-// these as quick picks, but any string is accepted, since every coach's own
-// periodization vocabulary (and how finely they split мезоциклы) differs.
+// All four lists back a closed <select> dropdown in PeriodizationView (the
+// standard, fixed set of periodization terms) rather than an enum in the
+// schema — same reasoning as ExerciseCatalog.trainingGroup in
+// lib/trainingGroups.ts: still plain strings at the DB/API level (SQLite,
+// used for local dev, doesn't support Prisma enums), the UI is just the one
+// place that constrains them to this list.
 
 export const PERIOD_PRESETS = ['Подготовительный', 'Соревновательный', 'Переходной'] as const
 
