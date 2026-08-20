@@ -5,22 +5,7 @@ import { useRouter } from 'next/navigation'
 import { CalendarDays } from 'lucide-react'
 import { Button, Dialog, Input, useToast } from '@/components/ui'
 
-type Props = {
-  athleteId: string
-  // Scopes the created plan to a Stage in the periodization hierarchy
-  // (Cycle.stageId) — used by the Stage's "+ Добавить мезоцикл" ->
-  // "Создать новый план" flow. Omitted for the plain "Создать план" button
-  // on the athlete's plans page, which creates an unassigned plan.
-  stageId?: string
-  // Custom trigger — receives the function to open the dialog, so callers
-  // that need it inside their own menu/dropdown (rather than this
-  // component's own default button) can render whatever they like.
-  trigger?: (open: () => void) => React.ReactNode
-  // If provided, called with the new cycleId instead of navigating to
-  // /cycles/:cycleId — used when the caller (the periodization page) wants
-  // to stay put and just add the new mesocycle to its own state.
-  onCreated?: (cycleId: string) => void
-}
+type Props = { athleteId: string }
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10)
@@ -50,7 +35,7 @@ const PRESETS = [
 // afterward per-day, same as any ad-hoc cycle — this just bootstraps the
 // week/day structure up front, with each Workout's date landing on a real
 // matching weekday.
-export function CreatePlanDialog({ athleteId, stageId, trigger, onCreated }: Props) {
+export function CreatePlanDialog({ athleteId }: Props) {
   const router = useRouter()
   const toast = useToast()
   const [open, setOpen] = useState(false)
@@ -92,7 +77,6 @@ export function CreatePlanDialog({ athleteId, stageId, trigger, onCreated }: Pro
           startDate,
           weeks: Number(weeks),
           weekdays,
-          ...(stageId ? { stageId } : {}),
         }),
       })
       if (!res.ok) {
@@ -102,11 +86,7 @@ export function CreatePlanDialog({ athleteId, stageId, trigger, onCreated }: Pro
       const { cycleId } = await res.json()
       toast({ title: 'План создан', variant: 'success' })
       setOpen(false)
-      if (onCreated) {
-        onCreated(cycleId)
-      } else {
-        router.push(`/cycles/${cycleId}`)
-      }
+      router.push(`/cycles/${cycleId}`)
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Ошибка'
       setError(message)
@@ -118,13 +98,9 @@ export function CreatePlanDialog({ athleteId, stageId, trigger, onCreated }: Pro
 
   return (
     <>
-      {trigger ? (
-        trigger(() => setOpen(true))
-      ) : (
-        <Button onClick={() => setOpen(true)} size="sm">
-          Создать план
-        </Button>
-      )}
+      <Button onClick={() => setOpen(true)} size="sm">
+        Создать план
+      </Button>
 
       <Dialog
         open={open}

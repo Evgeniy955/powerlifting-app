@@ -2,22 +2,25 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { Plus, Pencil, Trash2, Unlink } from 'lucide-react'
+import { Plus, Pencil, Trash2 } from 'lucide-react'
 import { Button, Card, Dialog, Input, Select, useToast } from '@/components/ui'
 import { PERIOD_PRESETS, STAGE_PRESETS, MESOCYCLE_PRESETS, MICROCYCLE_PRESETS, periodColor, stageColor } from '@/lib/periodization'
 
 type StageOption = { id: string; name: string; startDate: string; endDate: string }
 type PeriodOption = { id: string; name: string; startDate: string; endDate: string; stages: StageOption[] }
 
+// A Мезоцикл is a standalone entity scoped to exactly one Stage (stageId is
+// required, unlike the old Cycle-based version which could be unattached) —
+// see the Mesocycle model's comment in schema.prisma. No separate "type" tag:
+// `name` (picked from MESOCYCLE_PRESETS) doubles as the label shown in the
+// table, same simplification the coach asked for (name + duration only).
 type MesocycleColumn = {
   id: string
   name: string
   startDate: string
   weeks: number
-  mesocycleType: string | null
-  stageId: string | null
-  periodId: string | null
+  stageId: string
+  periodId: string
   microcycles: { id: string; weekNumber: number; microcycleType: string | null }[]
 }
 
@@ -47,15 +50,14 @@ function weeksBetween(startIso: string, endIso: string) {
   return Math.max(1, Math.round((new Date(endIso).getTime() - new Date(startIso).getTime()) / (7 * DAY_MS)))
 }
 
-// One week (Microcycle) flattened out of an attached Cycle, annotated with
-// the period/stage it inherits — the unit a real table column represents.
+// One week (PeriodizationMicrocycle) flattened out of a Mesocycle, annotated
+// with the period/stage it belongs to — the unit a real table column represents.
 type WeekColumn = {
   microcycleId: string
   microcycleType: string | null
   weekStart: string
-  cycleId: string
-  cycleName: string
-  mesocycleType: string | null
+  mesocycleId: string
+  mesocycleName: string
   stageId: string
   periodId: string
 }
@@ -82,22 +84,24 @@ function groupConsecutive(items: ColumnEntry[], keyFn: (item: ColumnEntry) => st
 }
 
 // Spreadsheet-style merged-cell timeline — one narrow column per week
-// (Microcycle) plus one placeholder column per still-empty period, four
-// fixed rows underneath: Периоды / Этап / Мезоциклы / Микроциклы, matching
-// the original planning sheet. Периоды/Этап/Мезоциклы render as merged
-// cells (colSpan) spanning the weeks that belong to them; Микроциклы stays
-// one cell per week. Periods live entirely inside the table: every Период
-// cell carries its own edit (✎) and add (+) controls, and a trailing ghost
-// column at the far right adds a brand-new period. Adding "onto" a period
-// walks pick-or-create Этап -> create Мезоцикл (a real plan); the resulting
-// weeks appear as new merged columns after refresh. Clicking an existing
-// Мезоцикл block reopens the same Период/Этап choice to move or detach it.
+// (PeriodizationMicrocycle) plus one placeholder column per still-empty
+// period, four fixed rows underneath: Периоды / Этап / Мезоциклы /
+// Микроциклы, matching the original planning sheet. Периоды/Этап/Мезоциклы
+// render as merged cells (colSpan) spanning the weeks that belong to them;
+// Микроциклы stays one cell per week. Periods live entirely inside the
+// table: every Период cell carries its own edit (✎) and add (+) controls,
+// and a trailing ghost column at the far right adds a brand-new period.
+// Adding "onto" a period walks pick-or-create Этап -> create Мезоцикл (a
+// standalone name+duration entity, deliberately NOT a real training plan —
+// see schema.prisma); the resulting weeks appear as new merged columns
+// after refresh. Clicking an existing Мезоцикл block reopens the editor to
+// rename it, move it to another этап, add a week, or delete it.
 export function PeriodizationView({ athleteId, periods, columns, canEdit }: Props) {
   const router = useRouter()
   const toast = useToast()
 
   const [addToPeriod, setAddToPeriod] = useState<PeriodOption | null>(null)
-  const [editingCycle, setEditingCycle] = useState<MesocycleColumn | null>(null)
+  const [editingMesocycle, setEditingMesocycle] = useState<MesocycleColumn | null>(null)
   const [editingPeriod, setEditingPeriod] = useState<PeriodOption | null>(null)
   const [deletingPeriod, setDeletingPeriod] = useState<PeriodOption | null>(null)
   const [periodDialogOpen, setPeriodDialogOpen] = useState(false)
@@ -127,11 +131,10 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
     const entries: ColumnEntry[] = []
     const periodsWithWeeks = new Set<string>()
 
-    for (const cycle of columns) {
-      if (!cycle.stageId || !cycle.periodId) continue
-      periodsWithWeeks.add(cycle.periodId)
-      for (const mc of cycle.microcycles) {
-        const weekStart = addDays(cycle.startDate, (mc.weekNumber - 1) * 7)
+    for (const mesocycle of columns) {
+      periodsWithWeeks.add(mesocycle.periodId)
+      for (const mc of mesocycle.microcycles) {
+        const weekStart = addDays(mesocycle.startDate, (mc.weekNumber - 1) * 7)
         entries.push({
           kind: 'week',
           sortKey: weekStart,
@@ -139,11 +142,10 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
             microcycleId: mc.id,
             microcycleType: mc.microcycleType,
             weekStart,
-            cycleId: cycle.id,
-            cycleName: cycle.name,
-            mesocycleType: cycle.mesocycleType,
-            stageId: cycle.stageId,
-            periodId: cycle.periodId,
+            mesocycleId: mesocycle.id,
+            mesocycleName: mesocycle.name,
+            stageId: mesocycle.stageId,
+            periodId: mesocycle.periodId,
           },
         })
       }
@@ -159,8 +161,6 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
     return entries
   }, [columns, periods])
 
-  const unassigned = columns.filter((c) => !c.stageId)
-
   const periodSpans = useMemo(
     () => groupConsecutive(mainColumns, (e) => (e.kind === 'week' ? e.week.periodId : e.period.id)),
     [mainColumns]
@@ -169,8 +169,8 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
     () => groupConsecutive(mainColumns, (e) => (e.kind === 'week' ? e.week.stageId : `empty-${e.period.id}`)),
     [mainColumns]
   )
-  const cycleSpans = useMemo(
-    () => groupConsecutive(mainColumns, (e) => (e.kind === 'week' ? e.week.cycleId : `empty-${e.period.id}`)),
+  const mesocycleSpans = useMemo(
+    () => groupConsecutive(mainColumns, (e) => (e.kind === 'week' ? e.week.mesocycleId : `empty-${e.period.id}`)),
     [mainColumns]
   )
 
@@ -287,7 +287,7 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
 
               <tr className="border-b border-border">
                 <RowLabel>Мезоциклы</RowLabel>
-                {cycleSpans.map((span) => {
+                {mesocycleSpans.map((span) => {
                   const entry = mainColumns[span.start]
                   if (entry.kind === 'empty-period') {
                     return (
@@ -296,21 +296,14 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                       </td>
                     )
                   }
-                  const cycle = columns.find((c) => c.id === entry.week.cycleId)
+                  const mesocycle = columns.find((c) => c.id === entry.week.mesocycleId)
                   return (
                     <td key={span.start} colSpan={span.span} className="border-l border-border p-0 align-top">
                       <button
-                        onClick={() => canEdit && cycle && setEditingCycle(cycle)}
+                        onClick={() => canEdit && mesocycle && setEditingMesocycle(mesocycle)}
                         className="flex w-full flex-col items-center gap-0.5 px-2 py-2 text-center hover:bg-surface-2"
                       >
-                        <Link
-                          href={`/cycles/${entry.week.cycleId}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-xs font-medium hover:text-accent"
-                        >
-                          {entry.week.cycleName}
-                        </Link>
-                        <span className="text-[11px] text-text-secondary">{entry.week.mesocycleType ?? 'тип не указан'}</span>
+                        <span className="text-xs font-medium">{entry.week.mesocycleName}</span>
                       </button>
                     </td>
                   )
@@ -335,7 +328,7 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                         <select
                           value={week.microcycleType ?? ''}
                           onChange={(e) =>
-                            mutate(`/api/microcycles/${week.microcycleId}`, 'PATCH', {
+                            mutate(`/api/periodization-microcycles/${week.microcycleId}`, 'PATCH', {
                               microcycleType: e.target.value || null,
                             })
                           }
@@ -359,24 +352,6 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
           </table>
         </div>
       </Card>
-
-      {unassigned.length > 0 && (
-        <Card padding="md" className="space-y-2">
-          <p className="text-sm font-medium text-text-secondary">Планы вне периодизации</p>
-          <div className="space-y-1">
-            {unassigned.map((cycle) => (
-              <div key={cycle.id} className="flex items-center justify-between text-sm">
-                <Link href={`/cycles/${cycle.id}`} className="hover:text-accent">
-                  {cycle.name}
-                </Link>
-                <span className="text-xs text-text-secondary">
-                  {fmt(cycle.startDate)} · {cycle.weeks} нед.
-                </span>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
 
       <PeriodFormDialog
         open={periodDialogOpen}
@@ -405,7 +380,7 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
           open
           onOpenChange={(open) => !open && setDeletingPeriod(null)}
           title="Удалить период?"
-          description={`«${deletingPeriod.name}» — удалятся все этапы внутри него. Прикреплённые планы (мезоциклы) не удаляются, просто открепляются.`}
+          description={`«${deletingPeriod.name}» — удалятся все этапы и мезоциклы внутри него.`}
         >
           <div className="flex justify-end gap-2">
             <Button variant="outline" size="sm" onClick={() => setDeletingPeriod(null)}>
@@ -429,7 +404,6 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
       {addToPeriod && (
         <AddToPeriodDialog
           period={addToPeriod}
-          athleteId={athleteId}
           onClose={() => setAddToPeriod(null)}
           onDone={() => {
             setAddToPeriod(null)
@@ -438,13 +412,13 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
         />
       )}
 
-      {editingCycle && (
+      {editingMesocycle && (
         <MesocycleEditorDialog
-          cycle={editingCycle}
+          mesocycle={editingMesocycle}
           periods={periods}
-          onClose={() => setEditingCycle(null)}
+          onClose={() => setEditingMesocycle(null)}
           onSaved={() => {
-            setEditingCycle(null)
+            setEditingMesocycle(null)
             router.refresh()
           }}
         />
@@ -468,12 +442,10 @@ function RowLabel({ children }: { children?: string }) {
 // duration in weeks, no plan-name/weekday picker) — see CreateMesocycleDialog.
 function AddToPeriodDialog({
   period,
-  athleteId,
   onClose,
   onDone,
 }: {
   period: PeriodOption
-  athleteId: string
   onClose: () => void
   onDone: () => void
 }) {
@@ -537,7 +509,6 @@ function AddToPeriodDialog({
               Отмена
             </Button>
             <CreateMesocycleDialog
-              athleteId={athleteId}
               stageId={stageId && stageId !== NEW_STAGE ? stageId : undefined}
               defaultStartDate={selectedStage?.startDate}
               trigger={(open) => (
@@ -576,22 +547,20 @@ function AddToPeriodDialog({
 
 // Creates a Мезоцикл as lightly as a Период/Этап — name (from the standard
 // preset list) + start date + duration in weeks, no plan-name/weekday
-// picker. Under the hood it's still a real Cycle (so workouts can be added
-// to it later), just created via the plans API with weekdays omitted
-// (server defaults to Пн/Ср/Пт) and mesocycleType/name both set from the
-// chosen preset so it shows up already tagged in the table.
+// picker. A standalone entity scoped to exactly one Stage (stageId is
+// required) — see POST /api/stages/:stageId/mesocycles and the Mesocycle
+// model's comment in schema.prisma for why this is deliberately NOT a real
+// training plan/Cycle.
 function CreateMesocycleDialog({
-  athleteId,
   stageId,
   defaultStartDate,
   trigger,
   onCreated,
 }: {
-  athleteId: string
   stageId?: string
   defaultStartDate?: string
   trigger: (open: () => void) => React.ReactNode
-  onCreated: (cycleId: string) => void
+  onCreated: (mesocycleId: string) => void
 }) {
   const toast = useToast()
   const [open, setOpen] = useState(false)
@@ -610,6 +579,10 @@ function CreateMesocycleDialog({
   }
 
   async function handleSave() {
+    if (!stageId) {
+      setError('Сначала выберите этап')
+      return
+    }
     if (!startDate) {
       setError('Укажите дату начала')
       return
@@ -621,25 +594,19 @@ function CreateMesocycleDialog({
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`/api/athletes/${athleteId}/plans`, {
+      const res = await fetch(`/api/stages/${stageId}/mesocycles`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name,
-          startDate,
-          weeks: durationWeeks,
-          mesocycleType: name,
-          ...(stageId ? { stageId } : {}),
-        }),
+        body: JSON.stringify({ name, startDate, weeks: durationWeeks }),
       })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
         throw new Error(body.error ?? 'Не удалось создать мезоцикл')
       }
-      const { cycleId } = await res.json()
+      const mesocycle = await res.json()
       toast({ title: 'Мезоцикл создан', variant: 'success' })
       setOpen(false)
-      onCreated(cycleId)
+      onCreated(mesocycle.id)
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Ошибка'
       setError(message)
@@ -697,30 +664,35 @@ function CreateMesocycleDialog({
 }
 
 function MesocycleEditorDialog({
-  cycle,
+  mesocycle,
   periods,
   onClose,
   onSaved,
 }: {
-  cycle: MesocycleColumn
+  mesocycle: MesocycleColumn
   periods: PeriodOption[]
   onClose: () => void
   onSaved: () => void
 }) {
   const toast = useToast()
-  const [periodId, setPeriodId] = useState(cycle.periodId ?? '')
-  const [stageId, setStageId] = useState(cycle.stageId ?? '')
-  const [mesocycleType, setMesocycleType] = useState(cycle.mesocycleType ?? '')
+  const [periodId, setPeriodId] = useState(mesocycle.periodId)
+  const [stageId, setStageId] = useState(mesocycle.stageId)
+  const [name, setName] = useState(mesocycle.name)
   const [loading, setLoading] = useState(false)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const period = periods.find((p) => p.id === periodId)
 
-  async function save(patch: Record<string, unknown>) {
+  async function save() {
+    if (!stageId) {
+      toast({ title: 'Выберите этап', variant: 'error' })
+      return
+    }
     setLoading(true)
     try {
-      const res = await fetch(`/api/cycles/${cycle.id}`, {
+      const res = await fetch(`/api/mesocycles/${mesocycle.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(patch),
+        body: JSON.stringify({ name, stageId }),
       })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
@@ -739,7 +711,7 @@ function MesocycleEditorDialog({
   async function addWeek() {
     setLoading(true)
     try {
-      const res = await fetch(`/api/cycles/${cycle.id}/microcycles`, { method: 'POST' })
+      const res = await fetch(`/api/mesocycles/${mesocycle.id}/microcycles`, { method: 'POST' })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
         throw new Error(body.error ?? 'Не удалось добавить неделю')
@@ -754,12 +726,37 @@ function MesocycleEditorDialog({
     }
   }
 
+  async function handleDelete() {
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/mesocycles/${mesocycle.id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error ?? 'Не удалось удалить')
+      }
+      toast({ title: 'Мезоцикл удалён', variant: 'success' })
+      onSaved()
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Ошибка'
+      toast({ title: 'Не удалось удалить', description: message, variant: 'error' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()} title={cycle.name}>
+    <Dialog open onOpenChange={(open) => !open && onClose()} title={mesocycle.name}>
       <div className="space-y-3">
-        <Link href={`/cycles/${cycle.id}`} className="text-xs text-accent hover:underline">
-          Открыть план →
-        </Link>
+        <label className="block text-xs text-text-secondary">
+          Название
+          <Select value={name} onChange={(e) => setName(e.target.value)} className="mt-1 w-full">
+            {MESOCYCLE_PRESETS.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </Select>
+        </label>
 
         <label className="block text-xs text-text-secondary">
           Период
@@ -771,7 +768,6 @@ function MesocycleEditorDialog({
             }}
             className="mt-1 w-full"
           >
-            <option value="">не выбран</option>
             {periods.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -782,8 +778,8 @@ function MesocycleEditorDialog({
 
         <label className="block text-xs text-text-secondary">
           Этап
-          <Select value={stageId} disabled={!period} onChange={(e) => setStageId(e.target.value)} className="mt-1 w-full">
-            <option value="">{period ? 'не выбран' : 'сначала период'}</option>
+          <Select value={stageId} onChange={(e) => setStageId(e.target.value)} className="mt-1 w-full">
+            <option value="">не выбран</option>
             {period?.stages.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name}
@@ -792,33 +788,33 @@ function MesocycleEditorDialog({
           </Select>
         </label>
 
-        <label className="block text-xs text-text-secondary">
-          Тип мезоцикла
-          <Select value={mesocycleType} onChange={(e) => setMesocycleType(e.target.value)} className="mt-1 w-full">
-            <option value="">не указан</option>
-            {MESOCYCLE_PRESETS.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </Select>
-        </label>
-
-        <div className="flex flex-wrap justify-between gap-2 pt-1">
-          <Button variant="outline" size="sm" onClick={addWeek} disabled={loading}>
-            <Plus className="h-4 w-4" /> Неделя
-          </Button>
-          <div className="flex gap-2">
-            {cycle.stageId && (
-              <Button variant="outline" size="sm" onClick={() => save({ stageId: null })} disabled={loading}>
-                <Unlink className="h-4 w-4" /> Открепить
+        {confirmingDelete ? (
+          <div className="flex items-center justify-between gap-2 rounded border border-danger/40 bg-danger/10 px-2 py-2">
+            <span className="text-xs">Удалить мезоцикл и все его недели?</span>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => setConfirmingDelete(false)}>
+                Отмена
               </Button>
-            )}
-            <Button size="sm" onClick={() => save({ stageId: stageId || null, mesocycleType: mesocycleType || null })} disabled={loading}>
+              <Button variant="danger" size="sm" onClick={handleDelete} disabled={loading}>
+                Удалить
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-wrap justify-between gap-2 pt-1">
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={addWeek} disabled={loading}>
+                <Plus className="h-4 w-4" /> Неделя
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setConfirmingDelete(true)} disabled={loading}>
+                <Trash2 className="h-4 w-4" /> Удалить
+              </Button>
+            </div>
+            <Button size="sm" onClick={save} disabled={loading}>
               Сохранить
             </Button>
           </div>
-        </div>
+        )}
       </div>
     </Dialog>
   )

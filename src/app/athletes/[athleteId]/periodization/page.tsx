@@ -9,13 +9,15 @@ import { athleteDisplayName } from '@/lib/athlete'
 
 // Season overview for one athlete — the classic Период/Этап/Мезоцикл/Микроцикл
 // planning sheet, reproduced as a spreadsheet-style table: one column per
-// mesocycle (Cycle/training plan), four fixed rows underneath (Период / Этап /
-// Мезоцикл / Микроцикл). Периоды/Этапы are real dated entities (own
-// startDate/endDate, added independently), not tags derived from the
-// mesocycles inside them — each column cascades: pick a Период, which reveals
-// the Этап dropdown scoped to it, which reveals the Мезоцикл (attach an
-// existing plan or create a new one), whose Микроциклы (weeks) show
-// underneath. A coach must add at least one Период before the table appears.
+// mesocycle, four fixed rows underneath (Период / Этап / Мезоцикл /
+// Микроцикл). Периоды/Этапы are real dated entities (own startDate/endDate,
+// added independently), not tags derived from the mesocycles inside them —
+// each column cascades: pick a Период, which reveals the Этап dropdown
+// scoped to it, which reveals the Мезоцикл (a standalone name+duration
+// entity — see the Mesocycle model's comment in schema.prisma for why this
+// is deliberately NOT a real training plan/Cycle), whose Микроциклы (weeks)
+// show underneath. A coach must add at least one Период before the table
+// appears.
 export default async function PeriodizationPage({
   params,
 }: {
@@ -32,15 +34,15 @@ export default async function PeriodizationPage({
         include: {
           stages: {
             orderBy: { startDate: 'asc' },
-            select: { id: true, name: true, startDate: true, endDate: true },
+            include: {
+              mesocycles: {
+                orderBy: { startDate: 'asc' },
+                include: {
+                  microcycles: { orderBy: { weekNumber: 'asc' } },
+                },
+              },
+            },
           },
-        },
-      },
-      cycles: {
-        orderBy: { startDate: 'asc' },
-        include: {
-          stage: { select: { periodId: true } },
-          microcycles: { orderBy: { weekNumber: 'asc' } },
         },
       },
     },
@@ -63,20 +65,23 @@ export default async function PeriodizationPage({
     })),
   }))
 
-  const columns = athlete.cycles.map((cycle) => ({
-    id: cycle.id,
-    name: cycle.name,
-    startDate: cycle.startDate.toISOString(),
-    weeks: cycle.weeks,
-    mesocycleType: cycle.mesocycleType,
-    stageId: cycle.stageId,
-    periodId: cycle.stage?.periodId ?? null,
-    microcycles: cycle.microcycles.map((mc) => ({
-      id: mc.id,
-      weekNumber: mc.weekNumber,
-      microcycleType: mc.microcycleType,
-    })),
-  }))
+  const columns = athlete.periods.flatMap((period) =>
+    period.stages.flatMap((stage) =>
+      stage.mesocycles.map((mesocycle) => ({
+        id: mesocycle.id,
+        name: mesocycle.name,
+        startDate: mesocycle.startDate.toISOString(),
+        weeks: mesocycle.weeks,
+        stageId: mesocycle.stageId,
+        periodId: period.id,
+        microcycles: mesocycle.microcycles.map((mc) => ({
+          id: mc.id,
+          weekNumber: mc.weekNumber,
+          microcycleType: mc.microcycleType,
+        })),
+      }))
+    )
+  )
 
   return (
     <main className="min-h-[calc(100vh-3.5rem)] bg-bg text-text-primary p-6 max-w-md mx-auto space-y-4 lg:max-w-none">

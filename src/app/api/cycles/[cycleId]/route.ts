@@ -5,18 +5,12 @@ import { assertAthleteBelongsToCoach } from '@/lib/authorization'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
-// PATCH /api/cycles/:cycleId { mesocycleType?, stageId?, startDate? } —
-// coach-only. mesocycleType tags this cycle (= one mesocycle) with its
-// "Мезоциклы" preset; pass null to clear it. stageId attaches/detaches this
-// mesocycle to/from a Stage in the periodization hierarchy (pass null to
-// detach back to "unassigned"). Doesn't touch name/weeks — those are still
-// only editable at creation.
+// PATCH /api/cycles/:cycleId { startDate? } — coach-only. Doesn't touch
+// name/weeks — those are still only editable at creation.
 //
-// startDate moves the whole mesocycle: every already-scheduled Workout under
-// it is shifted by the same number of days, so the actual training days stay
-// in sync with the new week 1 instead of drifting out of sync with what the
-// periodization timeline shows (which is *computed* from startDate + weekNumber,
-// not stored per week).
+// startDate moves the whole plan: every already-scheduled Workout under
+// it is shifted by the same number of days, so the actual training days
+// stay in sync with the new week 1.
 export async function PATCH(req: NextRequest, { params }: { params: { cycleId: string } }) {
   try {
     const coach = await requireCoach()
@@ -28,24 +22,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { cycleId: s
     await assertAthleteBelongsToCoach(cycle.athleteId, coach.id)
 
     const body = (await req.json()) as {
-      mesocycleType?: string | null
-      stageId?: string | null
       startDate?: string
     }
     const data: Record<string, string | null | Date> = {}
-    if ('mesocycleType' in body) data.mesocycleType = body.mesocycleType?.trim() || null
-    if ('stageId' in body) {
-      if (body.stageId) {
-        const stage = await prisma.stage.findUnique({
-          where: { id: body.stageId },
-          include: { period: true },
-        })
-        if (!stage || stage.period.athleteId !== cycle.athleteId) {
-          return NextResponse.json({ error: 'Этап не найден' }, { status: 400 })
-        }
-      }
-      data.stageId = body.stageId ?? null
-    }
 
     let deltaDays = 0
     if (body.startDate) {
