@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Plus, Pencil, Unlink } from 'lucide-react'
+import { Plus, Pencil, Trash2, Unlink } from 'lucide-react'
 import { Button, Card, Dialog, Input, Select, useToast } from '@/components/ui'
 import { CreatePlanDialog } from '@/components/CreatePlanDialog'
 import { PERIOD_PRESETS, STAGE_PRESETS, MESOCYCLE_PRESETS, MICROCYCLE_PRESETS, periodColor, stageColor } from '@/lib/periodization'
@@ -100,6 +100,7 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
   const [addToPeriod, setAddToPeriod] = useState<PeriodOption | null>(null)
   const [editingCycle, setEditingCycle] = useState<MesocycleColumn | null>(null)
   const [editingPeriod, setEditingPeriod] = useState<PeriodOption | null>(null)
+  const [deletingPeriod, setDeletingPeriod] = useState<PeriodOption | null>(null)
   const [periodDialogOpen, setPeriodDialogOpen] = useState(false)
 
   async function mutate(url: string, method: string, body?: unknown, successTitle?: string) {
@@ -228,6 +229,14 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                               aria-label="Добавить в период"
                             >
                               <Plus className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() => setDeletingPeriod(period)}
+                              className="shrink-0 rounded p-0.5 hover:bg-black/10"
+                              title="Удалить период"
+                              aria-label="Удалить период"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
                             </button>
                           </>
                         )}
@@ -390,6 +399,32 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
             router.refresh()
           }}
         />
+      )}
+
+      {deletingPeriod && (
+        <Dialog
+          open
+          onOpenChange={(open) => !open && setDeletingPeriod(null)}
+          title="Удалить период?"
+          description={`«${deletingPeriod.name}» — удалятся все этапы внутри него. Прикреплённые планы (мезоциклы) не удаляются, просто открепляются.`}
+        >
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => setDeletingPeriod(null)}>
+              Отмена
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={async () => {
+                const period = deletingPeriod
+                setDeletingPeriod(null)
+                await mutate(`/api/periods/${period.id}`, 'DELETE', undefined, 'Период удалён')
+              }}
+            >
+              Удалить
+            </Button>
+          </div>
+        </Dialog>
       )}
 
       {addToPeriod && (
