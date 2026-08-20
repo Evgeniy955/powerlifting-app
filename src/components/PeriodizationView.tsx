@@ -1,12 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Plus, Pencil, Unlink, X } from 'lucide-react'
+import { Plus, Pencil, Unlink } from 'lucide-react'
 import { Button, Card, Dialog, Input, Select, useToast } from '@/components/ui'
 import { CreatePlanDialog } from '@/components/CreatePlanDialog'
-import { PERIOD_PRESETS, STAGE_PRESETS, MESOCYCLE_PRESETS, MICROCYCLE_PRESETS, periodColor } from '@/lib/periodization'
+import { PERIOD_PRESETS, STAGE_PRESETS, MESOCYCLE_PRESETS, MICROCYCLE_PRESETS, periodColor, stageColor } from '@/lib/periodization'
 
 type StageOption = { id: string; name: string; startDate: string; endDate: string }
 type PeriodOption = { id: string; name: string; startDate: string; endDate: string; stages: StageOption[] }
@@ -29,12 +29,14 @@ type Props = {
   canEdit: boolean
 }
 
-const NEW_PERIOD = '__new_period__'
 const NEW_STAGE = '__new_stage__'
 const DAY_MS = 24 * 60 * 60 * 1000
 
 function fmt(iso: string) {
   return iso.slice(0, 10)
+}
+function fmtShort(iso: string) {
+  return iso.slice(0, 10).split('-').reverse().join('.')
 }
 function todayIso() {
   return new Date().toISOString().slice(0, 10)
@@ -46,47 +48,51 @@ function weeksBetween(startIso: string, endIso: string) {
   return Math.max(1, Math.round((new Date(endIso).getTime() - new Date(startIso).getTime()) / (7 * DAY_MS)))
 }
 
-type Pending = { periodId: string; stageId: string }
+// One week (Microcycle) flattened out of an attached Cycle, annotated with
+// the period/stage it inherits — the unit a table column represents.
+type WeekColumn = {
+  microcycleId: string
+  microcycleType: string | null
+  weekStart: string
+  cycleId: string
+  cycleName: string
+  cycleStartDate: string
+  cycleWeeks: number
+  mesocycleType: string | null
+  stageId: string
+  periodId: string
+}
 
-// Spreadsheet-style table, one column per mesocycle (Cycle/training plan),
-// four fixed rows underneath: Период / Этап / Мезоцикл / Микроцикл. Each
-// column cascades independently — pick a Период, which reveals the Этап
-// dropdown scoped to it (options = that период's stages), which reveals the
-// Мезоцикл slot (attach by picking Этап, which patches Cycle.stageId
-// directly — no separate "attach" step), whose Микроциклы (weeks) list
-// underneath. "+" inside the Период/Этап dropdowns creates a new one without
-// leaving the table; a ghost column at the end starts a brand-new mesocycle
-// (a real CreatePlanDialog, since a mesocycle here always means a full
-// trainable plan, same as everywhere else in the app).
+type Span = { key: string; start: number; span: number }
+
+function groupConsecutive(items: WeekColumn[], keyFn: (item: WeekColumn) => string): Span[] {
+  const spans: Span[] = []
+  items.forEach((item, i) => {
+    const key = keyFn(item)
+    const last = spans[spans.length - 1]
+    if (last && last.key === key) last.span += 1
+    else spans.push({ key, start: i, span: 1 })
+  })
+  return spans
+}
+
+// Spreadsheet-style merged-cell timeline — one narrow column per week
+// (Microcycle), four fixed rows underneath: Периоды / Этап / Мезоциклы /
+// Микроциклы, matching the original planning sheet. Периоды/Этап/Мезоциклы
+// render as merged cells (colSpan) spanning the weeks that belong to them;
+// Микроциклы stays one cell per week. New content is always added "onto" an
+// existing Период — each period pill above the table has its own "+" that
+// walks through picking/creating an Этап and then creating the Мезоцикл
+// (a real plan) inside it; the resulting weeks then appear as new columns.
+// Clicking an existing Мезоцикл block reopens that same Период/Этап choice
+// to move or detach it.
 export function PeriodizationView({ athleteId, periods, columns, canEdit }: Props) {
   const router = useRouter()
-
-  const [pendingMap, setPendingMap] = useState<Record<string, Pending>>({})
-  const [showDraft, setShowDraft] = useState(false)
-  const [periodDialog, setPeriodDialog] = useState<{ forKey: string | null } | null>(null)
-  const [stageDialog, setStageDialog] = useState<{ forKey: string; periodId: string } | null>(null)
-
   const toast = useToast()
 
-  function keyFor(column: MesocycleColumn | null) {
-    return column ? column.id : 'draft'
-  }
-
-  function getPending(key: string, column: MesocycleColumn | null): Pending {
-    return pendingMap[key] ?? { periodId: column?.periodId ?? '', stageId: column?.stageId ?? '' }
-  }
-
-  function setPending(key: string, column: MesocycleColumn | null, patch: Partial<Pending>) {
-    setPendingMap((prev) => ({ ...prev, [key]: { ...getPending(key, column), ...patch } }))
-  }
-
-  function clearPending(key: string) {
-    setPendingMap((prev) => {
-      const next = { ...prev }
-      delete next[key]
-      return next
-    })
-  }
+  const [addToPeriod, setAddToPeriod] = useState<PeriodOption | null>(null)
+  const [editingCycle, setEditingCycle] = useState<MesocycleColumn | null>(null)
+  const [periodDialogOpen, setPeriodDialogOpen] = useState(false)
 
   async function mutate(url: string, method: string, body?: unknown, successTitle?: string) {
     try {
@@ -109,47 +115,55 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
     }
   }
 
-  function handlePeriodChange(key: string, column: MesocycleColumn | null, value: string) {
-    if (value === NEW_PERIOD) {
-      setPeriodDialog({ forKey: key })
-      return
+  const weekColumns = useMemo<WeekColumn[]>(() => {
+    const list: WeekColumn[] = []
+    for (const cycle of columns) {
+      if (!cycle.stageId || !cycle.periodId) continue
+      for (const mc of cycle.microcycles) {
+        list.push({
+          microcycleId: mc.id,
+          microcycleType: mc.microcycleType,
+          weekStart: addDays(cycle.startDate, (mc.weekNumber - 1) * 7),
+          cycleId: cycle.id,
+          cycleName: cycle.name,
+          cycleStartDate: cycle.startDate,
+          cycleWeeks: cycle.weeks,
+          mesocycleType: cycle.mesocycleType,
+          stageId: cycle.stageId,
+          periodId: cycle.periodId,
+        })
+      }
     }
-    setPending(key, column, { periodId: value, stageId: '' })
-  }
+    list.sort((a, b) => a.weekStart.localeCompare(b.weekStart))
+    return list
+  }, [columns])
 
-  async function handleStageChange(key: string, column: MesocycleColumn | null, periodId: string, value: string) {
-    if (value === NEW_STAGE) {
-      setStageDialog({ forKey: key, periodId })
-      return
-    }
-    setPending(key, column, { stageId: value })
-    if (column) {
-      const ok = await mutate(`/api/cycles/${column.id}`, 'PATCH', { stageId: value || null }, 'Этап обновлён')
-      if (ok) clearPending(key)
-    }
-  }
+  const unassigned = columns.filter((c) => !c.stageId)
 
-  async function handleDetach(column: MesocycleColumn) {
-    const ok = await mutate(`/api/cycles/${column.id}`, 'PATCH', { stageId: null }, 'План откреплён')
-    if (ok) clearPending(column.id)
-  }
+  const periodSpans = useMemo(() => groupConsecutive(weekColumns, (c) => c.periodId), [weekColumns])
+  const stageSpans = useMemo(() => groupConsecutive(weekColumns, (c) => c.stageId), [weekColumns])
+  const cycleSpans = useMemo(() => groupConsecutive(weekColumns, (c) => c.cycleId), [weekColumns])
 
-  async function handleAddWeek(column: MesocycleColumn) {
-    await mutate(`/api/cycles/${column.id}/microcycles`, 'POST', undefined, 'Неделя добавлена')
+  function periodOf(id: string) {
+    return periods.find((p) => p.id === id)
   }
-
-  const allColumns: (MesocycleColumn | null)[] = [...columns, ...(showDraft ? [null] : [])]
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap gap-2">
           {periods.map((period) => (
-            <PeriodPill key={period.id} period={period} canEdit={canEdit} onEdited={() => router.refresh()} />
+            <PeriodPill
+              key={period.id}
+              period={period}
+              canEdit={canEdit}
+              onAdd={() => setAddToPeriod(period)}
+              onEdited={() => router.refresh()}
+            />
           ))}
         </div>
         {canEdit && (
-          <Button size="sm" onClick={() => setPeriodDialog({ forKey: null })}>
+          <Button size="sm" onClick={() => setPeriodDialogOpen(true)}>
             <Plus className="h-4 w-4" /> Добавить период
           </Button>
         )}
@@ -157,198 +171,124 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
 
       {periods.length === 0 ? (
         <Card padding="md" className="text-center text-sm text-text-secondary">
-          Периодов пока нет. Добавь первый — он задаёт длительность макроцикла (от 12 недель до года); внутри него
-          дальше добавляются этапы и мезоциклы.
+          Периодов пока нет. Добавь первый — он задаёт длительность макроцикла (от 12 недель до года). Дальше через
+          «+» у периода добавляются этапы и мезоциклы.
+        </Card>
+      ) : weekColumns.length === 0 ? (
+        <Card padding="md" className="text-center text-sm text-text-secondary">
+          В периодах пока нет мезоциклов.{canEdit && ' Нажми «+» у нужного периода, чтобы добавить этап и план.'}
         </Card>
       ) : (
         <Card padding="none" className="overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full min-w-max border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-border">
+                  <RowLabel />
+                  {weekColumns.map((c) => (
+                    <th
+                      key={c.microcycleId}
+                      className="min-w-[92px] border-l border-border bg-surface-2 px-1.5 py-1.5 text-center text-[11px] font-normal text-text-secondary"
+                    >
+                      {fmtShort(c.weekStart)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
               <tbody>
                 <tr className="border-b border-border">
-                  <RowLabel>Период</RowLabel>
-                  {allColumns.map((column) => {
-                    const key = keyFor(column)
-                    const pending = getPending(key, column)
+                  <RowLabel>Периоды</RowLabel>
+                  {periodSpans.map((span) => {
+                    const period = periodOf(span.key)
+                    const color = periodColor(period?.name)
                     return (
-                      <td key={key} className="min-w-[220px] border-l border-border p-2 align-top">
-                        {canEdit ? (
-                          <Select
-                            fieldSize="sm"
-                            className="w-full"
-                            value={pending.periodId}
-                            onChange={(e) => handlePeriodChange(key, column, e.target.value)}
-                          >
-                            <option value="">не выбран</option>
-                            {periods.map((p) => (
-                              <option key={p.id} value={p.id}>
-                                {p.name}
-                              </option>
-                            ))}
-                            <option value={NEW_PERIOD}>+ Добавить период</option>
-                          </Select>
-                        ) : (
-                          <span className="text-xs">{periods.find((p) => p.id === pending.periodId)?.name ?? '—'}</span>
-                        )}
+                      <td
+                        key={span.start}
+                        colSpan={span.span}
+                        className={`border-l border-border px-2 py-2 text-center text-xs font-semibold uppercase tracking-wide ${color.bg} ${color.text}`}
+                      >
+                        {period?.name ?? '—'}
                       </td>
                     )
                   })}
-                  {canEdit && <AddColumnCell showDraft={showDraft} onToggle={() => {
-                    setShowDraft((v) => !v)
-                    clearPending('draft')
-                  }} />}
                 </tr>
 
                 <tr className="border-b border-border">
                   <RowLabel>Этап</RowLabel>
-                  {allColumns.map((column) => {
-                    const key = keyFor(column)
-                    const pending = getPending(key, column)
-                    const period = periods.find((p) => p.id === pending.periodId)
+                  {stageSpans.map((span) => {
+                    const column = weekColumns[span.start]
+                    const period = periodOf(column.periodId)
+                    const stage = period?.stages.find((s) => s.id === column.stageId)
+                    const color = stageColor(period?.name)
                     return (
-                      <td key={key} className="border-l border-border p-2 align-top">
-                        {canEdit ? (
-                          <Select
-                            fieldSize="sm"
-                            className="w-full"
-                            value={pending.stageId}
-                            disabled={!period}
-                            onChange={(e) => handleStageChange(key, column, pending.periodId, e.target.value)}
-                          >
-                            <option value="">{period ? 'не выбран' : 'сначала период'}</option>
-                            {period?.stages.map((s) => (
-                              <option key={s.id} value={s.id}>
-                                {s.name}
-                              </option>
-                            ))}
-                            {period && <option value={NEW_STAGE}>+ Добавить этап</option>}
-                          </Select>
-                        ) : (
-                          <span className="text-xs">
-                            {period?.stages.find((s) => s.id === pending.stageId)?.name ?? '—'}
-                          </span>
-                        )}
+                      <td
+                        key={span.start}
+                        colSpan={span.span}
+                        className={`border-l border-border px-2 py-2 text-center text-xs font-medium ${color.bg} ${color.text}`}
+                      >
+                        {stage?.name ?? '—'}
                       </td>
                     )
                   })}
                 </tr>
 
                 <tr className="border-b border-border">
-                  <RowLabel>Мезоцикл</RowLabel>
-                  {allColumns.map((column) => {
-                    const key = keyFor(column)
-                    const pending = getPending(key, column)
+                  <RowLabel>Мезоциклы</RowLabel>
+                  {cycleSpans.map((span) => {
+                    const column = weekColumns[span.start]
+                    const cycle = columns.find((c) => c.id === column.cycleId)
                     return (
-                      <td key={key} className="border-l border-border p-2 align-top">
-                        {column ? (
-                          <div className="space-y-1.5">
-                            <Link href={`/cycles/${column.id}`} className="text-sm font-medium hover:text-accent">
-                              {column.name}
-                            </Link>
-                            <p className="text-xs text-text-secondary">
-                              {fmt(column.startDate)} · {column.weeks} нед.
-                            </p>
-                            {canEdit && (
-                              <div className="flex items-center gap-1.5">
-                                <Select
-                                  fieldSize="sm"
-                                  className="flex-1"
-                                  value={column.mesocycleType ?? ''}
-                                  onChange={(e) =>
-                                    mutate(`/api/cycles/${column.id}`, 'PATCH', {
-                                      mesocycleType: e.target.value || null,
-                                    })
-                                  }
-                                >
-                                  <option value="">не указан</option>
-                                  {MESOCYCLE_PRESETS.map((p) => (
-                                    <option key={p} value={p}>
-                                      {p}
-                                    </option>
-                                  ))}
-                                </Select>
-                                <button
-                                  onClick={() => handleDetach(column)}
-                                  className="rounded p-1 text-text-secondary hover:bg-surface-2 hover:text-danger"
-                                  title="Открепить от этапа"
-                                >
-                                  <Unlink className="h-3.5 w-3.5" />
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        ) : canEdit ? (
-                          <CreatePlanDialog
-                            athleteId={athleteId}
-                            stageId={pending.stageId || undefined}
-                            trigger={(open) => (
-                              <Button variant="outline" size="sm" disabled={!pending.stageId} onClick={open}>
-                                <Plus className="h-4 w-4" /> Новый план
-                              </Button>
-                            )}
-                            onCreated={() => {
-                              setShowDraft(false)
-                              clearPending('draft')
-                              router.refresh()
-                            }}
-                          />
-                        ) : null}
+                      <td
+                        key={span.start}
+                        colSpan={span.span}
+                        className="border-l border-border p-0 align-top"
+                      >
+                        <button
+                          onClick={() => canEdit && cycle && setEditingCycle(cycle)}
+                          className="flex w-full flex-col items-center gap-0.5 px-2 py-2 text-center hover:bg-surface-2"
+                        >
+                          <Link
+                            href={`/cycles/${column.cycleId}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-xs font-medium hover:text-accent"
+                          >
+                            {column.cycleName}
+                          </Link>
+                          <span className="text-[11px] text-text-secondary">
+                            {column.mesocycleType ?? 'тип не указан'}
+                          </span>
+                        </button>
                       </td>
                     )
                   })}
                 </tr>
 
                 <tr>
-                  <RowLabel>Микроцикл</RowLabel>
-                  {allColumns.map((column) => {
-                    const key = keyFor(column)
-                    return (
-                      <td key={key} className="border-l border-border p-2 align-top">
-                        {column ? (
-                          <div className="flex flex-wrap gap-1">
-                            {column.microcycles.map((mc) => (
-                              <div
-                                key={mc.id}
-                                className="flex items-center gap-1 rounded-md bg-surface-2 px-1.5 py-1 text-xs"
-                              >
-                                <span className="text-text-secondary">Нед {mc.weekNumber}</span>
-                                {canEdit ? (
-                                  <select
-                                    value={mc.microcycleType ?? ''}
-                                    onChange={(e) =>
-                                      mutate(`/api/microcycles/${mc.id}`, 'PATCH', {
-                                        microcycleType: e.target.value || null,
-                                      })
-                                    }
-                                    className="rounded border-none bg-transparent text-xs outline-none"
-                                  >
-                                    <option value="">—</option>
-                                    {MICROCYCLE_PRESETS.map((p) => (
-                                      <option key={p} value={p}>
-                                        {p}
-                                      </option>
-                                    ))}
-                                  </select>
-                                ) : (
-                                  <span>{mc.microcycleType ?? '—'}</span>
-                                )}
-                              </div>
-                            ))}
-                            {canEdit && (
-                              <button
-                                onClick={() => handleAddWeek(column)}
-                                className="flex items-center gap-0.5 rounded-md border border-dashed border-border px-1.5 py-1 text-xs text-text-secondary hover:border-accent hover:text-accent"
-                              >
-                                <Plus className="h-3 w-3" /> Неделя
-                              </button>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-xs text-text-secondary">—</span>
-                        )}
-                      </td>
-                    )
-                  })}
+                  <RowLabel>Микроциклы</RowLabel>
+                  {weekColumns.map((c) => (
+                    <td key={c.microcycleId} className="border-l border-border p-1 align-top">
+                      {canEdit ? (
+                        <select
+                          value={c.microcycleType ?? ''}
+                          onChange={(e) =>
+                            mutate(`/api/microcycles/${c.microcycleId}`, 'PATCH', {
+                              microcycleType: e.target.value || null,
+                            })
+                          }
+                          className="w-full rounded border-none bg-transparent text-center text-[11px] outline-none"
+                        >
+                          <option value="">—</option>
+                          {MICROCYCLE_PRESETS.map((p) => (
+                            <option key={p} value={p}>
+                              {p}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="block text-center text-[11px]">{c.microcycleType ?? '—'}</span>
+                      )}
+                    </td>
+                  ))}
                 </tr>
               </tbody>
             </table>
@@ -356,40 +296,62 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
         </Card>
       )}
 
+      {unassigned.length > 0 && (
+        <Card padding="md" className="space-y-2">
+          <p className="text-sm font-medium text-text-secondary">Планы вне периодизации</p>
+          <div className="space-y-1">
+            {unassigned.map((cycle) => (
+              <div key={cycle.id} className="flex items-center justify-between text-sm">
+                <Link href={`/cycles/${cycle.id}`} className="hover:text-accent">
+                  {cycle.name}
+                </Link>
+                <span className="text-xs text-text-secondary">
+                  {fmt(cycle.startDate)} · {cycle.weeks} нед.
+                </span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
       <PeriodFormDialog
-        open={periodDialog !== null}
-        onOpenChange={(open) => !open && setPeriodDialog(null)}
+        open={periodDialogOpen}
+        onOpenChange={setPeriodDialogOpen}
         athleteId={athleteId}
-        onSaved={(period) => {
-          if (periodDialog?.forKey) setPending(periodDialog.forKey, null, { periodId: period.id, stageId: '' })
-          setPeriodDialog(null)
+        onSaved={() => {
+          setPeriodDialogOpen(false)
           router.refresh()
         }}
       />
-      <StageFormDialog
-        open={stageDialog !== null}
-        onOpenChange={(open) => !open && setStageDialog(null)}
-        periodId={stageDialog?.periodId ?? ''}
-        onSaved={(stage) => {
-          const forKey = stageDialog?.forKey
-          if (forKey) {
-            setPending(forKey, null, { stageId: stage.id })
-            const column = columns.find((c) => c.id === forKey)
-            if (column) {
-              mutate(`/api/cycles/${column.id}`, 'PATCH', { stageId: stage.id }, 'Этап обновлён').then((ok) => {
-                if (ok) clearPending(forKey)
-              })
-            }
-          }
-          setStageDialog(null)
-          router.refresh()
-        }}
-      />
+
+      {addToPeriod && (
+        <AddToPeriodDialog
+          period={addToPeriod}
+          athleteId={athleteId}
+          onClose={() => setAddToPeriod(null)}
+          onDone={() => {
+            setAddToPeriod(null)
+            router.refresh()
+          }}
+        />
+      )}
+
+      {editingCycle && (
+        <MesocycleEditorDialog
+          cycle={editingCycle}
+          periods={periods}
+          onClose={() => setEditingCycle(null)}
+          onSaved={() => {
+            setEditingCycle(null)
+            router.refresh()
+          }}
+        />
+      )}
     </div>
   )
 }
 
-function RowLabel({ children }: { children: string }) {
+function RowLabel({ children }: { children?: string }) {
   return (
     <td className="sticky left-0 z-10 w-28 shrink-0 whitespace-nowrap bg-surface-2 px-2 py-2 text-xs font-semibold uppercase tracking-wide text-text-secondary">
       {children}
@@ -397,27 +359,15 @@ function RowLabel({ children }: { children: string }) {
   )
 }
 
-function AddColumnCell({ showDraft, onToggle }: { showDraft: boolean; onToggle: () => void }) {
-  return (
-    <td rowSpan={4} className="border-l border-border p-2 align-middle">
-      <button
-        onClick={onToggle}
-        className="flex h-9 w-9 items-center justify-center rounded-full border border-dashed border-border text-text-secondary transition-colors hover:border-accent hover:text-accent"
-        title={showDraft ? 'Отменить добавление мезоцикла' : 'Добавить мезоцикл'}
-      >
-        {showDraft ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-      </button>
-    </td>
-  )
-}
-
 function PeriodPill({
   period,
   canEdit,
+  onAdd,
   onEdited,
 }: {
   period: PeriodOption
   canEdit: boolean
+  onAdd: () => void
   onEdited: () => void
 }) {
   const [editOpen, setEditOpen] = useState(false)
@@ -430,9 +380,14 @@ function PeriodPill({
         {fmt(period.startDate)} – {fmt(period.endDate)}
       </span>
       {canEdit && (
-        <button onClick={() => setEditOpen(true)} className="rounded p-0.5 hover:bg-black/10" aria-label="Редактировать период">
-          <Pencil className="h-3 w-3" />
-        </button>
+        <>
+          <button onClick={() => setEditOpen(true)} className="rounded p-0.5 hover:bg-black/10" aria-label="Редактировать период">
+            <Pencil className="h-3 w-3" />
+          </button>
+          <button onClick={onAdd} className="rounded p-0.5 hover:bg-black/10" aria-label="Добавить в период" title="Добавить этап/мезоцикл в этот период">
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+        </>
       )}
       <PeriodFormDialog
         open={editOpen}
@@ -444,6 +399,233 @@ function PeriodPill({
         }}
       />
     </div>
+  )
+}
+
+// Two-step "+" flow off a period pill: pick (or create) an Этап inside that
+// period, then create the Мезоцикл (a real plan, via CreatePlanDialog)
+// scoped to it — the resulting weeks show up as new merged-cell columns
+// under this period once the page refreshes.
+function AddToPeriodDialog({
+  period,
+  athleteId,
+  onClose,
+  onDone,
+}: {
+  period: PeriodOption
+  athleteId: string
+  onClose: () => void
+  onDone: () => void
+}) {
+  const router = useRouter()
+  const [stageId, setStageId] = useState('')
+  const [stageDialogOpen, setStageDialogOpen] = useState(false)
+  const [stages, setStages] = useState(period.stages)
+
+  useEffect(() => {
+    if (stageId === NEW_STAGE) setStageDialogOpen(true)
+  }, [stageId])
+
+  return (
+    <>
+      <Dialog open onOpenChange={(open) => !open && onClose()} title={`Добавить в «${period.name}»`}>
+        <div className="space-y-3">
+          <label className="block text-xs text-text-secondary">
+            Этап
+            <Select value={stageId} onChange={(e) => setStageId(e.target.value)} className="mt-1 w-full">
+              <option value="">Выберите этап...</option>
+              {stages.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+              <option value={NEW_STAGE}>+ Добавить этап</option>
+            </Select>
+          </label>
+
+          {stageId === NEW_STAGE && (
+            <p className="text-xs text-text-secondary">Создай этап во всплывшем окне, он появится в списке выше.</p>
+          )}
+
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={onClose}>
+              Отмена
+            </Button>
+            <CreatePlanDialog
+              athleteId={athleteId}
+              stageId={stageId && stageId !== NEW_STAGE ? stageId : undefined}
+              trigger={(open) => (
+                <Button
+                  size="sm"
+                  disabled={!stageId || stageId === NEW_STAGE}
+                  onClick={open}
+                >
+                  <Plus className="h-4 w-4" /> Создать план
+                </Button>
+              )}
+              onCreated={onDone}
+            />
+          </div>
+        </div>
+      </Dialog>
+
+      <StageFormDialog
+        open={stageDialogOpen}
+        onOpenChange={(open) => {
+          setStageDialogOpen(open)
+          if (!open) setStageId((prev) => (prev === NEW_STAGE ? '' : prev))
+        }}
+        periodId={period.id}
+        onSaved={(stage) => {
+          setStages((prev) => [...prev, stage])
+          setStageId(stage.id)
+          setStageDialogOpen(false)
+          router.refresh()
+        }}
+      />
+    </>
+  )
+}
+
+function MesocycleEditorDialog({
+  cycle,
+  periods,
+  onClose,
+  onSaved,
+}: {
+  cycle: MesocycleColumn
+  periods: PeriodOption[]
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const toast = useToast()
+  const [periodId, setPeriodId] = useState(cycle.periodId ?? '')
+  const [stageId, setStageId] = useState(cycle.stageId ?? '')
+  const [mesocycleType, setMesocycleType] = useState(cycle.mesocycleType ?? '')
+  const [loading, setLoading] = useState(false)
+  const period = periods.find((p) => p.id === periodId)
+
+  async function save(patch: Record<string, unknown>) {
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/cycles/${cycle.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error ?? 'Не удалось сохранить')
+      }
+      toast({ title: 'Сохранено', variant: 'success' })
+      onSaved()
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Ошибка'
+      toast({ title: 'Не удалось сохранить', description: message, variant: 'error' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function addWeek() {
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/cycles/${cycle.id}/microcycles`, { method: 'POST' })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error ?? 'Не удалось добавить неделю')
+      }
+      toast({ title: 'Неделя добавлена', variant: 'success' })
+      onSaved()
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Ошибка'
+      toast({ title: 'Не удалось добавить неделю', description: message, variant: 'error' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()} title={cycle.name}>
+      <div className="space-y-3">
+        <Link href={`/cycles/${cycle.id}`} className="text-xs text-accent hover:underline">
+          Открыть план →
+        </Link>
+
+        <label className="block text-xs text-text-secondary">
+          Период
+          <Select
+            value={periodId}
+            onChange={(e) => {
+              setPeriodId(e.target.value)
+              setStageId('')
+            }}
+            className="mt-1 w-full"
+          >
+            <option value="">не выбран</option>
+            {periods.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </Select>
+        </label>
+
+        <label className="block text-xs text-text-secondary">
+          Этап
+          <Select
+            value={stageId}
+            disabled={!period}
+            onChange={(e) => setStageId(e.target.value)}
+            className="mt-1 w-full"
+          >
+            <option value="">{period ? 'не выбран' : 'сначала период'}</option>
+            {period?.stages.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </Select>
+        </label>
+
+        <label className="block text-xs text-text-secondary">
+          Тип мезоцикла
+          <Select value={mesocycleType} onChange={(e) => setMesocycleType(e.target.value)} className="mt-1 w-full">
+            <option value="">не указан</option>
+            {MESOCYCLE_PRESETS.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </Select>
+        </label>
+
+        <div className="flex flex-wrap justify-between gap-2 pt-1">
+          <Button variant="outline" size="sm" onClick={addWeek} disabled={loading}>
+            <Plus className="h-4 w-4" /> Неделя
+          </Button>
+          <div className="flex gap-2">
+            {cycle.stageId && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => save({ stageId: null })}
+                disabled={loading}
+              >
+                <Unlink className="h-4 w-4" /> Открепить
+              </Button>
+            )}
+            <Button
+              size="sm"
+              onClick={() => save({ stageId: stageId || null, mesocycleType: mesocycleType || null })}
+              disabled={loading}
+            >
+              Сохранить
+            </Button>
+          </div>
+        </div>
+      </div>
+    </Dialog>
   )
 }
 
