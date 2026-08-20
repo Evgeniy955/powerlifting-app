@@ -49,23 +49,29 @@ function weeksBetween(startIso: string, endIso: string) {
 }
 
 // One week (Microcycle) flattened out of an attached Cycle, annotated with
-// the period/stage it inherits — the unit a table column represents.
+// the period/stage it inherits — the unit a real table column represents.
 type WeekColumn = {
   microcycleId: string
   microcycleType: string | null
   weekStart: string
   cycleId: string
   cycleName: string
-  cycleStartDate: string
-  cycleWeeks: number
   mesocycleType: string | null
   stageId: string
   periodId: string
 }
 
+// A table column is either a real week, or — for a period that has no
+// mesocycles attached yet — a single placeholder column standing in for
+// that whole (still-empty) period, so every period always has a home
+// inside the table itself rather than needing a separate list above it.
+type ColumnEntry =
+  | { kind: 'week'; sortKey: string; week: WeekColumn }
+  | { kind: 'empty-period'; sortKey: string; period: PeriodOption }
+
 type Span = { key: string; start: number; span: number }
 
-function groupConsecutive(items: WeekColumn[], keyFn: (item: WeekColumn) => string): Span[] {
+function groupConsecutive(items: ColumnEntry[], keyFn: (item: ColumnEntry) => string): Span[] {
   const spans: Span[] = []
   items.forEach((item, i) => {
     const key = keyFn(item)
@@ -77,21 +83,23 @@ function groupConsecutive(items: WeekColumn[], keyFn: (item: WeekColumn) => stri
 }
 
 // Spreadsheet-style merged-cell timeline — one narrow column per week
-// (Microcycle), four fixed rows underneath: Периоды / Этап / Мезоциклы /
-// Микроциклы, matching the original planning sheet. Периоды/Этап/Мезоциклы
-// render as merged cells (colSpan) spanning the weeks that belong to them;
-// Микроциклы stays one cell per week. New content is always added "onto" an
-// existing Период — each period pill above the table has its own "+" that
-// walks through picking/creating an Этап and then creating the Мезоцикл
-// (a real plan) inside it; the resulting weeks then appear as new columns.
-// Clicking an existing Мезоцикл block reopens that same Период/Этап choice
-// to move or detach it.
+// (Microcycle) plus one placeholder column per still-empty period, four
+// fixed rows underneath: Периоды / Этап / Мезоциклы / Микроциклы, matching
+// the original planning sheet. Периоды/Этап/Мезоциклы render as merged
+// cells (colSpan) spanning the weeks that belong to them; Микроциклы stays
+// one cell per week. Periods live entirely inside the table: every Период
+// cell carries its own edit (✎) and add (+) controls, and a trailing ghost
+// column at the far right adds a brand-new period. Adding "onto" a period
+// walks pick-or-create Этап -> create Мезоцикл (a real plan); the resulting
+// weeks appear as new merged columns after refresh. Clicking an existing
+// Мезоцикл block reopens the same Период/Этап choice to move or detach it.
 export function PeriodizationView({ athleteId, periods, columns, canEdit }: Props) {
   const router = useRouter()
   const toast = useToast()
 
   const [addToPeriod, setAddToPeriod] = useState<PeriodOption | null>(null)
   const [editingCycle, setEditingCycle] = useState<MesocycleColumn | null>(null)
+  const [editingPeriod, setEditingPeriod] = useState<PeriodOption | null>(null)
   const [periodDialogOpen, setPeriodDialogOpen] = useState(false)
 
   async function mutate(url: string, method: string, body?: unknown, successTitle?: string) {
@@ -115,34 +123,56 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
     }
   }
 
-  const weekColumns = useMemo<WeekColumn[]>(() => {
-    const list: WeekColumn[] = []
+  const mainColumns = useMemo<ColumnEntry[]>(() => {
+    const entries: ColumnEntry[] = []
+    const periodsWithWeeks = new Set<string>()
+
     for (const cycle of columns) {
       if (!cycle.stageId || !cycle.periodId) continue
+      periodsWithWeeks.add(cycle.periodId)
       for (const mc of cycle.microcycles) {
-        list.push({
-          microcycleId: mc.id,
-          microcycleType: mc.microcycleType,
-          weekStart: addDays(cycle.startDate, (mc.weekNumber - 1) * 7),
-          cycleId: cycle.id,
-          cycleName: cycle.name,
-          cycleStartDate: cycle.startDate,
-          cycleWeeks: cycle.weeks,
-          mesocycleType: cycle.mesocycleType,
-          stageId: cycle.stageId,
-          periodId: cycle.periodId,
+        const weekStart = addDays(cycle.startDate, (mc.weekNumber - 1) * 7)
+        entries.push({
+          kind: 'week',
+          sortKey: weekStart,
+          week: {
+            microcycleId: mc.id,
+            microcycleType: mc.microcycleType,
+            weekStart,
+            cycleId: cycle.id,
+            cycleName: cycle.name,
+            mesocycleType: cycle.mesocycleType,
+            stageId: cycle.stageId,
+            periodId: cycle.periodId,
+          },
         })
       }
     }
-    list.sort((a, b) => a.weekStart.localeCompare(b.weekStart))
-    return list
-  }, [columns])
+
+    for (const period of periods) {
+      if (!periodsWithWeeks.has(period.id)) {
+        entries.push({ kind: 'empty-period', sortKey: period.startDate, period })
+      }
+    }
+
+    entries.sort((a, b) => a.sortKey.localeCompare(b.sortKey))
+    return entries
+  }, [columns, periods])
 
   const unassigned = columns.filter((c) => !c.stageId)
 
-  const periodSpans = useMemo(() => groupConsecutive(weekColumns, (c) => c.periodId), [weekColumns])
-  const stageSpans = useMemo(() => groupConsecutive(weekColumns, (c) => c.stageId), [weekColumns])
-  const cycleSpans = useMemo(() => groupConsecutive(weekColumns, (c) => c.cycleId), [weekColumns])
+  const periodSpans = useMemo(
+    () => groupConsecutive(mainColumns, (e) => (e.kind === 'week' ? e.week.periodId : e.period.id)),
+    [mainColumns]
+  )
+  const stageSpans = useMemo(
+    () => groupConsecutive(mainColumns, (e) => (e.kind === 'week' ? e.week.stageId : `empty-${e.period.id}`)),
+    [mainColumns]
+  )
+  const cycleSpans = useMemo(
+    () => groupConsecutive(mainColumns, (e) => (e.kind === 'week' ? e.week.cycleId : `empty-${e.period.id}`)),
+    [mainColumns]
+  )
 
   function periodOf(id: string) {
     return periods.find((p) => p.id === id)
@@ -150,128 +180,154 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-2">
-          {periods.map((period) => (
-            <PeriodPill
-              key={period.id}
-              period={period}
-              canEdit={canEdit}
-              onAdd={() => setAddToPeriod(period)}
-              onEdited={() => router.refresh()}
-            />
-          ))}
-        </div>
-        {canEdit && (
-          <Button size="sm" onClick={() => setPeriodDialogOpen(true)}>
-            <Plus className="h-4 w-4" /> Добавить период
-          </Button>
-        )}
-      </div>
-
-      {periods.length === 0 ? (
-        <Card padding="md" className="text-center text-sm text-text-secondary">
-          Периодов пока нет. Добавь первый — он задаёт длительность макроцикла (от 12 недель до года). Дальше через
-          «+» у периода добавляются этапы и мезоциклы.
-        </Card>
-      ) : weekColumns.length === 0 ? (
-        <Card padding="md" className="text-center text-sm text-text-secondary">
-          В периодах пока нет мезоциклов.{canEdit && ' Нажми «+» у нужного периода, чтобы добавить этап и план.'}
-        </Card>
-      ) : (
-        <Card padding="none" className="overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-max border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-border">
-                  <RowLabel />
-                  {weekColumns.map((c) => (
-                    <th
-                      key={c.microcycleId}
-                      className="min-w-[92px] border-l border-border bg-surface-2 px-1.5 py-1.5 text-center text-[11px] font-normal text-text-secondary"
+      <Card padding="none" className="overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-max border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-border">
+                <RowLabel />
+                {mainColumns.map((c) => (
+                  <th
+                    key={c.kind === 'week' ? c.week.microcycleId : `empty-${c.period.id}`}
+                    className="min-w-[92px] border-l border-border bg-surface-2 px-1.5 py-1.5 text-center text-[11px] font-normal text-text-secondary"
+                  >
+                    {c.kind === 'week' ? fmtShort(c.week.weekStart) : ''}
+                  </th>
+                ))}
+                {canEdit && <th className="w-12 border-l border-border bg-surface-2" />}
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="border-b border-border">
+                <RowLabel>Периоды</RowLabel>
+                {periodSpans.map((span) => {
+                  const entry = mainColumns[span.start]
+                  const period = entry.kind === 'week' ? periodOf(entry.week.periodId) : entry.period
+                  const color = periodColor(period?.name)
+                  return (
+                    <td
+                      key={span.start}
+                      colSpan={span.span}
+                      className={`border-l border-border px-2 py-2 text-center text-xs font-semibold uppercase tracking-wide ${color.bg} ${color.text}`}
                     >
-                      {fmtShort(c.weekStart)}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="border-b border-border">
-                  <RowLabel>Периоды</RowLabel>
-                  {periodSpans.map((span) => {
-                    const period = periodOf(span.key)
-                    const color = periodColor(period?.name)
+                      <div className="flex items-center justify-center gap-1">
+                        <span className="truncate">{period?.name ?? '—'}</span>
+                        {canEdit && period && (
+                          <>
+                            <button
+                              onClick={() => setEditingPeriod(period)}
+                              className="shrink-0 rounded p-0.5 hover:bg-black/10"
+                              aria-label="Редактировать период"
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </button>
+                            <button
+                              onClick={() => setAddToPeriod(period)}
+                              className="shrink-0 rounded p-0.5 hover:bg-black/10"
+                              title="Добавить этап/мезоцикл в этот период"
+                              aria-label="Добавить в период"
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                      <div className="mt-0.5 text-[10px] font-normal normal-case opacity-80">
+                        {period ? `${fmt(period.startDate)} – ${fmt(period.endDate)}` : ''}
+                      </div>
+                    </td>
+                  )
+                })}
+                {canEdit && (
+                  <td rowSpan={4} className="border-l border-border p-2 align-middle">
+                    <button
+                      onClick={() => setPeriodDialogOpen(true)}
+                      className="flex h-9 w-9 items-center justify-center rounded-full border border-dashed border-border text-text-secondary transition-colors hover:border-accent hover:text-accent"
+                      title="Добавить период"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </button>
+                  </td>
+                )}
+              </tr>
+
+              <tr className="border-b border-border">
+                <RowLabel>Этап</RowLabel>
+                {stageSpans.map((span) => {
+                  const entry = mainColumns[span.start]
+                  if (entry.kind === 'empty-period') {
                     return (
-                      <td
-                        key={span.start}
-                        colSpan={span.span}
-                        className={`border-l border-border px-2 py-2 text-center text-xs font-semibold uppercase tracking-wide ${color.bg} ${color.text}`}
-                      >
-                        {period?.name ?? '—'}
+                      <td key={span.start} colSpan={span.span} className="border-l border-border px-2 py-2 text-center text-xs text-text-secondary">
+                        —
                       </td>
                     )
-                  })}
-                </tr>
+                  }
+                  const period = periodOf(entry.week.periodId)
+                  const stage = period?.stages.find((s) => s.id === entry.week.stageId)
+                  const color = stageColor(period?.name)
+                  return (
+                    <td
+                      key={span.start}
+                      colSpan={span.span}
+                      className={`border-l border-border px-2 py-2 text-center text-xs font-medium ${color.bg} ${color.text}`}
+                    >
+                      {stage?.name ?? '—'}
+                    </td>
+                  )
+                })}
+              </tr>
 
-                <tr className="border-b border-border">
-                  <RowLabel>Этап</RowLabel>
-                  {stageSpans.map((span) => {
-                    const column = weekColumns[span.start]
-                    const period = periodOf(column.periodId)
-                    const stage = period?.stages.find((s) => s.id === column.stageId)
-                    const color = stageColor(period?.name)
+              <tr className="border-b border-border">
+                <RowLabel>Мезоциклы</RowLabel>
+                {cycleSpans.map((span) => {
+                  const entry = mainColumns[span.start]
+                  if (entry.kind === 'empty-period') {
                     return (
-                      <td
-                        key={span.start}
-                        colSpan={span.span}
-                        className={`border-l border-border px-2 py-2 text-center text-xs font-medium ${color.bg} ${color.text}`}
-                      >
-                        {stage?.name ?? '—'}
+                      <td key={span.start} colSpan={span.span} className="border-l border-border px-2 py-2 text-center text-xs text-text-secondary">
+                        —
                       </td>
                     )
-                  })}
-                </tr>
-
-                <tr className="border-b border-border">
-                  <RowLabel>Мезоциклы</RowLabel>
-                  {cycleSpans.map((span) => {
-                    const column = weekColumns[span.start]
-                    const cycle = columns.find((c) => c.id === column.cycleId)
-                    return (
-                      <td
-                        key={span.start}
-                        colSpan={span.span}
-                        className="border-l border-border p-0 align-top"
+                  }
+                  const cycle = columns.find((c) => c.id === entry.week.cycleId)
+                  return (
+                    <td key={span.start} colSpan={span.span} className="border-l border-border p-0 align-top">
+                      <button
+                        onClick={() => canEdit && cycle && setEditingCycle(cycle)}
+                        className="flex w-full flex-col items-center gap-0.5 px-2 py-2 text-center hover:bg-surface-2"
                       >
-                        <button
-                          onClick={() => canEdit && cycle && setEditingCycle(cycle)}
-                          className="flex w-full flex-col items-center gap-0.5 px-2 py-2 text-center hover:bg-surface-2"
+                        <Link
+                          href={`/cycles/${entry.week.cycleId}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-xs font-medium hover:text-accent"
                         >
-                          <Link
-                            href={`/cycles/${column.cycleId}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="text-xs font-medium hover:text-accent"
-                          >
-                            {column.cycleName}
-                          </Link>
-                          <span className="text-[11px] text-text-secondary">
-                            {column.mesocycleType ?? 'тип не указан'}
-                          </span>
-                        </button>
+                          {entry.week.cycleName}
+                        </Link>
+                        <span className="text-[11px] text-text-secondary">{entry.week.mesocycleType ?? 'тип не указан'}</span>
+                      </button>
+                    </td>
+                  )
+                })}
+              </tr>
+
+              <tr>
+                <RowLabel>Микроциклы</RowLabel>
+                {mainColumns.map((entry) => {
+                  const key = entry.kind === 'week' ? entry.week.microcycleId : `empty-${entry.period.id}`
+                  if (entry.kind === 'empty-period') {
+                    return (
+                      <td key={key} className="border-l border-border p-1 text-center text-[11px] text-text-secondary">
+                        —
                       </td>
                     )
-                  })}
-                </tr>
-
-                <tr>
-                  <RowLabel>Микроциклы</RowLabel>
-                  {weekColumns.map((c) => (
-                    <td key={c.microcycleId} className="border-l border-border p-1 align-top">
+                  }
+                  const { week } = entry
+                  return (
+                    <td key={key} className="border-l border-border p-1 align-top">
                       {canEdit ? (
                         <select
-                          value={c.microcycleType ?? ''}
+                          value={week.microcycleType ?? ''}
                           onChange={(e) =>
-                            mutate(`/api/microcycles/${c.microcycleId}`, 'PATCH', {
+                            mutate(`/api/microcycles/${week.microcycleId}`, 'PATCH', {
                               microcycleType: e.target.value || null,
                             })
                           }
@@ -285,16 +341,16 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                           ))}
                         </select>
                       ) : (
-                        <span className="block text-center text-[11px]">{c.microcycleType ?? '—'}</span>
+                        <span className="block text-center text-[11px]">{week.microcycleType ?? '—'}</span>
                       )}
                     </td>
-                  ))}
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
+                  )
+                })}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </Card>
 
       {unassigned.length > 0 && (
         <Card padding="md" className="space-y-2">
@@ -323,6 +379,18 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
           router.refresh()
         }}
       />
+
+      {editingPeriod && (
+        <PeriodFormDialog
+          open
+          onOpenChange={(open) => !open && setEditingPeriod(null)}
+          period={editingPeriod}
+          onSaved={() => {
+            setEditingPeriod(null)
+            router.refresh()
+          }}
+        />
+      )}
 
       {addToPeriod && (
         <AddToPeriodDialog
@@ -359,50 +427,7 @@ function RowLabel({ children }: { children?: string }) {
   )
 }
 
-function PeriodPill({
-  period,
-  canEdit,
-  onAdd,
-  onEdited,
-}: {
-  period: PeriodOption
-  canEdit: boolean
-  onAdd: () => void
-  onEdited: () => void
-}) {
-  const [editOpen, setEditOpen] = useState(false)
-  const color = periodColor(period.name)
-
-  return (
-    <div className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${color.bg} ${color.text}`}>
-      <span>{period.name}</span>
-      <span className="opacity-70">
-        {fmt(period.startDate)} – {fmt(period.endDate)}
-      </span>
-      {canEdit && (
-        <>
-          <button onClick={() => setEditOpen(true)} className="rounded p-0.5 hover:bg-black/10" aria-label="Редактировать период">
-            <Pencil className="h-3 w-3" />
-          </button>
-          <button onClick={onAdd} className="rounded p-0.5 hover:bg-black/10" aria-label="Добавить в период" title="Добавить этап/мезоцикл в этот период">
-            <Plus className="h-3.5 w-3.5" />
-          </button>
-        </>
-      )}
-      <PeriodFormDialog
-        open={editOpen}
-        onOpenChange={setEditOpen}
-        period={period}
-        onSaved={() => {
-          setEditOpen(false)
-          onEdited()
-        }}
-      />
-    </div>
-  )
-}
-
-// Two-step "+" flow off a period pill: pick (or create) an Этап inside that
+// Two-step "+" flow off a period cell: pick (or create) an Этап inside that
 // period, then create the Мезоцикл (a real plan, via CreatePlanDialog)
 // scoped to it — the resulting weeks show up as new merged-cell columns
 // under this period once the page refreshes.
@@ -455,11 +480,7 @@ function AddToPeriodDialog({
               athleteId={athleteId}
               stageId={stageId && stageId !== NEW_STAGE ? stageId : undefined}
               trigger={(open) => (
-                <Button
-                  size="sm"
-                  disabled={!stageId || stageId === NEW_STAGE}
-                  onClick={open}
-                >
+                <Button size="sm" disabled={!stageId || stageId === NEW_STAGE} onClick={open}>
                   <Plus className="h-4 w-4" /> Создать план
                 </Button>
               )}
@@ -573,12 +594,7 @@ function MesocycleEditorDialog({
 
         <label className="block text-xs text-text-secondary">
           Этап
-          <Select
-            value={stageId}
-            disabled={!period}
-            onChange={(e) => setStageId(e.target.value)}
-            className="mt-1 w-full"
-          >
+          <Select value={stageId} disabled={!period} onChange={(e) => setStageId(e.target.value)} className="mt-1 w-full">
             <option value="">{period ? 'не выбран' : 'сначала период'}</option>
             {period?.stages.map((s) => (
               <option key={s.id} value={s.id}>
@@ -606,20 +622,11 @@ function MesocycleEditorDialog({
           </Button>
           <div className="flex gap-2">
             {cycle.stageId && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => save({ stageId: null })}
-                disabled={loading}
-              >
+              <Button variant="outline" size="sm" onClick={() => save({ stageId: null })} disabled={loading}>
                 <Unlink className="h-4 w-4" /> Открепить
               </Button>
             )}
-            <Button
-              size="sm"
-              onClick={() => save({ stageId: stageId || null, mesocycleType: mesocycleType || null })}
-              disabled={loading}
-            >
+            <Button size="sm" onClick={() => save({ stageId: stageId || null, mesocycleType: mesocycleType || null })} disabled={loading}>
               Сохранить
             </Button>
           </div>
@@ -709,12 +716,7 @@ function PeriodFormDialog({
         <div className="flex gap-2">
           <label className="block flex-1 text-xs text-text-secondary">
             Начало
-            <Input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="mt-1 w-full"
-            />
+            <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="mt-1 w-full" />
           </label>
           <label className="block flex-1 text-xs text-text-secondary">
             Длительность (недель)
@@ -818,12 +820,7 @@ function StageFormDialog({
         <div className="flex gap-2">
           <label className="block flex-1 text-xs text-text-secondary">
             Начало
-            <Input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="mt-1 w-full"
-            />
+            <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="mt-1 w-full" />
           </label>
           <label className="block flex-1 text-xs text-text-secondary">
             Конец
