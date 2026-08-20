@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireCoach, statusForAuthError } from '@/lib/session'
 import { assertAthleteBelongsToCoach } from '@/lib/authorization'
+import { dateRangesOverlap } from '@/lib/dateOverlap'
 
 // POST /api/athletes/:athleteId/periods { name, startDate, endDate } —
 // coach-only. Creates a top-level "Период" for this athlete's periodization
@@ -23,6 +24,21 @@ export async function POST(req: NextRequest, { params }: { params: { athleteId: 
     const endDate = new Date(body.endDate)
     if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
       return NextResponse.json({ error: 'Некорректные даты' }, { status: 400 })
+    }
+
+    // Periods for one athlete must each own a distinct span of time —
+    // otherwise two identically-dated periods render interleaved and
+    // indistinguishable in the periodization table.
+    const siblings = await prisma.period.findMany({
+      where: { athleteId: params.athleteId },
+      select: { name: true, startDate: true, endDate: true },
+    })
+    const overlapping = siblings.find((s) => dateRangesOverlap(startDate, endDate, s.startDate, s.endDate))
+    if (overlapping) {
+      return NextResponse.json(
+        { error: `Пересекается по датам с периодом «${overlapping.name}» — выберите другие даты` },
+        { status: 400 }
+      )
     }
 
     const period = await prisma.period.create({

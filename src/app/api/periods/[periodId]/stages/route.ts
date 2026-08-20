@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireCoach, statusForAuthError } from '@/lib/session'
 import { assertAthleteBelongsToCoach } from '@/lib/authorization'
+import { dateRangesOverlap } from '@/lib/dateOverlap'
 
 // POST /api/periods/:periodId/stages { name, startDate, endDate } —
 // coach-only. Creates an "Этап" inside a period; several stages can sit
@@ -26,6 +27,20 @@ export async function POST(req: NextRequest, { params }: { params: { periodId: s
     const endDate = new Date(body.endDate)
     if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
       return NextResponse.json({ error: 'Некорректные даты' }, { status: 400 })
+    }
+
+    // Stages inside one period must each own a distinct span of time — same
+    // reasoning as the Period-vs-Period and Mesocycle-vs-Mesocycle checks.
+    const siblings = await prisma.stage.findMany({
+      where: { periodId: params.periodId },
+      select: { name: true, startDate: true, endDate: true },
+    })
+    const overlapping = siblings.find((s) => dateRangesOverlap(startDate, endDate, s.startDate, s.endDate))
+    if (overlapping) {
+      return NextResponse.json(
+        { error: `Пересекается по датам с этапом «${overlapping.name}» — выберите другие даты` },
+        { status: 400 }
+      )
     }
 
     const stage = await prisma.stage.create({
