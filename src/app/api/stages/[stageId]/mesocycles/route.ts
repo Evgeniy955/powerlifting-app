@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireCoach, statusForAuthError } from '@/lib/session'
 import { assertAthleteBelongsToCoach } from '@/lib/authorization'
+import { rangesOverlap } from '@/lib/dateOverlap'
 
 // POST /api/stages/:stageId/mesocycles { name, startDate, weeks } —
 // coach-only. Creates a "Мезоцикл" inside a stage — deliberately a
@@ -36,6 +37,22 @@ export async function POST(req: NextRequest, { params }: { params: { stageId: st
     const startDate = new Date(body.startDate)
     if (Number.isNaN(startDate.getTime())) {
       return NextResponse.json({ error: 'Некорректная дата начала' }, { status: 400 })
+    }
+
+    // Each mesocycle inside a stage must own a distinct span of weeks —
+    // otherwise their weeks interleave in the periodization timeline with
+    // no way to tell them apart (this is exactly what happened with two
+    // "Втягивающий" mesocycles both starting the same day).
+    const siblings = await prisma.mesocycle.findMany({
+      where: { stageId: params.stageId },
+      select: { name: true, startDate: true, weeks: true },
+    })
+    const overlapping = siblings.find((s) => rangesOverlap(startDate, weeks, s.startDate, s.weeks))
+    if (overlapping) {
+      return NextResponse.json(
+        { error: `Пересекается по датам с мезоциклом «${overlapping.name}» — выберите другую дату начала` },
+        { status: 400 }
+      )
     }
 
     const mesocycleId = randomUUID()

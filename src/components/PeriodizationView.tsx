@@ -62,12 +62,17 @@ type WeekColumn = {
   periodId: string
 }
 
-// A table column is either a real week, or — for a period that has no
-// mesocycles attached yet — a single placeholder column standing in for
-// that whole (still-empty) period, so every period always has a home
-// inside the table itself rather than needing a separate list above it.
+// A table column is a real week, or a placeholder standing in for
+// something that exists but has nothing under it yet: an 'empty-stage' for
+// a Этап with no mesocycles (own column, shows the real этап name — without
+// this an Этап you just created was invisible, since it had zero weeks to
+// derive a column from and only periods got an empty-state column), or an
+// 'empty-period' for a Период with no stages at all yet. Either way every
+// Период/Этап you create always has a home inside the table itself rather
+// than needing a separate list above it.
 type ColumnEntry =
   | { kind: 'week'; sortKey: string; week: WeekColumn }
+  | { kind: 'empty-stage'; sortKey: string; period: PeriodOption; stage: StageOption }
   | { kind: 'empty-period'; sortKey: string; period: PeriodOption }
 
 type Span = { key: string; start: number; span: number }
@@ -130,10 +135,10 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
 
   const mainColumns = useMemo<ColumnEntry[]>(() => {
     const entries: ColumnEntry[] = []
-    const periodsWithWeeks = new Set<string>()
+    const stagesWithWeeks = new Set<string>()
 
     for (const mesocycle of columns) {
-      periodsWithWeeks.add(mesocycle.periodId)
+      stagesWithWeeks.add(mesocycle.stageId)
       for (const mc of mesocycle.microcycles) {
         const weekStart = addDays(mesocycle.startDate, (mc.weekNumber - 1) * 7)
         entries.push({
@@ -153,8 +158,14 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
     }
 
     for (const period of periods) {
-      if (!periodsWithWeeks.has(period.id)) {
+      if (period.stages.length === 0) {
         entries.push({ kind: 'empty-period', sortKey: period.startDate, period })
+        continue
+      }
+      for (const stage of period.stages) {
+        if (!stagesWithWeeks.has(stage.id)) {
+          entries.push({ kind: 'empty-stage', sortKey: stage.startDate, period, stage })
+        }
       }
     }
 
@@ -167,11 +178,17 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
     [mainColumns]
   )
   const stageSpans = useMemo(
-    () => groupConsecutive(mainColumns, (e) => (e.kind === 'week' ? e.week.stageId : `empty-${e.period.id}`)),
+    () =>
+      groupConsecutive(mainColumns, (e) =>
+        e.kind === 'week' ? e.week.stageId : e.kind === 'empty-stage' ? e.stage.id : `empty-${e.period.id}`
+      ),
     [mainColumns]
   )
   const mesocycleSpans = useMemo(
-    () => groupConsecutive(mainColumns, (e) => (e.kind === 'week' ? e.week.mesocycleId : `empty-${e.period.id}`)),
+    () =>
+      groupConsecutive(mainColumns, (e) =>
+        e.kind === 'week' ? e.week.mesocycleId : e.kind === 'empty-stage' ? `empty-stage-${e.stage.id}` : `empty-${e.period.id}`
+      ),
     [mainColumns]
   )
 
@@ -189,7 +206,7 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                 <RowLabel />
                 {mainColumns.map((c) => (
                   <th
-                    key={c.kind === 'week' ? c.week.microcycleId : `empty-${c.period.id}`}
+                    key={c.kind === 'week' ? c.week.microcycleId : c.kind === 'empty-stage' ? `empty-stage-${c.stage.id}` : `empty-${c.period.id}`}
                     className="min-w-[92px] border-l border-border bg-surface-2 px-1.5 py-1.5 text-center text-[11px] font-normal text-text-secondary"
                   >
                     {c.kind === 'week' ? fmtShort(c.week.weekStart) : ''}
@@ -271,6 +288,18 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                       </td>
                     )
                   }
+                  if (entry.kind === 'empty-stage') {
+                    const color = stageColor(entry.period.name)
+                    return (
+                      <td
+                        key={span.start}
+                        colSpan={span.span}
+                        className={`border-l border-border px-2 py-2 text-center text-xs font-medium ${color.bg} ${color.text}`}
+                      >
+                        {entry.stage.name}
+                      </td>
+                    )
+                  }
                   const period = periodOf(entry.week.periodId)
                   const stage = period?.stages.find((s) => s.id === entry.week.stageId)
                   const color = stageColor(period?.name)
@@ -290,7 +319,7 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                 <RowLabel>Мезоциклы</RowLabel>
                 {mesocycleSpans.map((span) => {
                   const entry = mainColumns[span.start]
-                  if (entry.kind === 'empty-period') {
+                  if (entry.kind !== 'week') {
                     return (
                       <td key={span.start} colSpan={span.span} className="border-l border-border px-2 py-2 text-center text-xs text-text-secondary">
                         —
@@ -314,8 +343,9 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
               <tr>
                 <RowLabel>Микроциклы</RowLabel>
                 {mainColumns.map((entry) => {
-                  const key = entry.kind === 'week' ? entry.week.microcycleId : `empty-${entry.period.id}`
-                  if (entry.kind === 'empty-period') {
+                  const key =
+                    entry.kind === 'week' ? entry.week.microcycleId : entry.kind === 'empty-stage' ? `empty-stage-${entry.stage.id}` : `empty-${entry.period.id}`
+                  if (entry.kind !== 'week') {
                     return (
                       <td key={key} className="border-l border-border p-1 text-center text-[11px] text-text-secondary">
                         —
@@ -395,6 +425,7 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
       {addToPeriod && (
         <AddToPeriodDialog
           period={addToPeriod}
+          columns={columns}
           onClose={() => setAddToPeriod(null)}
           onDone={() => {
             setAddToPeriod(null)
@@ -444,10 +475,12 @@ function RowLabel({ children }: { children?: string }) {
 // duration in weeks, no plan-name/weekday picker) — see CreateMesocycleDialog.
 function AddToPeriodDialog({
   period,
+  columns,
   onClose,
   onDone,
 }: {
   period: PeriodOption
+  columns: MesocycleColumn[]
   onClose: () => void
   onDone: () => void
 }) {
@@ -457,6 +490,22 @@ function AddToPeriodDialog({
   const [stageDialogOpen, setStageDialogOpen] = useState(false)
   const [stages, setStages] = useState(period.stages)
   const selectedStage = stages.find((s) => s.id === stageId)
+
+  // Default the new mesocycle's start date to right after whichever
+  // existing mesocycle in this stage ends latest, rather than always the
+  // stage's own start date — otherwise two mesocycles created back-to-back
+  // both default to the same day and silently overlap (see the "Втягивающий"
+  // duplicate this replaced).
+  const suggestedStartDate = useMemo(() => {
+    if (!selectedStage) return undefined
+    const inStage = columns.filter((c) => c.stageId === selectedStage.id)
+    if (inStage.length === 0) return selectedStage.startDate
+    const latestEnd = inStage.reduce(
+      (latest, c) => Math.max(latest, new Date(addDays(c.startDate, c.weeks * 7)).getTime()),
+      0
+    )
+    return new Date(latestEnd).toISOString()
+  }, [selectedStage, columns])
 
   useEffect(() => {
     if (stageId === NEW_STAGE) setStageDialogOpen(true)
@@ -512,7 +561,7 @@ function AddToPeriodDialog({
             </Button>
             <CreateMesocycleDialog
               stageId={stageId && stageId !== NEW_STAGE ? stageId : undefined}
-              defaultStartDate={selectedStage?.startDate}
+              defaultStartDate={suggestedStartDate}
               trigger={(open) => (
                 <Button size="sm" disabled={!stageId || stageId === NEW_STAGE} onClick={open}>
                   <Plus className="h-4 w-4" /> Создать мезоцикл

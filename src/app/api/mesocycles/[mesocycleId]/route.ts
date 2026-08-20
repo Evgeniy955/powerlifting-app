@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireCoach, statusForAuthError } from '@/lib/session'
 import { assertAthleteBelongsToCoach } from '@/lib/authorization'
+import { rangesOverlap } from '@/lib/dateOverlap'
 
 async function loadOwnedMesocycle(mesocycleId: string, coachId: string) {
   const mesocycle = await prisma.mesocycle.findUnique({
@@ -47,6 +48,23 @@ export async function PATCH(req: NextRequest, { params }: { params: { mesocycleI
       })
       if (!targetStage) return NextResponse.json({ error: 'Этап не найден' }, { status: 404 })
       await assertAthleteBelongsToCoach(targetStage.period.athleteId, coach.id)
+
+      // Same non-overlap guarantee as creation — moving into a stage whose
+      // existing mesocycles already cover these weeks would produce the
+      // same interleaved-timeline problem.
+      const effectiveStartDate = data.startDate instanceof Date ? data.startDate : mesocycle.startDate
+      const siblings = await prisma.mesocycle.findMany({
+        where: { stageId: body.stageId },
+        select: { name: true, startDate: true, weeks: true },
+      })
+      const overlapping = siblings.find((s) => rangesOverlap(effectiveStartDate, mesocycle.weeks, s.startDate, s.weeks))
+      if (overlapping) {
+        return NextResponse.json(
+          { error: `Пересекается по датам с мезоциклом «${overlapping.name}» в этом этапе` },
+          { status: 400 }
+        )
+      }
+
       data.stageId = body.stageId
     }
 
