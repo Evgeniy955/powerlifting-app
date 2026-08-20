@@ -8,6 +8,12 @@
    only the hex values below do. */
 :root,
 .theme-dark {
+  /* Tells the browser to render native widgets (select's own dropdown
+     popup, date/number input spinners, scrollbars) with dark chrome —
+     without this, an open <select> falls back to a plain white popup with
+     light-on-white text (invisible against the dark theme's own light
+     option text) regardless of how the closed control itself is styled. */
+  color-scheme: dark;
   --color-bg: #14100c;
   --color-surface: #1e1712;
   --color-surface-2: #2a2019;
@@ -25,6 +31,7 @@
 }
 
 .theme-light {
+  color-scheme: light;
   --color-bg: #fbf7f2;
   --color-surface: #ffffff;
   --color-surface-2: #f3ece3;
@@ -42,6 +49,7 @@
 }
 
 .theme-cyberpunk {
+  color-scheme: dark;
   /* Near-black rather than pure #000 to avoid OLED smear on dark-panel phones. */
   --color-bg: #0a0a0a;
   --color-surface: #141414;
