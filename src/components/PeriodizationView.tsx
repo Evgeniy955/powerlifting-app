@@ -359,6 +359,34 @@ function PresetSelect({
   )
 }
 
+// Editing this shifts the whole mesocycle (and every workout day already
+// scheduled inside it — see the PATCH route) forward/back together, so the
+// week structure stays intact instead of drifting out of sync with the
+// dates shown in the "Дата начала" row above.
+function DateField({
+  label,
+  value,
+  onSave,
+}: {
+  label: string
+  value: string // ISO
+  onSave: (next: string) => void
+}) {
+  return (
+    <label className="flex flex-col gap-0.5 text-left text-[10px] text-text-secondary">
+      {label}
+      <input
+        type="date"
+        defaultValue={value.slice(0, 10)}
+        onChange={(e) => {
+          if (e.target.value) onSave(e.target.value)
+        }}
+        className="rounded border border-border bg-surface px-1.5 py-1 text-xs text-text-primary outline-none focus:border-accent"
+      />
+    </label>
+  )
+}
+
 function MesocycleEditor({
   cycle,
   onChange,
@@ -369,7 +397,7 @@ function MesocycleEditor({
   onClose: () => void
 }) {
   return (
-    <div className="absolute left-0 top-full z-20 mt-1 w-48 space-y-1.5 rounded-lg border border-border bg-surface p-2 text-left shadow-elevated">
+    <div className="absolute left-0 top-full z-20 mt-1 w-52 space-y-1.5 rounded-lg border border-border bg-surface p-2 text-left shadow-elevated">
       <div className="flex items-center justify-between">
         <span className="text-[10px] font-bold uppercase tracking-wide text-text-secondary">
           {cycle.name}
@@ -383,6 +411,11 @@ function MesocycleEditor({
           <X className="h-3 w-3" />
         </button>
       </div>
+      <DateField
+        label="Дата начала"
+        value={cycle.startDate}
+        onSave={(v) => onChange({ startDate: v })}
+      />
       <PresetSelect
         label="Период"
         value={cycle.periodType}
