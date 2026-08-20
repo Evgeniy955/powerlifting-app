@@ -369,6 +369,41 @@ function PresetField({
   )
 }
 
+// Closed dropdown — used for Период specifically, since unlike Этап/Тип
+// мезоцикла it's meant to be a fixed 3-way choice (Подготовительный/
+// Соревновательный/Переходной), not an open-ended preset list. Saves
+// immediately on change, no separate save step, same as AdminExercisesView's
+// "move to block" select.
+function PresetSelect({
+  label,
+  value,
+  presets,
+  onSave,
+}: {
+  label: string
+  value: string | null
+  presets: readonly string[]
+  onSave: (next: string | null) => void
+}) {
+  return (
+    <label className="flex flex-col gap-0.5 text-left text-[10px] text-text-secondary">
+      {label}
+      <select
+        value={value ?? ''}
+        onChange={(e) => onSave(e.target.value || null)}
+        className="rounded border border-border bg-surface px-1.5 py-1 text-xs text-text-primary outline-none focus:border-accent"
+      >
+        <option value="">не указан</option>
+        {presets.map((p) => (
+          <option key={p} value={p}>
+            {p}
+          </option>
+        ))}
+      </select>
+    </label>
+  )
+}
+
 function MesocycleEditor({
   cycle,
   onChange,
@@ -393,11 +428,10 @@ function MesocycleEditor({
           <X className="h-3 w-3" />
         </button>
       </div>
-      <PresetField
+      <PresetSelect
         label="Период"
         value={cycle.periodType}
         presets={PERIOD_PRESETS}
-        listId={`period-presets-${cycle.id}`}
         onSave={(v) => onChange({ periodType: v })}
       />
       <PresetField
