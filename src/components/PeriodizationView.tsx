@@ -925,7 +925,7 @@ function StageFormDialog({
   const toast = useToast()
   const [name, setName] = useState(stage?.name ?? initialName ?? STAGE_PRESETS[0])
   const [startDate, setStartDate] = useState(stage ? fmt(stage.startDate) : todayIso())
-  const [endDate, setEndDate] = useState(stage ? fmt(stage.endDate) : todayIso())
+  const [durationWeeks, setDurationWeeks] = useState(stage ? weeksBetween(stage.startDate, stage.endDate) : 12)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -933,19 +933,24 @@ function StageFormDialog({
     if (!open) return
     setName(stage?.name ?? initialName ?? STAGE_PRESETS[0])
     setStartDate(stage ? fmt(stage.startDate) : todayIso())
-    setEndDate(stage ? fmt(stage.endDate) : todayIso())
+    setDurationWeeks(stage ? weeksBetween(stage.startDate, stage.endDate) : 12)
     setError(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
   async function handleSave() {
-    if (!startDate || !endDate) {
-      setError('Укажите обе даты')
+    if (!startDate) {
+      setError('Укажите дату начала')
+      return
+    }
+    if (durationWeeks < 1) {
+      setError('Длительность должна быть не меньше 1 недели')
       return
     }
     setLoading(true)
     setError(null)
     try {
+      const endDate = addDays(startDate, durationWeeks * 7)
       const url = stage ? `/api/stages/${stage.id}` : `/api/periods/${periodId}/stages`
       const res = await fetch(url, {
         method: stage ? 'PATCH' : 'POST',
@@ -987,10 +992,17 @@ function StageFormDialog({
             <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="mt-1 w-full" />
           </label>
           <label className="block flex-1 text-xs text-text-secondary">
-            Конец
-            <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="mt-1 w-full" />
+            Длительность (недель)
+            <Input
+              type="number"
+              min={1}
+              value={durationWeeks}
+              onChange={(e) => setDurationWeeks(Number(e.target.value))}
+              className="mt-1 w-full"
+            />
           </label>
         </div>
+        <p className="text-xs text-text-secondary">Окончание: {addDays(startDate || todayIso(), durationWeeks * 7)}</p>
         {error && <p className="text-xs text-danger">{error}</p>}
         <div className="flex justify-end gap-2">
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
