@@ -479,6 +479,7 @@ function AddToPeriodDialog({
 }) {
   const router = useRouter()
   const [stageId, setStageId] = useState('')
+  const [presetName, setPresetName] = useState<string | undefined>(undefined)
   const [stageDialogOpen, setStageDialogOpen] = useState(false)
   const [stages, setStages] = useState(period.stages)
 
@@ -486,25 +487,48 @@ function AddToPeriodDialog({
     if (stageId === NEW_STAGE) setStageDialogOpen(true)
   }, [stageId])
 
+  // Every standard Этап name is always selectable, not just the ones already
+  // created for this period — picking one that doesn't exist yet here opens
+  // the creation dialog with that name pre-filled instead of requiring a
+  // separate "+ Добавить этап" round trip first.
+  const missingPresets = STAGE_PRESETS.filter((name) => !stages.some((s) => s.name === name))
+
+  function handleSelect(value: string) {
+    if (value === NEW_STAGE) {
+      setPresetName(undefined)
+      setStageId(NEW_STAGE)
+    } else if (value.startsWith('preset:')) {
+      setPresetName(value.slice('preset:'.length))
+      setStageId(NEW_STAGE)
+    } else {
+      setStageId(value)
+    }
+  }
+
   return (
     <>
       <Dialog open onOpenChange={(open) => !open && onClose()} title={`Добавить в «${period.name}»`}>
         <div className="space-y-3">
           <label className="block text-xs text-text-secondary">
             Этап
-            <Select value={stageId} onChange={(e) => setStageId(e.target.value)} className="mt-1 w-full">
+            <Select value={stageId} onChange={(e) => handleSelect(e.target.value)} className="mt-1 w-full">
               <option value="">Выберите этап...</option>
               {stages.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
                 </option>
               ))}
-              <option value={NEW_STAGE}>+ Добавить этап</option>
+              {missingPresets.map((name) => (
+                <option key={name} value={`preset:${name}`}>
+                  {name}
+                </option>
+              ))}
+              <option value={NEW_STAGE}>+ Добавить этап (своё название и даты)</option>
             </Select>
           </label>
 
           {stageId === NEW_STAGE && (
-            <p className="text-xs text-text-secondary">Создай этап во всплывшем окне, он появится в списке выше.</p>
+            <p className="text-xs text-text-secondary">Укажи даты этапа во всплывшем окне, он появится в списке выше.</p>
           )}
 
           <div className="flex justify-end gap-2">
@@ -529,12 +553,17 @@ function AddToPeriodDialog({
         open={stageDialogOpen}
         onOpenChange={(open) => {
           setStageDialogOpen(open)
-          if (!open) setStageId((prev) => (prev === NEW_STAGE ? '' : prev))
+          if (!open) {
+            setStageId((prev) => (prev === NEW_STAGE ? '' : prev))
+            setPresetName(undefined)
+          }
         }}
         periodId={period.id}
+        initialName={presetName}
         onSaved={(stage) => {
           setStages((prev) => [...prev, stage])
           setStageId(stage.id)
+          setPresetName(undefined)
           setStageDialogOpen(false)
           router.refresh()
         }}
@@ -785,16 +814,20 @@ function StageFormDialog({
   onOpenChange,
   periodId,
   stage,
+  initialName,
   onSaved,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   periodId: string
   stage?: { id: string; name: string; startDate: string; endDate: string }
+  // Pre-fills the name when creating (picked from the full Этап list before
+  // this dialog even opened) — ignored once `stage` is set (editing).
+  initialName?: string
   onSaved: (stage: { id: string; name: string; startDate: string; endDate: string }) => void
 }) {
   const toast = useToast()
-  const [name, setName] = useState(stage?.name ?? STAGE_PRESETS[0])
+  const [name, setName] = useState(stage?.name ?? initialName ?? STAGE_PRESETS[0])
   const [startDate, setStartDate] = useState(stage ? fmt(stage.startDate) : todayIso())
   const [endDate, setEndDate] = useState(stage ? fmt(stage.endDate) : todayIso())
   const [loading, setLoading] = useState(false)
@@ -802,7 +835,7 @@ function StageFormDialog({
 
   useEffect(() => {
     if (!open) return
-    setName(stage?.name ?? STAGE_PRESETS[0])
+    setName(stage?.name ?? initialName ?? STAGE_PRESETS[0])
     setStartDate(stage ? fmt(stage.startDate) : todayIso())
     setEndDate(stage ? fmt(stage.endDate) : todayIso())
     setError(null)
