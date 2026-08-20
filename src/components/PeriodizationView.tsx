@@ -102,6 +102,7 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
 
   const [addToPeriod, setAddToPeriod] = useState<PeriodOption | null>(null)
   const [editingMesocycle, setEditingMesocycle] = useState<MesocycleColumn | null>(null)
+  const [editingWeek, setEditingWeek] = useState<WeekColumn | null>(null)
   const [editingPeriod, setEditingPeriod] = useState<PeriodOption | null>(null)
   const [deletingPeriod, setDeletingPeriod] = useState<PeriodOption | null>(null)
   const [periodDialogOpen, setPeriodDialogOpen] = useState(false)
@@ -323,26 +324,16 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                   }
                   const { week } = entry
                   return (
-                    <td key={key} className="border-l border-border p-1 align-top">
+                    <td key={key} className="border-l border-border p-0 align-top">
                       {canEdit ? (
-                        <select
-                          value={week.microcycleType ?? ''}
-                          onChange={(e) =>
-                            mutate(`/api/periodization-microcycles/${week.microcycleId}`, 'PATCH', {
-                              microcycleType: e.target.value || null,
-                            })
-                          }
-                          className="w-full rounded border-none bg-transparent text-center text-[11px] outline-none"
+                        <button
+                          onClick={() => setEditingWeek(week)}
+                          className="flex w-full flex-col items-center gap-0.5 px-2 py-2 text-center hover:bg-surface-2"
                         >
-                          <option value="">—</option>
-                          {MICROCYCLE_PRESETS.map((p) => (
-                            <option key={p} value={p}>
-                              {p}
-                            </option>
-                          ))}
-                        </select>
+                          <span className="text-[11px]">{week.microcycleType ?? '—'}</span>
+                        </button>
                       ) : (
-                        <span className="block text-center text-[11px]">{week.microcycleType ?? '—'}</span>
+                        <span className="block px-2 py-2 text-center text-[11px]">{week.microcycleType ?? '—'}</span>
                       )}
                     </td>
                   )
@@ -419,6 +410,17 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
           onClose={() => setEditingMesocycle(null)}
           onSaved={() => {
             setEditingMesocycle(null)
+            router.refresh()
+          }}
+        />
+      )}
+
+      {editingWeek && (
+        <MicrocycleEditorDialog
+          week={editingWeek}
+          onClose={() => setEditingWeek(null)}
+          onSaved={() => {
+            setEditingWeek(null)
             router.refresh()
           }}
         />
@@ -792,6 +794,72 @@ function MesocycleEditorDialog({
             </Button>
           </div>
         )}
+      </div>
+    </Dialog>
+  )
+}
+
+// Same click-to-open popup pattern as MesocycleEditorDialog above, just for
+// a single week — pick the Микроцикл type from the preset list and save,
+// instead of the old inline native <select> in the table cell.
+function MicrocycleEditorDialog({
+  week,
+  onClose,
+  onSaved,
+}: {
+  week: WeekColumn
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const toast = useToast()
+  const [microcycleType, setMicrocycleType] = useState(week.microcycleType ?? '')
+  const [loading, setLoading] = useState(false)
+
+  async function save() {
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/periodization-microcycles/${week.microcycleId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ microcycleType: microcycleType || null }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error ?? 'Не удалось сохранить')
+      }
+      toast({ title: 'Сохранено', variant: 'success' })
+      onSaved()
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Ошибка'
+      toast({ title: 'Не удалось сохранить', description: message, variant: 'error' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()} title={`Микроцикл — ${fmtShort(week.weekStart)}`}>
+      <div className="space-y-3">
+        <label className="block text-xs text-text-secondary">
+          Тип микроцикла
+          <Select value={microcycleType} onChange={(e) => setMicrocycleType(e.target.value)} className="mt-1 w-full">
+            <option value="">не указан</option>
+            {MICROCYCLE_PRESETS.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </Select>
+        </label>
+
+        <div className="flex justify-end gap-2 pt-1">
+          <Button variant="outline" size="sm" onClick={onClose}>
+            Отмена
+          </Button>
+          <Button size="sm" onClick={save} disabled={loading}>
+            Сохранить
+          </Button>
+        </div>
       </div>
     </Dialog>
   )
