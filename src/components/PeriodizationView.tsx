@@ -708,24 +708,6 @@ function MesocycleEditorDialog({
     }
   }
 
-  async function addWeek() {
-    setLoading(true)
-    try {
-      const res = await fetch(`/api/mesocycles/${mesocycle.id}/microcycles`, { method: 'POST' })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        throw new Error(body.error ?? 'Не удалось добавить неделю')
-      }
-      toast({ title: 'Неделя добавлена', variant: 'success' })
-      onSaved()
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Ошибка'
-      toast({ title: 'Не удалось добавить неделю', description: message, variant: 'error' })
-    } finally {
-      setLoading(false)
-    }
-  }
-
   async function handleDelete() {
     setLoading(true)
     try {
@@ -802,14 +784,9 @@ function MesocycleEditorDialog({
           </div>
         ) : (
           <div className="flex flex-wrap justify-between gap-2 pt-1">
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={addWeek} disabled={loading}>
-                <Plus className="h-4 w-4" /> Неделя
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => setConfirmingDelete(true)} disabled={loading}>
-                <Trash2 className="h-4 w-4" /> Удалить
-              </Button>
-            </div>
+            <Button variant="outline" size="sm" onClick={() => setConfirmingDelete(true)} disabled={loading}>
+              <Trash2 className="h-4 w-4" /> Удалить
+            </Button>
             <Button size="sm" onClick={save} disabled={loading}>
               Сохранить
             </Button>
