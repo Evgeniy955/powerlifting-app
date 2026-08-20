@@ -6,7 +6,7 @@ import { assertAthleteBelongsToCoach } from '@/lib/authorization'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
-// POST /api/athletes/:athleteId/plans { name, startDate, weeks?, weekdays }
+// POST /api/athletes/:athleteId/plans { name, startDate, weeks?, weekdays? }
 // Creates an empty plan skeleton — Cycle -> Microcycle(s) -> Workout(s), no
 // exercises yet. Days start empty and get filled in per-day afterward via the
 // existing "Добавить упражнение" flow on the workout page, same as any ad-hoc
@@ -15,12 +15,16 @@ const DAY_MS = 24 * 60 * 60 * 1000
 // `weekdays` is which days of the week the athlete actually trains — e.g. Mon/
 // Wed/Fri (`[1, 3, 5]`) or Tue/Thu/Sat (`[2, 4, 6]`) — using JS
 // Date.getUTCDay() numbering (0 = Sunday), the same convention WeekDayTable
-// already uses for its weekday labels. Each Microcycle's 7-day window (days
-// (week-1)*7 .. (week-1)*7+6 from startDate) is scanned once for calendar days
-// whose weekday is in that set, so scheduledDate always lands on a real
-// matching weekday instead of just being consecutive days from start — a
-// week always contributes exactly weekdays.length workouts since every 7-day
-// span contains each weekday exactly once, whatever startDate itself falls on.
+// already uses for its weekday labels. Optional — omitted (or empty) falls
+// back to Пн/Ср/Пт, since the periodization "+" flow creates a mesocycle from
+// just a name/duration without asking for weekdays up front; the coach can
+// still adjust which days have workouts from the cycle's own page afterward.
+// Each Microcycle's 7-day window (days (week-1)*7 .. (week-1)*7+6 from
+// startDate) is scanned once for calendar days whose weekday is in that set,
+// so scheduledDate always lands on a real matching weekday instead of just
+// being consecutive days from start — a week always contributes exactly
+// weekdays.length workouts since every 7-day span contains each weekday
+// exactly once, whatever startDate itself falls on.
 //
 // Uses a batched (non-interactive) $transaction([...]) of createMany calls with
 // ids generated up front in JS, rather than an interactive transaction with one
@@ -38,14 +42,20 @@ export async function POST(req: NextRequest, { params }: { params: { athleteId: 
       name: string
       startDate: string
       weeks?: number
-      weekdays: number[]
+      // Optional — the periodization "+" flow creates a mesocycle from just a
+      // name/duration (no weekday picker), so this falls back to Пн/Ср/Пт
+      // when omitted or empty rather than rejecting the request.
+      weekdays?: number[]
       // Optional — lets a plan be created already attached to a Stage in the
-      // periodization hierarchy (the Stage's "+ Добавить мезоцикл" -> "Создать
-      // новый план" flow), instead of always landing "unassigned".
+      // periodization hierarchy, instead of always landing "unassigned".
       stageId?: string
+      // Optional — the periodization "+" flow tags the plan with its
+      // Мезоцикл preset right at creation instead of a separate PATCH.
+      mesocycleType?: string
     }
     const weeks = body.weeks ?? 12
-    const weekdays = Array.from(new Set(body.weekdays ?? []))
+    const weekdaysInput = Array.from(new Set(body.weekdays ?? []))
+    const weekdays = weekdaysInput.length > 0 ? weekdaysInput : [1, 3, 5]
 
     if (!body.name?.trim()) {
       return NextResponse.json({ error: 'Название плана обязательно' }, { status: 400 })
@@ -56,8 +66,8 @@ export async function POST(req: NextRequest, { params }: { params: { athleteId: 
     if (!(weeks > 0 && weeks <= 52)) {
       return NextResponse.json({ error: 'Количество недель: 1-52' }, { status: 400 })
     }
-    if (weekdays.length === 0 || weekdays.some((d) => d < 0 || d > 6)) {
-      return NextResponse.json({ error: 'Выберите хотя бы один день тренировок' }, { status: 400 })
+    if (weekdays.some((d) => d < 0 || d > 6)) {
+      return NextResponse.json({ error: 'Некорректные дни тренировок' }, { status: 400 })
     }
     if (body.stageId) {
       const stage = await prisma.stage.findUnique({
@@ -106,6 +116,7 @@ export async function POST(req: NextRequest, { params }: { params: { athleteId: 
           startDate,
           weeks,
           stageId: body.stageId ?? null,
+          mesocycleType: body.mesocycleType?.trim() || null,
         },
       }),
       prisma.microcycle.createMany({ data: microcyclesData }),

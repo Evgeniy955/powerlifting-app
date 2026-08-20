@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Plus, Pencil, Trash2, Unlink } from 'lucide-react'
 import { Button, Card, Dialog, Input, Select, useToast } from '@/components/ui'
-import { CreatePlanDialog } from '@/components/CreatePlanDialog'
 import { PERIOD_PRESETS, STAGE_PRESETS, MESOCYCLE_PRESETS, MICROCYCLE_PRESETS, periodColor, stageColor } from '@/lib/periodization'
 
 type StageOption = { id: string; name: string; startDate: string; endDate: string }
@@ -463,9 +462,10 @@ function RowLabel({ children }: { children?: string }) {
 }
 
 // Two-step "+" flow off a period cell: pick (or create) an Этап inside that
-// period, then create the Мезоцикл (a real plan, via CreatePlanDialog)
-// scoped to it — the resulting weeks show up as new merged-cell columns
-// under this period once the page refreshes.
+// period, then create the Мезоцикл scoped to it — the resulting weeks show
+// up as new merged-cell columns under this period once the page refreshes.
+// Creating the Мезоцикл itself is as lightweight as a Период/Этап (name +
+// duration in weeks, no plan-name/weekday picker) — see CreateMesocycleDialog.
 function AddToPeriodDialog({
   period,
   athleteId,
@@ -482,6 +482,7 @@ function AddToPeriodDialog({
   const [presetName, setPresetName] = useState<string | undefined>(undefined)
   const [stageDialogOpen, setStageDialogOpen] = useState(false)
   const [stages, setStages] = useState(period.stages)
+  const selectedStage = stages.find((s) => s.id === stageId)
 
   useEffect(() => {
     if (stageId === NEW_STAGE) setStageDialogOpen(true)
@@ -535,12 +536,13 @@ function AddToPeriodDialog({
             <Button variant="outline" size="sm" onClick={onClose}>
               Отмена
             </Button>
-            <CreatePlanDialog
+            <CreateMesocycleDialog
               athleteId={athleteId}
               stageId={stageId && stageId !== NEW_STAGE ? stageId : undefined}
+              defaultStartDate={selectedStage?.startDate}
               trigger={(open) => (
                 <Button size="sm" disabled={!stageId || stageId === NEW_STAGE} onClick={open}>
-                  <Plus className="h-4 w-4" /> Создать план
+                  <Plus className="h-4 w-4" /> Создать мезоцикл
                 </Button>
               )}
               onCreated={onDone}
@@ -568,6 +570,128 @@ function AddToPeriodDialog({
           router.refresh()
         }}
       />
+    </>
+  )
+}
+
+// Creates a Мезоцикл as lightly as a Период/Этап — name (from the standard
+// preset list) + start date + duration in weeks, no plan-name/weekday
+// picker. Under the hood it's still a real Cycle (so workouts can be added
+// to it later), just created via the plans API with weekdays omitted
+// (server defaults to Пн/Ср/Пт) and mesocycleType/name both set from the
+// chosen preset so it shows up already tagged in the table.
+function CreateMesocycleDialog({
+  athleteId,
+  stageId,
+  defaultStartDate,
+  trigger,
+  onCreated,
+}: {
+  athleteId: string
+  stageId?: string
+  defaultStartDate?: string
+  trigger: (open: () => void) => React.ReactNode
+  onCreated: (cycleId: string) => void
+}) {
+  const toast = useToast()
+  const [open, setOpen] = useState(false)
+  const [name, setName] = useState<string>(MESOCYCLE_PRESETS[0])
+  const [startDate, setStartDate] = useState(defaultStartDate ? fmt(defaultStartDate) : todayIso())
+  const [durationWeeks, setDurationWeeks] = useState(4)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  function openDialog() {
+    setName(MESOCYCLE_PRESETS[0])
+    setStartDate(defaultStartDate ? fmt(defaultStartDate) : todayIso())
+    setDurationWeeks(4)
+    setError(null)
+    setOpen(true)
+  }
+
+  async function handleSave() {
+    if (!startDate) {
+      setError('Укажите дату начала')
+      return
+    }
+    if (durationWeeks < 1 || durationWeeks > 52) {
+      setError('Длительность: от 1 до 52 недель')
+      return
+    }
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/athletes/${athleteId}/plans`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          startDate,
+          weeks: durationWeeks,
+          mesocycleType: name,
+          ...(stageId ? { stageId } : {}),
+        }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error ?? 'Не удалось создать мезоцикл')
+      }
+      const { cycleId } = await res.json()
+      toast({ title: 'Мезоцикл создан', variant: 'success' })
+      setOpen(false)
+      onCreated(cycleId)
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Ошибка'
+      setError(message)
+      toast({ title: 'Не удалось создать мезоцикл', description: message, variant: 'error' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <>
+      {trigger(openDialog)}
+      <Dialog open={open} onOpenChange={setOpen} title="Новый мезоцикл">
+        <div className="space-y-3">
+          <label className="block text-xs text-text-secondary">
+            Название
+            <Select value={name} onChange={(e) => setName(e.target.value)} className="mt-1 w-full">
+              {MESOCYCLE_PRESETS.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </Select>
+          </label>
+          <div className="flex gap-2">
+            <label className="block flex-1 text-xs text-text-secondary">
+              Начало
+              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="mt-1 w-full" />
+            </label>
+            <label className="block flex-1 text-xs text-text-secondary">
+              Длительность (недель)
+              <Input
+                type="number"
+                min={1}
+                max={52}
+                value={durationWeeks}
+                onChange={(e) => setDurationWeeks(Number(e.target.value))}
+                className="mt-1 w-full"
+              />
+            </label>
+          </div>
+          {error && <p className="text-xs text-danger">{error}</p>}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => setOpen(false)}>
+              Отмена
+            </Button>
+            <Button size="sm" onClick={handleSave} disabled={loading}>
+              {loading ? 'Создаю...' : 'Создать'}
+            </Button>
+          </div>
+        </div>
+      </Dialog>
     </>
   )
 }
