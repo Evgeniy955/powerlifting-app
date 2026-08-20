@@ -73,6 +73,19 @@ body {
   font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
 }
 
+/* Belt-and-suspenders on top of the color-scheme set on :root/.theme-* above —
+   some browsers don't reliably carry an inherited color-scheme through to a
+   <select>'s own native popup, so it's repeated directly on every select
+   under each theme (this is the rule that actually fixes the popup; the
+   :root-level one alone wasn't enough). */
+.theme-dark select,
+.theme-cyberpunk select {
+  color-scheme: dark;
+}
+.theme-light select {
+  color-scheme: light;
+}
+
 /* Every numeric input in the app (set weight/reps) is custom-styled and
    narrow, especially in the compact week table — the browser's native
    up/down spin buttons eat into that width and clip the last digit. Hidden
