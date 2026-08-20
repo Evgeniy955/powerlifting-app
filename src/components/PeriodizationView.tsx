@@ -110,6 +110,7 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
   const [editingWeek, setEditingWeek] = useState<WeekColumn | null>(null)
   const [editingPeriod, setEditingPeriod] = useState<PeriodOption | null>(null)
   const [deletingPeriod, setDeletingPeriod] = useState<PeriodOption | null>(null)
+  const [editingStage, setEditingStage] = useState<{ stage: StageOption; periodId: string } | null>(null)
   const [periodDialogOpen, setPeriodDialogOpen] = useState(false)
 
   async function mutate(url: string, method: string, body?: unknown, successTitle?: string) {
@@ -291,12 +292,17 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                   if (entry.kind === 'empty-stage') {
                     const color = stageColor(entry.period.name)
                     return (
-                      <td
-                        key={span.start}
-                        colSpan={span.span}
-                        className={`border-l border-border px-2 py-2 text-center text-xs font-medium ${color.bg} ${color.text}`}
-                      >
-                        {entry.stage.name}
+                      <td key={span.start} colSpan={span.span} className={`border-l border-border p-0 align-top ${color.bg} ${color.text}`}>
+                        {canEdit ? (
+                          <button
+                            onClick={() => setEditingStage({ stage: entry.stage, periodId: entry.period.id })}
+                            className="w-full px-2 py-2 text-center text-xs font-medium hover:brightness-95"
+                          >
+                            {entry.stage.name}
+                          </button>
+                        ) : (
+                          <span className="block px-2 py-2 text-center text-xs font-medium">{entry.stage.name}</span>
+                        )}
                       </td>
                     )
                   }
@@ -304,12 +310,17 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                   const stage = period?.stages.find((s) => s.id === entry.week.stageId)
                   const color = stageColor(period?.name)
                   return (
-                    <td
-                      key={span.start}
-                      colSpan={span.span}
-                      className={`border-l border-border px-2 py-2 text-center text-xs font-medium ${color.bg} ${color.text}`}
-                    >
-                      {stage?.name ?? '—'}
+                    <td key={span.start} colSpan={span.span} className={`border-l border-border p-0 align-top ${color.bg} ${color.text}`}>
+                      {canEdit && stage && period ? (
+                        <button
+                          onClick={() => setEditingStage({ stage, periodId: period.id })}
+                          className="w-full px-2 py-2 text-center text-xs font-medium hover:brightness-95"
+                        >
+                          {stage.name}
+                        </button>
+                      ) : (
+                        <span className="block px-2 py-2 text-center text-xs font-medium">{stage?.name ?? '—'}</span>
+                      )}
                     </td>
                   )
                 })}
@@ -391,6 +402,23 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
           period={editingPeriod}
           onSaved={() => {
             setEditingPeriod(null)
+            router.refresh()
+          }}
+        />
+      )}
+
+      {editingStage && (
+        <StageFormDialog
+          open
+          onOpenChange={(open) => !open && setEditingStage(null)}
+          periodId={editingStage.periodId}
+          stage={editingStage.stage}
+          onSaved={() => {
+            setEditingStage(null)
+            router.refresh()
+          }}
+          onDeleted={() => {
+            setEditingStage(null)
             router.refresh()
           }}
         />
@@ -1029,6 +1057,7 @@ function StageFormDialog({
   stage,
   initialName,
   onSaved,
+  onDeleted,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -1038,6 +1067,11 @@ function StageFormDialog({
   // this dialog even opened) — ignored once `stage` is set (editing).
   initialName?: string
   onSaved: (stage: { id: string; name: string; startDate: string; endDate: string }) => void
+  // Only relevant when editing (stage is set) — lets the coach remove a
+  // stage entirely (e.g. an accidental duplicate created before the
+  // overlap guard existed), same confirm-then-delete pattern as the
+  // Мезоцикл editor.
+  onDeleted?: () => void
 }) {
   const toast = useToast()
   const [name, setName] = useState(stage?.name ?? initialName ?? STAGE_PRESETS[0])
@@ -1045,6 +1079,7 @@ function StageFormDialog({
   const [durationWeeks, setDurationWeeks] = useState(stage ? weeksBetween(stage.startDate, stage.endDate) : 12)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -1052,6 +1087,7 @@ function StageFormDialog({
     setStartDate(stage ? fmt(stage.startDate) : todayIso())
     setDurationWeeks(stage ? weeksBetween(stage.startDate, stage.endDate) : 12)
     setError(null)
+    setConfirmingDelete(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
@@ -1090,6 +1126,25 @@ function StageFormDialog({
     }
   }
 
+  async function handleDelete() {
+    if (!stage) return
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/stages/${stage.id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error ?? 'Не удалось удалить')
+      }
+      toast({ title: 'Этап удалён', variant: 'success' })
+      onDeleted?.()
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Ошибка'
+      toast({ title: 'Не удалось удалить', description: message, variant: 'error' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange} title={stage ? 'Редактировать этап' : 'Новый этап'}>
       <div className="space-y-3">
@@ -1121,14 +1176,35 @@ function StageFormDialog({
         </div>
         <p className="text-xs text-text-secondary">Окончание: {addDays(startDate || todayIso(), durationWeeks * 7)}</p>
         {error && <p className="text-xs text-danger">{error}</p>}
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
-            Отмена
-          </Button>
-          <Button size="sm" onClick={handleSave} disabled={loading}>
-            {loading ? 'Сохраняю...' : 'Сохранить'}
-          </Button>
-        </div>
+        {stage && confirmingDelete ? (
+          <div className="flex items-center justify-between gap-2 rounded border border-danger/40 bg-danger/10 px-2 py-2">
+            <span className="text-xs">Удалить этап и все мезоциклы внутри него?</span>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => setConfirmingDelete(false)}>
+                Отмена
+              </Button>
+              <Button variant="danger" size="sm" onClick={handleDelete} disabled={loading}>
+                Удалить
+              </Button>
+            </div>
+          </div>
+        ) : (
+        <div className="flex justify-between gap-2">
+          {stage && (
+            <Button variant="outline" size="sm" onClick={() => setConfirmingDelete(true)} disabled={loading}>
+              <Trash2 className="h-4 w-4" /> Удалить
+            </Button>
+          )}
+            <div className="flex flex-1 justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+                Отмена
+              </Button>
+              <Button size="sm" onClick={handleSave} disabled={loading}>
+                {loading ? 'Сохраняю...' : 'Сохранить'}
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </Dialog>
   )
