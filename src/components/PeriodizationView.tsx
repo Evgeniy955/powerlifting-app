@@ -245,7 +245,7 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                   const color = periodColor(period?.name)
                   return (
                     <td
-                      key={span.start}
+                      key={span.key}
                       colSpan={span.span}
                       className={`border-l border-border px-2 py-2 text-center text-xs font-semibold uppercase tracking-wide ${color.bg} ${color.text}`}
                     >
@@ -306,7 +306,7 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                   const entry = mainColumns[span.start]
                   if (entry.kind === 'empty-period') {
                     return (
-                      <td key={span.start} colSpan={span.span} className="border-l border-border px-2 py-2 text-center text-xs text-text-secondary">
+                      <td key={span.key} colSpan={span.span} className="border-l border-border px-2 py-2 text-center text-xs text-text-secondary">
                         —
                       </td>
                     )
@@ -356,7 +356,7 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                     const color = stageColor(entry.period.name)
                     const weeksLabel = `${fmtShort(entry.stage.startDate)} – ${fmtShort(entry.stage.endDate)} · ${weeksBetween(entry.stage.startDate, entry.stage.endDate)} нед.`
                     return (
-                      <td key={span.start} colSpan={span.span} className={`border-l border-border p-0 align-top ${color.bg} ${color.text}`}>
+                      <td key={span.key} colSpan={span.span} className={`border-l border-border p-0 align-top ${color.bg} ${color.text}`}>
                         {canEdit ? (
                           <div className="px-2 py-2 text-center">
                             <div className="flex items-center justify-center gap-1">
@@ -393,7 +393,7 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                     ? `${fmtShort(stage.startDate)} – ${fmtShort(stage.endDate)} · ${weeksBetween(stage.startDate, stage.endDate)} нед.`
                     : ''
                   return (
-                    <td key={span.start} colSpan={span.span} className={`border-l border-border p-0 align-top ${color.bg} ${color.text}`}>
+                    <td key={span.key} colSpan={span.span} className={`border-l border-border p-0 align-top ${color.bg} ${color.text}`}>
                       {canEdit && stage && period ? (
                         <div className="px-2 py-2 text-center">
                           <div className="flex items-center justify-center gap-1">
@@ -438,7 +438,7 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                   // for it directly.
                   if (entry.kind === 'empty-stage') {
                     return (
-                      <td key={span.start} colSpan={span.span} className="border-l border-border p-0 align-top">
+                      <td key={span.key} colSpan={span.span} className="border-l border-border p-0 align-top">
                         {canEdit ? (
                           <CreateMesocycleDialog
                             stageId={entry.stage.id}
@@ -463,14 +463,14 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                   }
                   if (entry.kind !== 'week') {
                     return (
-                      <td key={span.start} colSpan={span.span} className="border-l border-border px-2 py-2 text-center text-xs text-text-secondary">
+                      <td key={span.key} colSpan={span.span} className="border-l border-border px-2 py-2 text-center text-xs text-text-secondary">
                         —
                       </td>
                     )
                   }
                   const mesocycle = columns.find((c) => c.id === entry.week.mesocycleId)
                   return (
-                    <td key={span.start} colSpan={span.span} className="border-l border-border p-0 align-top">
+                    <td key={span.key} colSpan={span.span} className="border-l border-border p-0 align-top">
                       <button
                         onClick={() => canEdit && mesocycle && setEditingMesocycle(mesocycle)}
                         className="flex w-full flex-col items-center gap-0.5 px-2 py-2 text-center hover:bg-surface-2"
