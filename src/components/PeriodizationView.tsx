@@ -112,6 +112,7 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
   const [deletingPeriod, setDeletingPeriod] = useState<PeriodOption | null>(null)
   const [editingStage, setEditingStage] = useState<{ stage: StageOption; periodId: string } | null>(null)
   const [periodDialogOpen, setPeriodDialogOpen] = useState(false)
+  const [addingStageToPeriod, setAddingStageToPeriod] = useState<PeriodOption | null>(null)
 
   async function mutate(url: string, method: string, body?: unknown, successTitle?: string) {
     try {
@@ -195,6 +196,12 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
 
   function periodOf(id: string) {
     return periods.find((p) => p.id === id)
+  }
+
+  const editingStagePeriod = editingStage ? periodOf(editingStage.periodId) : undefined
+
+  function periodIdOfEntry(e: ColumnEntry): string {
+    return e.kind === 'week' ? e.week.periodId : e.period.id
   }
 
   // Where a new mesocycle in this stage should default to starting — right
@@ -295,7 +302,7 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
 
               <tr className="border-b border-border">
                 <RowLabel>Этап</RowLabel>
-                {stageSpans.map((span) => {
+                {stageSpans.map((span, spanIndex) => {
                   const entry = mainColumns[span.start]
                   if (entry.kind === 'empty-period') {
                     return (
@@ -304,6 +311,40 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                       </td>
                     )
                   }
+                  // A period with at least one Этап already had no direct
+                  // way to add another straight from this row — only the
+                  // Период row's own "+" (a multi-step Этап-picker dialog
+                  // not visually tied to this row), which looked like there
+                  // was simply no way to add a stage at all. Adding a
+                  // whole extra table column here would misalign every row
+                  // below it (they all share the same week-column grid), so
+                  // the "+" instead joins the other icons already packed
+                  // into whichever stage cell is last for its period.
+                  const periodId = periodIdOfEntry(entry)
+                  const nextSpan = stageSpans[spanIndex + 1]
+                  const isLastForPeriod = !nextSpan || periodIdOfEntry(mainColumns[nextSpan.start]) !== periodId
+                  const period = periodOf(periodId)
+                  const addStageButton = canEdit && isLastForPeriod && period && (
+                    <>
+                      <StageFormDialog
+                        open={addingStageToPeriod?.id === period.id}
+                        onOpenChange={(open) => !open && setAddingStageToPeriod(null)}
+                        period={period}
+                        onSaved={() => {
+                          setAddingStageToPeriod(null)
+                          router.refresh()
+                        }}
+                      />
+                      <button
+                        onClick={() => setAddingStageToPeriod(period)}
+                        className="shrink-0 rounded p-0.5 hover:bg-black/10"
+                        title="Добавить ещё этап в этот период"
+                        aria-label="Добавить этап"
+                      >
+                        <Plus className="h-3 w-3" />
+                      </button>
+                    </>
+                  )
                   if (entry.kind === 'empty-stage') {
                     const color = stageColor(entry.period.name)
                     const weeksLabel = `${fmtShort(entry.stage.startDate)} – ${fmtShort(entry.stage.endDate)} · ${weeksBetween(entry.stage.startDate, entry.stage.endDate)} нед.`
@@ -326,6 +367,7 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                                 )}
                                 onCreated={() => router.refresh()}
                               />
+                              {addStageButton}
                             </div>
                             <span className="mt-0.5 block text-[10px] font-normal opacity-80">{weeksLabel}</span>
                           </div>
@@ -338,7 +380,6 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                       </td>
                     )
                   }
-                  const period = periodOf(entry.week.periodId)
                   const stage = period?.stages.find((s) => s.id === entry.week.stageId)
                   const color = stageColor(period?.name)
                   const weeksLabel = stage
@@ -363,6 +404,7 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                               )}
                               onCreated={() => router.refresh()}
                             />
+                            {addStageButton}
                           </div>
                           <span className="mt-0.5 block text-[10px] font-normal opacity-80">{weeksLabel}</span>
                         </div>
@@ -489,11 +531,11 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
         />
       )}
 
-      {editingStage && (
+      {editingStage && editingStagePeriod && (
         <StageFormDialog
           open
           onOpenChange={(open) => !open && setEditingStage(null)}
-          periodId={editingStage.periodId}
+          period={editingStagePeriod}
           stage={editingStage.stage}
           onSaved={() => {
             setEditingStage(null)
@@ -693,7 +735,7 @@ function AddToPeriodDialog({
             setPresetName(undefined)
           }
         }}
-        periodId={period.id}
+        period={{ ...period, stages }}
         initialName={presetName}
         onSaved={(stage) => {
           setStages((prev) => [...prev, stage])
@@ -713,15 +755,28 @@ function AddToPeriodDialog({
 // required) — see POST /api/stages/:stageId/mesocycles and the Mesocycle
 // model's comment in schema.prisma for why this is deliberately NOT a real
 // training plan/Cycle.
-// A stage only has so many free weeks left after `startDate` — capping at
-// 52 (the field's own ceiling) when there's no stage bound to check against
-// (e.g. no stage picked yet). Used both to pick a default duration that
-// won't immediately fail the "must stay inside the stage" check on the API
-// side (see rangeContains in dateOverlap.ts) and to cap the input itself.
-function maxWeeksInStage(startDate: string, stageEndDate?: string): number {
-  if (!stageEndDate || !startDate) return 52
-  const days = (new Date(stageEndDate).getTime() - new Date(startDate).getTime()) / DAY_MS
+// A child only has so many free weeks left after `startDate` before it runs
+// into its own parent's boundary — capping at 52 (the field's own ceiling)
+// when there's no bound to check against yet (e.g. nothing picked yet).
+// Used for both Мезоцикл-in-Этап and Этап-in-Период: picks a default
+// duration that won't immediately fail the "must stay inside the parent"
+// check on the API side (see rangeContains in dateOverlap.ts), and caps the
+// duration input itself.
+function maxWeeksUntil(startDate: string, boundEndDate?: string): number {
+  if (!boundEndDate || !startDate) return 52
+  const days = (new Date(boundEndDate).getTime() - new Date(startDate).getTime()) / DAY_MS
   return Math.max(0, Math.min(52, Math.floor(days / 7)))
+}
+
+// Where a new Этап in this period should default to starting — right after
+// whichever of its existing Этапы (besides the one being edited, if any)
+// ends latest, or the period's own start if it has none yet. Same
+// collision-avoiding rule already used for Мезоцикл-in-Этап.
+function suggestedStageStart(period: PeriodOption, excludeStageId?: string): string {
+  const siblings = period.stages.filter((s) => s.id !== excludeStageId)
+  if (siblings.length === 0) return period.startDate
+  const latestEnd = siblings.reduce((latest, s) => Math.max(latest, new Date(s.endDate).getTime()), 0)
+  return new Date(latestEnd).toISOString()
 }
 
 function CreateMesocycleDialog({
@@ -745,7 +800,7 @@ function CreateMesocycleDialog({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const maxWeeks = maxWeeksInStage(startDate, stageEndDate)
+  const maxWeeks = maxWeeksUntil(startDate, stageEndDate)
 
   function openDialog() {
     const initialStart = defaultStartDate ? fmt(defaultStartDate) : todayIso()
@@ -755,7 +810,7 @@ function CreateMesocycleDialog({
     // left in the stage — otherwise the "+ Создать мезоцикл" button fails
     // every single time in a stage shorter than 4 weeks (this is what broke
     // creating mesocycles/microcycles after the stage-bounds check landed).
-    setDurationWeeks(Math.max(1, Math.min(4, maxWeeksInStage(initialStart, stageEndDate))))
+    setDurationWeeks(Math.max(1, Math.min(4, maxWeeksUntil(initialStart, stageEndDate))))
     setError(null)
     setOpen(true)
   }
@@ -1204,7 +1259,7 @@ function PeriodFormDialog({
 function StageFormDialog({
   open,
   onOpenChange,
-  periodId,
+  period,
   stage,
   initialName,
   onSaved,
@@ -1212,7 +1267,15 @@ function StageFormDialog({
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  periodId: string
+  // Used for its own id (fetch URL) plus, when creating (stage undefined),
+  // its startDate/endDate/stages — same "must stay inside the parent" rule
+  // as CreateMesocycleDialog vs. its stage: default start goes right after
+  // whichever existing Этап in this period ends latest (or the period's own
+  // start if it has none), and duration clamps to what's actually left,
+  // instead of a fixed today's-date + 12 weeks that almost never fits
+  // inside an existing, already-dated period and used to fail the
+  // containment/overlap checks on every save.
+  period: PeriodOption
   stage?: { id: string; name: string; startDate: string; endDate: string }
   // Pre-fills the name when creating (picked from the full Этап list before
   // this dialog even opened) — ignored once `stage` is set (editing).
@@ -1225,18 +1288,24 @@ function StageFormDialog({
   onDeleted?: () => void
 }) {
   const toast = useToast()
+  const initialStartFor = (s?: typeof stage) => (s ? fmt(s.startDate) : fmt(suggestedStageStart(period)))
   const [name, setName] = useState(stage?.name ?? initialName ?? STAGE_PRESETS[0])
-  const [startDate, setStartDate] = useState(stage ? fmt(stage.startDate) : todayIso())
-  const [durationWeeks, setDurationWeeks] = useState(stage ? weeksBetween(stage.startDate, stage.endDate) : 12)
+  const [startDate, setStartDate] = useState(initialStartFor(stage))
+  const [durationWeeks, setDurationWeeks] = useState(
+    stage ? weeksBetween(stage.startDate, stage.endDate) : Math.max(1, Math.min(12, maxWeeksUntil(initialStartFor(stage), period.endDate)))
+  )
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
 
+  const maxWeeks = maxWeeksUntil(startDate, period.endDate)
+
   useEffect(() => {
     if (!open) return
+    const initialStart = initialStartFor(stage)
     setName(stage?.name ?? initialName ?? STAGE_PRESETS[0])
-    setStartDate(stage ? fmt(stage.startDate) : todayIso())
-    setDurationWeeks(stage ? weeksBetween(stage.startDate, stage.endDate) : 12)
+    setStartDate(initialStart)
+    setDurationWeeks(stage ? weeksBetween(stage.startDate, stage.endDate) : Math.max(1, Math.min(12, maxWeeksUntil(initialStart, period.endDate))))
     setError(null)
     setConfirmingDelete(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1251,11 +1320,19 @@ function StageFormDialog({
       setError('Длительность должна быть не меньше 1 недели')
       return
     }
+    if (maxWeeks < 1) {
+      setError('В периоде не осталось свободных недель — сдвиньте дату начала или измените даты периода')
+      return
+    }
+    if (durationWeeks > maxWeeks) {
+      setError(`В периоде осталось ${maxWeeks} нед. с этой даты начала — уменьшите длительность`)
+      return
+    }
     setLoading(true)
     setError(null)
     try {
       const endDate = addDays(startDate, durationWeeks * 7)
-      const url = stage ? `/api/stages/${stage.id}` : `/api/periods/${periodId}/stages`
+      const url = stage ? `/api/stages/${stage.id}` : `/api/periods/${period.id}/stages`
       const res = await fetch(url, {
         method: stage ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1319,6 +1396,7 @@ function StageFormDialog({
             <Input
               type="number"
               min={1}
+              max={maxWeeks > 0 ? maxWeeks : undefined}
               value={durationWeeks}
               onChange={(e) => setDurationWeeks(Number(e.target.value))}
               className="mt-1 w-full"
@@ -1326,6 +1404,9 @@ function StageFormDialog({
           </label>
         </div>
         <p className="text-xs text-text-secondary">Окончание: {fmtShort(addDays(startDate || todayIso(), durationWeeks * 7))}</p>
+        <p className="text-xs text-text-secondary">
+          {maxWeeks > 0 ? `Свободно в периоде: ${maxWeeks} нед. (до ${fmtShort(period.endDate)})` : `В периоде не осталось места после ${fmtShort(startDate)}`}
+        </p>
         {error && <p className="text-xs text-danger">{error}</p>}
         {stage && confirmingDelete ? (
           <div className="flex items-center justify-between gap-2 rounded border border-danger/40 bg-danger/10 px-2 py-2">
