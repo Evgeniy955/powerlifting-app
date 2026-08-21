@@ -875,7 +875,10 @@ function MesocycleEditorDialog({
   const [periodId, setPeriodId] = useState(mesocycle.periodId)
   const [stageId, setStageId] = useState(mesocycle.stageId)
   const [name, setName] = useState(mesocycle.name)
+  const [startDate, setStartDate] = useState(fmt(mesocycle.startDate))
+  const [durationWeeks, setDurationWeeks] = useState(mesocycle.weeks)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const period = periods.find((p) => p.id === periodId)
 
@@ -884,12 +887,21 @@ function MesocycleEditorDialog({
       toast({ title: 'Выберите этап', variant: 'error' })
       return
     }
+    if (!startDate) {
+      setError('Укажите дату начала')
+      return
+    }
+    if (durationWeeks < 1 || durationWeeks > 52) {
+      setError('Длительность: от 1 до 52 недель')
+      return
+    }
     setLoading(true)
+    setError(null)
     try {
       const res = await fetch(`/api/mesocycles/${mesocycle.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, stageId }),
+        body: JSON.stringify({ name, stageId, startDate, weeks: durationWeeks }),
       })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
@@ -899,6 +911,7 @@ function MesocycleEditorDialog({
       onSaved()
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Ошибка'
+      setError(message)
       toast({ title: 'Не удалось сохранить', description: message, variant: 'error' })
     } finally {
       setLoading(false)
@@ -966,6 +979,26 @@ function MesocycleEditorDialog({
             ))}
           </Select>
         </label>
+
+        <div className="flex gap-2">
+          <label className="block flex-1 text-xs text-text-secondary">
+            Начало
+            <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="mt-1 w-full" />
+          </label>
+          <label className="block flex-1 text-xs text-text-secondary">
+            Длительность (недель)
+            <Input
+              type="number"
+              min={1}
+              max={52}
+              value={durationWeeks}
+              onChange={(e) => setDurationWeeks(Number(e.target.value))}
+              className="mt-1 w-full"
+            />
+          </label>
+        </div>
+        <p className="text-xs text-text-secondary">Окончание: {fmtShort(addDays(startDate || todayIso(), durationWeeks * 7))}</p>
+        {error && <p className="text-xs text-danger">{error}</p>}
 
         {confirmingDelete ? (
           <div className="flex items-center justify-between gap-2 rounded border border-danger/40 bg-danger/10 px-2 py-2">
