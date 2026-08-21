@@ -41,12 +41,14 @@ export default async function AthleteCyclesPage({ params }: { params: { athleteI
           <AthleteLiveUpdates athleteId={athlete.id} />
         </div>
         <div className="flex items-center gap-2">
-          <Link
-            href={`/athletes/${athlete.id}/periodization`}
-            className={buttonVariants({ variant: 'outline', size: 'sm' })}
-          >
-            <CalendarRange className="h-4 w-4" /> Периодизация
-          </Link>
+          {user.role === 'COACH' && (
+            <Link
+              href={`/athletes/${athlete.id}/periodization`}
+              className={buttonVariants({ variant: 'outline', size: 'sm' })}
+            >
+              <CalendarRange className="h-4 w-4" /> Периодизация
+            </Link>
+          )}
           {user.role === 'COACH' && <CreatePlanDialog athleteId={athlete.id} />}
         </div>
       </div>
