@@ -260,7 +260,9 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                         )}
                       </div>
                       <div className="mt-0.5 text-[10px] font-normal normal-case opacity-80">
-                        {period ? `${fmt(period.startDate)} – ${fmt(period.endDate)}` : ''}
+                        {period
+                          ? `${fmt(period.startDate)} – ${fmt(period.endDate)} · ${weeksBetween(period.startDate, period.endDate)} нед.`
+                          : ''}
                       </div>
                     </td>
                   )
@@ -291,17 +293,22 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                   }
                   if (entry.kind === 'empty-stage') {
                     const color = stageColor(entry.period.name)
+                    const weeksLabel = `${weeksBetween(entry.stage.startDate, entry.stage.endDate)} нед.`
                     return (
                       <td key={span.start} colSpan={span.span} className={`border-l border-border p-0 align-top ${color.bg} ${color.text}`}>
                         {canEdit ? (
                           <button
                             onClick={() => setEditingStage({ stage: entry.stage, periodId: entry.period.id })}
-                            className="w-full px-2 py-2 text-center text-xs font-medium hover:brightness-95"
+                            className="w-full px-2 py-2 text-center hover:brightness-95"
                           >
-                            {entry.stage.name}
+                            <span className="block text-xs font-medium">{entry.stage.name}</span>
+                            <span className="mt-0.5 block text-[10px] font-normal opacity-80">{weeksLabel}</span>
                           </button>
                         ) : (
-                          <span className="block px-2 py-2 text-center text-xs font-medium">{entry.stage.name}</span>
+                          <span className="block px-2 py-2 text-center">
+                            <span className="block text-xs font-medium">{entry.stage.name}</span>
+                            <span className="mt-0.5 block text-[10px] font-normal opacity-80">{weeksLabel}</span>
+                          </span>
                         )}
                       </td>
                     )
@@ -309,17 +316,22 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                   const period = periodOf(entry.week.periodId)
                   const stage = period?.stages.find((s) => s.id === entry.week.stageId)
                   const color = stageColor(period?.name)
+                  const weeksLabel = stage ? `${weeksBetween(stage.startDate, stage.endDate)} нед.` : ''
                   return (
                     <td key={span.start} colSpan={span.span} className={`border-l border-border p-0 align-top ${color.bg} ${color.text}`}>
                       {canEdit && stage && period ? (
                         <button
                           onClick={() => setEditingStage({ stage, periodId: period.id })}
-                          className="w-full px-2 py-2 text-center text-xs font-medium hover:brightness-95"
+                          className="w-full px-2 py-2 text-center hover:brightness-95"
                         >
-                          {stage.name}
+                          <span className="block text-xs font-medium">{stage.name}</span>
+                          <span className="mt-0.5 block text-[10px] font-normal opacity-80">{weeksLabel}</span>
                         </button>
                       ) : (
-                        <span className="block px-2 py-2 text-center text-xs font-medium">{stage?.name ?? '—'}</span>
+                        <span className="block px-2 py-2 text-center">
+                          <span className="block text-xs font-medium">{stage?.name ?? '—'}</span>
+                          {stage && <span className="mt-0.5 block text-[10px] font-normal opacity-80">{weeksLabel}</span>}
+                        </span>
                       )}
                     </td>
                   )
@@ -590,6 +602,7 @@ function AddToPeriodDialog({
             <CreateMesocycleDialog
               stageId={stageId && stageId !== NEW_STAGE ? stageId : undefined}
               defaultStartDate={suggestedStartDate}
+              stageEndDate={selectedStage?.endDate}
               trigger={(open) => (
                 <Button size="sm" disabled={!stageId || stageId === NEW_STAGE} onClick={open}>
                   <Plus className="h-4 w-4" /> Создать мезоцикл
@@ -630,14 +643,27 @@ function AddToPeriodDialog({
 // required) — see POST /api/stages/:stageId/mesocycles and the Mesocycle
 // model's comment in schema.prisma for why this is deliberately NOT a real
 // training plan/Cycle.
+// A stage only has so many free weeks left after `startDate` — capping at
+// 52 (the field's own ceiling) when there's no stage bound to check against
+// (e.g. no stage picked yet). Used both to pick a default duration that
+// won't immediately fail the "must stay inside the stage" check on the API
+// side (see rangeContains in dateOverlap.ts) and to cap the input itself.
+function maxWeeksInStage(startDate: string, stageEndDate?: string): number {
+  if (!stageEndDate || !startDate) return 52
+  const days = (new Date(stageEndDate).getTime() - new Date(startDate).getTime()) / DAY_MS
+  return Math.max(0, Math.min(52, Math.floor(days / 7)))
+}
+
 function CreateMesocycleDialog({
   stageId,
   defaultStartDate,
+  stageEndDate,
   trigger,
   onCreated,
 }: {
   stageId?: string
   defaultStartDate?: string
+  stageEndDate?: string
   trigger: (open: () => void) => React.ReactNode
   onCreated: (mesocycleId: string) => void
 }) {
@@ -649,10 +675,17 @@ function CreateMesocycleDialog({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const maxWeeks = maxWeeksInStage(startDate, stageEndDate)
+
   function openDialog() {
+    const initialStart = defaultStartDate ? fmt(defaultStartDate) : todayIso()
     setName(MESOCYCLE_PRESETS[0])
-    setStartDate(defaultStartDate ? fmt(defaultStartDate) : todayIso())
-    setDurationWeeks(4)
+    setStartDate(initialStart)
+    // Default to 4 weeks like before, but never more than what's actually
+    // left in the stage — otherwise the "+ Создать мезоцикл" button fails
+    // every single time in a stage shorter than 4 weeks (this is what broke
+    // creating mesocycles/microcycles after the stage-bounds check landed).
+    setDurationWeeks(Math.max(1, Math.min(4, maxWeeksInStage(initialStart, stageEndDate))))
     setError(null)
     setOpen(true)
   }
@@ -668,6 +701,14 @@ function CreateMesocycleDialog({
     }
     if (durationWeeks < 1 || durationWeeks > 52) {
       setError('Длительность: от 1 до 52 недель')
+      return
+    }
+    if (maxWeeks < 1) {
+      setError('В этом этапе не осталось свободных недель — сдвиньте дату начала или измените даты этапа')
+      return
+    }
+    if (durationWeeks > maxWeeks) {
+      setError(`В этом этапе осталось ${maxWeeks} нед. с этой даты начала — уменьшите длительность`)
       return
     }
     setLoading(true)
@@ -720,13 +761,18 @@ function CreateMesocycleDialog({
               <Input
                 type="number"
                 min={1}
-                max={52}
+                max={maxWeeks > 0 ? maxWeeks : 52}
                 value={durationWeeks}
                 onChange={(e) => setDurationWeeks(Number(e.target.value))}
                 className="mt-1 w-full"
               />
             </label>
           </div>
+          {stageEndDate && (
+            <p className="text-xs text-text-secondary">
+              {maxWeeks > 0 ? `Свободно в этапе: ${maxWeeks} нед. (до ${fmt(stageEndDate)})` : `В этапе не осталось места после ${fmt(startDate)}`}
+            </p>
+          )}
           {error && <p className="text-xs text-danger">{error}</p>}
           <div className="flex justify-end gap-2">
             <Button variant="outline" size="sm" onClick={() => setOpen(false)}>
