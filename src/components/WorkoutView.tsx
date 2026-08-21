@@ -77,7 +77,7 @@ export function WorkoutView({
 
       <Card className="lg:mt-4">
         <p className="text-sm text-text-secondary mb-2">Добавить упражнение</p>
-        <ExerciseAutocomplete onSelect={handleAddExercise} canCreate={canCreateExercise} />
+        <ExerciseAutocomplete onSelect={handleAddExercise} canCreate={canCreateExercise} clearOnSelect />
       </Card>
     </div>
   )
