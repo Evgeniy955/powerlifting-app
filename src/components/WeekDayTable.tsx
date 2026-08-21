@@ -42,6 +42,11 @@ type Props = {
   // Coach-only: lets the "Добавить упражнение..." / edit-exercise autocompletes
   // create a brand-new ExerciseCatalog row when the search comes up empty.
   canCreateExercise: boolean
+  // Controlled rather than internal state — lives in the parent (see
+  // MicrocycleWeekView) so a coach-only "Редактировать неделю" button can
+  // unlock/lock every day's card at once, not just this one.
+  locked: boolean
+  onToggleLocked: () => void
 }
 
 // Spreadsheet-dense day view — one compact table per day instead of a stack of
@@ -59,14 +64,11 @@ export function WeekDayTable({
   athleteId,
   role,
   canCreateExercise,
+  locked,
+  onToggleLocked,
 }: Props) {
   const [entries, setEntries] = useState<ExerciseEntryData[]>(workout.exerciseEntries)
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
-
-  // Defaults locked so a stray tap doesn't remove a set or delete an
-  // exercise straight from the week view — has to be explicitly unlocked
-  // via the padlock in the day header first.
-  const [locked, setLocked] = useState(true)
 
   // Inline "which exercise + Множ" editor — only one row at a time, so a single
   // id/draft pair is enough rather than per-row state.
@@ -268,12 +270,7 @@ export function WeekDayTable({
             </span>
             <ChevronRight className="h-4 w-4 shrink-0 opacity-75" />
           </Link>
-          <LockToggle
-            locked={locked}
-            onToggle={() => setLocked((l) => !l)}
-            variant="on-accent"
-            className="mr-1.5"
-          />
+          <LockToggle locked={locked} onToggle={onToggleLocked} variant="on-accent" className="mr-1.5" />
         </div>
 
         <div className={`overflow-x-auto ${locked ? 'pointer-events-none select-none opacity-70' : ''}`}>

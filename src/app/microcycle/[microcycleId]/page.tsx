@@ -1,14 +1,9 @@
 import { getMicrocycleForDisplay, getRpeTable } from '@/lib/workout'
 import { requireUser } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
-import { WeekDayTable } from '@/components/WeekDayTable'
-import { MetricsBadge } from '@/components/MetricsBadge'
-import { TrainingGroupLegend } from '@/components/TrainingGroupLegend'
+import { MicrocycleWeekView } from '@/components/MicrocycleWeekView'
 import { computeExerciseMetrics, aggregateMetrics } from '@/lib/metrics'
 import { notFound, redirect } from 'next/navigation'
-import Link from 'next/link'
-import { ArrowLeft, ArrowRight, BarChart3 } from 'lucide-react'
-import { buttonVariants } from '@/components/ui'
 import { isMicrocycleVisibleToAthlete } from '@/lib/weekAccess'
 
 // Whole-week view: every day (Workout) of a microcycle rendered on one page as a
@@ -70,87 +65,20 @@ export default async function MicrocyclePage({
 
   return (
     <main className="min-h-[calc(100vh-3.5rem)] bg-bg text-text-primary py-6">
-      <div className="mx-auto mb-6 max-w-md space-y-4 px-4 lg:max-w-6xl">
-        <div className="text-center">
-          <Link
-            href={`/cycles/${microcycle.cycleId}`}
-            className="mb-2 inline-flex items-center gap-1.5 text-sm text-text-secondary hover:text-accent"
-          >
-            <ArrowLeft className="h-4 w-4" /> {microcycle.cycleName}
-          </Link>
-          {user.role === 'COACH' && (
-            <div className="mb-2">
-              <Link
-                href={`/cycles/${microcycle.cycleId}/analytics`}
-                className={buttonVariants({ variant: 'outline', size: 'sm' })}
-              >
-                <BarChart3 className="h-4 w-4" /> Аналитика мезоцикла
-              </Link>
-            </div>
-          )}
-          <div className="flex items-center justify-center gap-3">
-            {microcycle.prevWeek ? (
-              <Link
-                href={`/microcycle/${microcycle.prevWeek.id}`}
-                aria-label={`Микроцикл ${microcycle.prevWeek.weekNumber}`}
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-2 hover:text-accent"
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </Link>
-            ) : (
-              <span className="h-8 w-8 shrink-0" />
-            )}
-
-            <h1 className="font-display text-xl uppercase tracking-wide">
-              Микроцикл {microcycle.weekNumber}
-            </h1>
-
-            {microcycle.nextWeek && nextWeekVisible ? (
-              <Link
-                href={`/microcycle/${microcycle.nextWeek.id}`}
-                aria-label={`Микроцикл ${microcycle.nextWeek.weekNumber}`}
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-2 hover:text-accent"
-              >
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-            ) : (
-              <span className="h-8 w-8 shrink-0" />
-            )}
-          </div>
-        </div>
-
-        {allEntryMetrics.length > 0 && (
-          <MetricsBadge
-            tonnage={weekTotals.tonnage}
-            avgWeight={weekTotals.avgWeight}
-            relativeIntensity={weekTotals.relativeIntensity}
-            kpsh={weekTotals.kpsh}
-            loadCoefficient={weekTotals.loadCoefficient}
-            fatigueIndex={weekTotals.fatigueIndex}
-          />
-        )}
-
-        <TrainingGroupLegend />
-      </div>
-
-      {microcycle.workouts.length === 0 ? (
-        <p className="text-center text-sm text-text-secondary">
-          В этом микроцикле пока нет тренировок.
-        </p>
-      ) : (
-        <div className="mx-auto max-w-md space-y-3 px-4 lg:max-w-6xl">
-          {microcycle.workouts.map((workout) => (
-            <WeekDayTable
-              key={workout.id}
-              workout={workout}
-              rpeTable={rpeTable}
-              athleteId={microcycle.athleteId}
-              role={user.role}
-              canCreateExercise={user.role === 'COACH'}
-            />
-          ))}
-        </div>
-      )}
+      <MicrocycleWeekView
+        cycleId={microcycle.cycleId}
+        cycleName={microcycle.cycleName}
+        weekNumber={microcycle.weekNumber}
+        prevWeek={microcycle.prevWeek}
+        nextWeek={microcycle.nextWeek}
+        nextWeekVisible={Boolean(nextWeekVisible)}
+        athleteId={microcycle.athleteId}
+        role={user.role}
+        canCreateExercise={user.role === 'COACH'}
+        workouts={microcycle.workouts}
+        rpeTable={rpeTable}
+        weekTotals={allEntryMetrics.length > 0 ? weekTotals : null}
+      />
     </main>
   )
 }

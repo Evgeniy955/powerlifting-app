@@ -1,0 +1,183 @@
+'use client'
+
+import { useState } from 'react'
+import Link from 'next/link'
+import { ArrowLeft, ArrowRight, BarChart3, Lock, LockOpen } from 'lucide-react'
+import { buttonVariants } from '@/components/ui'
+import { MetricsBadge } from './MetricsBadge'
+import { TrainingGroupLegend } from './TrainingGroupLegend'
+import { WeekDayTable, type WeekWorkoutData } from './WeekDayTable'
+import type { RpePoint } from '@/lib/rpe'
+
+type AdjacentWeek = { id: string; weekNumber: number }
+
+type WeekTotals = {
+  tonnage: number
+  avgWeight: number
+  relativeIntensity: number
+  kpsh: number
+  loadCoefficient: number
+  fatigueIndex: number | null
+}
+
+type Props = {
+  cycleId: string
+  cycleName: string
+  weekNumber: number
+  prevWeek: AdjacentWeek | null
+  nextWeek: AdjacentWeek | null
+  nextWeekVisible: boolean
+  athleteId: string
+  role: 'COACH' | 'ATHLETE'
+  canCreateExercise: boolean
+  workouts: WeekWorkoutData[]
+  rpeTable: RpePoint[]
+  // null when there's nothing to summarize yet (mirrors the old
+  // allEntryMetrics.length > 0 guard around MetricsBadge).
+  weekTotals: WeekTotals | null
+}
+
+// Week view: the title/nav chrome around a microcycle's WeekDayTable cards,
+// plus (new) a coach-only "Редактировать неделю" toggle that unlocks/locks
+// every day's card at once. Lives client-side — unlike the rest of this
+// page — specifically so that shared lock map can exist: a Server Component
+// can't hold state or pass callback props down to sibling Client Components,
+// and the button (near the title) and the day cards (further down) are both
+// needed to share one source of truth for "is this day locked".
+export function MicrocycleWeekView({
+  cycleId,
+  cycleName,
+  weekNumber,
+  prevWeek,
+  nextWeek,
+  nextWeekVisible,
+  athleteId,
+  role,
+  canCreateExercise,
+  workouts,
+  rpeTable,
+  weekTotals,
+}: Props) {
+  const [lockedMap, setLockedMap] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(workouts.map((w) => [w.id, true]))
+  )
+
+  function toggleDay(id: string) {
+    setLockedMap((prev) => ({ ...prev, [id]: !prev[id] }))
+  }
+
+  const allUnlocked = workouts.length > 0 && workouts.every((w) => lockedMap[w.id] === false)
+
+  // Flips every day to the opposite of the current aggregate state: if
+  // every day is already unlocked, this locks them all back down; otherwise
+  // (any day still locked) it unlocks everything.
+  function toggleWeek() {
+    setLockedMap(Object.fromEntries(workouts.map((w) => [w.id, allUnlocked])))
+  }
+
+  return (
+    <>
+      <div className="mx-auto mb-6 max-w-md space-y-4 px-4 lg:max-w-6xl">
+        <div className="text-center">
+          <Link
+            href={`/cycles/${cycleId}`}
+            className="mb-2 inline-flex items-center gap-1.5 text-sm text-text-secondary hover:text-accent"
+          >
+            <ArrowLeft className="h-4 w-4" /> {cycleName}
+          </Link>
+          {role === 'COACH' && (
+            <div className="mb-2">
+              <Link
+                href={`/cycles/${cycleId}/analytics`}
+                className={buttonVariants({ variant: 'outline', size: 'sm' })}
+              >
+                <BarChart3 className="h-4 w-4" /> Аналитика мезоцикла
+              </Link>
+            </div>
+          )}
+          <div className="flex items-center justify-center gap-3">
+            {prevWeek ? (
+              <Link
+                href={`/microcycle/${prevWeek.id}`}
+                aria-label={`Микроцикл ${prevWeek.weekNumber}`}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-2 hover:text-accent"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Link>
+            ) : (
+              <span className="h-8 w-8 shrink-0" />
+            )}
+
+            <h1 className="font-display text-xl uppercase tracking-wide">
+              Микроцикл {weekNumber}
+            </h1>
+
+            {nextWeek && nextWeekVisible ? (
+              <Link
+                href={`/microcycle/${nextWeek.id}`}
+                aria-label={`Микроцикл ${nextWeek.weekNumber}`}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-2 hover:text-accent"
+              >
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            ) : (
+              <span className="h-8 w-8 shrink-0" />
+            )}
+          </div>
+
+          {/* Coach-only: unlocks/locks every day card on this page at once,
+              instead of tapping each day's own padlock individually — handy
+              when sitting down to program a whole week at a time. */}
+          {role === 'COACH' && workouts.length > 0 && (
+            <button
+              type="button"
+              onClick={toggleWeek}
+              className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-border bg-surface-2 px-3 py-1 text-xs font-medium text-text-secondary transition-colors hover:border-accent hover:text-accent"
+            >
+              {allUnlocked ? (
+                <Lock className="h-3.5 w-3.5" />
+              ) : (
+                <LockOpen className="h-3.5 w-3.5" />
+              )}
+              {allUnlocked ? 'Заблокировать неделю' : 'Редактировать неделю'}
+            </button>
+          )}
+        </div>
+
+        {weekTotals && (
+          <MetricsBadge
+            tonnage={weekTotals.tonnage}
+            avgWeight={weekTotals.avgWeight}
+            relativeIntensity={weekTotals.relativeIntensity}
+            kpsh={weekTotals.kpsh}
+            loadCoefficient={weekTotals.loadCoefficient}
+            fatigueIndex={weekTotals.fatigueIndex}
+          />
+        )}
+
+        <TrainingGroupLegend />
+      </div>
+
+      {workouts.length === 0 ? (
+        <p className="text-center text-sm text-text-secondary">
+          В этом микроцикле пока нет тренировок.
+        </p>
+      ) : (
+        <div className="mx-auto max-w-md space-y-3 px-4 lg:max-w-6xl">
+          {workouts.map((workout) => (
+            <WeekDayTable
+              key={workout.id}
+              workout={workout}
+              rpeTable={rpeTable}
+              athleteId={athleteId}
+              role={role}
+              canCreateExercise={canCreateExercise}
+              locked={lockedMap[workout.id] ?? true}
+              onToggleLocked={() => toggleDay(workout.id)}
+            />
+          ))}
+        </div>
+      )}
+    </>
+  )
+}
