@@ -527,6 +527,7 @@ export function WeekDayTable({
           onSelect={handleAddExercise}
           placeholder="Добавить упражнение..."
           canCreate={canCreateExercise}
+          clearOnSelect
         />
       </div>
     </div>

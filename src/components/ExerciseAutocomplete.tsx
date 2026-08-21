@@ -21,11 +21,23 @@ type Props = {
   // POST /api/exercises. Athletes (and coaches who leave this unset) only
   // get to pick from what's already in the catalog.
   canCreate?: boolean
+  // When true, the search box clears back to empty right after a pick
+  // instead of filling with the picked name — for an "add another" flow
+  // (WeekDayTable/WorkoutView's "Добавить упражнение...") where the field
+  // should be immediately ready for the next search. Left off for
+  // ExerciseCard's inline exercise-swap editor, where echoing the pick back
+  // into the field is what confirms the change before saving.
+  clearOnSelect?: boolean
 }
 
 // Coach-facing autocomplete over ExerciseCatalog, used both to add an exercise to a
 // workout and to pick which exercise a 1RM should be bound to.
-export function ExerciseAutocomplete({ onSelect, placeholder, canCreate = false }: Props) {
+export function ExerciseAutocomplete({
+  onSelect,
+  placeholder,
+  canCreate = false,
+  clearOnSelect = false,
+}: Props) {
   const [query, setQuery] = useState('')
   const [options, setOptions] = useState<ExerciseOption[]>([])
   const [open, setOpen] = useState(false)
@@ -66,7 +78,7 @@ export function ExerciseAutocomplete({ onSelect, placeholder, canCreate = false 
       }
       const created: ExerciseOption = await res.json()
       onSelect(created)
-      setQuery(created.name)
+      setQuery(clearOnSelect ? '' : created.name)
       setOpen(false)
     } catch (e) {
       setCreateError(e instanceof Error ? e.message : 'Ошибка')
@@ -98,7 +110,7 @@ export function ExerciseAutocomplete({ onSelect, placeholder, canCreate = false 
                 type="button"
                 onClick={() => {
                   onSelect(opt)
-                  setQuery(opt.name)
+                  setQuery(clearOnSelect ? '' : opt.name)
                   setOpen(false)
                 }}
                 className="w-full px-3 py-2 text-left text-sm transition-colors hover:bg-surface-2"
