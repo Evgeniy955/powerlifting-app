@@ -2,9 +2,8 @@ import { prisma } from '@/lib/prisma'
 import { requireUser } from '@/lib/session'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, CalendarX } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import { PeriodizationView } from '@/components/PeriodizationView'
-import { EmptyState } from '@/components/EmptyState'
 import { athleteDisplayName } from '@/lib/athlete'
 
 // Season overview for one athlete — the classic Период/Этап/Мезоцикл/Микроцикл
@@ -49,8 +48,12 @@ export default async function PeriodizationPage({
   })
   if (!athlete) redirect('/athletes')
 
-  const owns = user.role === 'COACH' ? athlete.coachId === user.id : athlete.userId === user.id
-  if (!owns) redirect('/')
+  // Coach-only: this is season-planning scaffolding for the coach to sketch
+  // out ahead of time, not something an athlete needs to see or should be
+  // able to poke at — unlike the rest of the athlete-facing pages (cycles,
+  // periodization's own parent link), which are shared read/write with
+  // read-only athlete access.
+  if (user.role !== 'COACH' || athlete.coachId !== user.id) redirect('/')
 
   const periods = athlete.periods.map((period) => ({
     id: period.id,
@@ -98,20 +101,7 @@ export default async function PeriodizationPage({
       </div>
 
       <div className="mx-auto max-w-6xl">
-        {periods.length === 0 && !(user.role === 'COACH') ? (
-          <EmptyState
-            icon={CalendarX}
-            title="Периодизация ещё не составлена"
-            description="Тренер пока не разбил подготовку на периоды."
-          />
-        ) : (
-          <PeriodizationView
-            athleteId={athlete.id}
-            periods={periods}
-            columns={columns}
-            canEdit={user.role === 'COACH'}
-          />
-        )}
+        <PeriodizationView athleteId={athlete.id} periods={periods} columns={columns} canEdit />
       </div>
     </main>
   )
