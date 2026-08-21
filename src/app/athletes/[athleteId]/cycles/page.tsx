@@ -2,11 +2,11 @@ import { prisma } from '@/lib/prisma'
 import { requireUser } from '@/lib/session'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { CalendarX } from 'lucide-react'
+import { CalendarRange, CalendarX } from 'lucide-react'
 import { AthleteLiveUpdates } from '@/components/AthleteLiveUpdates'
 import { DeleteCycleButton } from '@/components/DeleteCycleButton'
 import { CreatePlanDialog } from '@/components/CreatePlanDialog'
-import { Card } from '@/components/ui'
+import { Card, buttonVariants } from '@/components/ui'
 import { EmptyState } from '@/components/EmptyState'
 import { athleteDisplayName } from '@/lib/athlete'
 
@@ -40,7 +40,15 @@ export default async function AthleteCyclesPage({ params }: { params: { athleteI
           </h1>
           <AthleteLiveUpdates athleteId={athlete.id} />
         </div>
-        {user.role === 'COACH' && <CreatePlanDialog athleteId={athlete.id} />}
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/athletes/${athlete.id}/periodization`}
+            className={buttonVariants({ variant: 'outline', size: 'sm' })}
+          >
+            <CalendarRange className="h-4 w-4" /> Периодизация
+          </Link>
+          {user.role === 'COACH' && <CreatePlanDialog athleteId={athlete.id} />}
+        </div>
       </div>
 
       {athlete.cycles.length === 0 && (

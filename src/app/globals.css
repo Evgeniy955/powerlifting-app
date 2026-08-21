@@ -8,6 +8,12 @@
    only the hex values below do. */
 :root,
 .theme-dark {
+  /* Tells the browser to render native widgets (select's own dropdown
+     popup, date/number input spinners, scrollbars) with dark chrome —
+     without this, an open <select> falls back to a plain white popup with
+     light-on-white text (invisible against the dark theme's own light
+     option text) regardless of how the closed control itself is styled. */
+  color-scheme: dark;
   --color-bg: #14100c;
   --color-surface: #1e1712;
   --color-surface-2: #2a2019;
@@ -25,6 +31,7 @@
 }
 
 .theme-light {
+  color-scheme: light;
   --color-bg: #fbf7f2;
   --color-surface: #ffffff;
   --color-surface-2: #f3ece3;
@@ -42,6 +49,7 @@
 }
 
 .theme-cyberpunk {
+  color-scheme: dark;
   /* Near-black rather than pure #000 to avoid OLED smear on dark-panel phones. */
   --color-bg: #0a0a0a;
   --color-surface: #141414;
@@ -63,6 +71,19 @@ body {
   background: var(--color-bg);
   color: var(--color-text-primary);
   font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Belt-and-suspenders on top of the color-scheme set on :root/.theme-* above —
+   some browsers don't reliably carry an inherited color-scheme through to a
+   <select>'s own native popup, so it's repeated directly on every select
+   under each theme (this is the rule that actually fixes the popup; the
+   :root-level one alone wasn't enough). */
+.theme-dark select,
+.theme-cyberpunk select {
+  color-scheme: dark;
+}
+.theme-light select {
+  color-scheme: light;
 }
 
 /* Every numeric input in the app (set weight/reps) is custom-styled and

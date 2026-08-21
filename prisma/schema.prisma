@@ -101,10 +101,81 @@ model AthleteProfile {
   oneRepMaxes Athlete1RM[]
   cycles      Cycle[]
   supplements Supplement[]
+  periods     Period[]
 
   createdAt DateTime @default(now())
 
   @@index([coachId])
+}
+
+// Top level of the season-periodization hierarchy ("Периоды" — e.g.
+// "Подготовительный"/"Соревновательный"/"Переходной"), each with its own
+// date range set independently by the coach (not derived from the
+// mesocycles inside it). Replaces the earlier Cycle.periodType tag —
+// a Period is now a real entity so several Cycles (mesocycles) can be
+// grouped under it via the Stages in between, and its span can be edited
+// with a date-range picker directly.
+model Period {
+  id        String         @id @default(uuid())
+  athleteId String
+  athlete   AthleteProfile @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  createdAt DateTime       @default(now())
+
+  stages Stage[]
+
+  @@index([athleteId])
+}
+
+// Middle level ("Этапы" — e.g. "Обще-подготовительный"). Always belongs to
+// exactly one Period; a Period can have several Stages. Own date range,
+// independent of the Мезоциклы attached under it.
+model Stage {
+  id        String   @id @default(uuid())
+  periodId  String
+  period    Period   @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  createdAt DateTime @default(now())
+
+  mesocycles Mesocycle[]
+
+  @@index([periodId])
+}
+
+// Bottom two levels of the periodization sheet ("Мезоциклы"/"Микроциклы") —
+// deliberately a separate, lightweight entity from Cycle/Microcycle (the
+// real training-plan models used everywhere else in the app). A coach may
+// well want to sketch out a season's Период/Этап/Мезоцикл/Микроцикл shape
+// before any actual trainable plan exists for it, and periodization data
+// shouldn't be entangled with — or accidentally deleted alongside — a real
+// plan's workouts/exercises/sets. Just a name + duration, same free-text-
+// preset pattern as everything else in this hierarchy.
+model Mesocycle {
+  id        String   @id @default(uuid())
+  stageId   String
+  stage     Stage    @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  name      String
+  startDate DateTime
+  weeks     Int
+  createdAt DateTime @default(now())
+
+  microcycles PeriodizationMicrocycle[]
+
+  @@index([stageId])
+}
+
+model PeriodizationMicrocycle {
+  id             String    @id @default(uuid())
+  mesocycleId    String
+  mesocycle      Mesocycle @relation(fields: [mesocycleId], references: [id], onDelete: Cascade)
+  weekNumber     Int
+  microcycleType String?
+
+  @@unique([mesocycleId, weekNumber])
 }
 
 // Athlete-managed supplement intake log ("Спортпит") — a name plus an
@@ -179,6 +250,10 @@ model RpeTable {
   @@unique([reps, rpe])
 }
 
+// A training plan ("Мезоцикл" in the old spreadsheet sense, but — unlike the
+// Mesocycle model above — deliberately not tied into the Период/Этап
+// periodization hierarchy at all. See Mesocycle's comment for why the two
+// are kept separate.
 model Cycle {
   id        String         @id @default(uuid())
   athleteId String
