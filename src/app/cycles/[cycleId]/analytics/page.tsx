@@ -18,9 +18,10 @@ export default async function CycleAnalyticsPage({ params }: { params: { cycleId
   })
   if (!cycle) notFound()
 
-  const owns =
-    user.role === 'COACH' ? cycle.athlete.coachId === user.id : cycle.athlete.userId === user.id
-  if (!owns) redirect('/')
+  // Coach-only: this is the coach's own load-management view (tonnage/КПШ/
+  // intensity trends), not something an athlete needs to read for themselves —
+  // same reasoning as the season Периодизация page.
+  if (user.role !== 'COACH' || cycle.athlete.coachId !== user.id) redirect('/')
 
   return (
     <main className="min-h-[calc(100vh-3.5rem)] bg-bg text-text-primary p-6 max-w-md mx-auto space-y-4 lg:max-w-5xl">

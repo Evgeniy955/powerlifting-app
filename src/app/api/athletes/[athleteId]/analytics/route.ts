@@ -4,11 +4,11 @@ import { requireUser, statusForAuthError } from '@/lib/session'
 import { getWeeklyLoadDistribution, getExerciseProgress } from '@/lib/analytics'
 import { getRpeTable } from '@/lib/workout'
 
+// Coach-only — same reasoning as athletes/[athleteId]/analytics/page.tsx.
 async function assertCanView(athleteId: string, userId: string, role: string) {
   const athlete = await prisma.athleteProfile.findUnique({ where: { id: athleteId } })
   if (!athlete) throw new Error('Атлет не найден')
-  const owns = role === 'COACH' ? athlete.coachId === userId : athlete.userId === userId
-  if (!owns) throw new Error('Нет доступа')
+  if (role !== 'COACH' || athlete.coachId !== userId) throw new Error('Нет доступа')
 }
 
 // GET /api/athletes/:athleteId/analytics?exerciseId=... 

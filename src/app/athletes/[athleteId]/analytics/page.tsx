@@ -13,8 +13,8 @@ export default async function AthleteAnalyticsPage({
   const athlete = await prisma.athleteProfile.findUnique({ where: { id: params.athleteId } })
   if (!athlete) redirect('/athletes')
 
-  const owns = user.role === 'COACH' ? athlete.coachId === user.id : athlete.userId === user.id
-  if (!owns) redirect('/')
+  // Coach-only — same reasoning as the per-cycle "Аналитика мезоцикла" page.
+  if (user.role !== 'COACH' || athlete.coachId !== user.id) redirect('/')
 
   return (
     <main className="min-h-[calc(100vh-3.5rem)] bg-bg text-text-primary p-6 max-w-2xl mx-auto space-y-4 lg:max-w-5xl">

@@ -45,12 +45,14 @@ export default async function CyclePage({ params }: { params: { cycleId: string 
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <Link
-          href={`/cycles/${cycle.id}/analytics`}
-          className={buttonVariants({ variant: 'outline', size: 'sm' })}
-        >
-          <BarChart3 className="h-4 w-4" /> Аналитика мезоцикла
-        </Link>
+        {user.role === 'COACH' && (
+          <Link
+            href={`/cycles/${cycle.id}/analytics`}
+            className={buttonVariants({ variant: 'outline', size: 'sm' })}
+          >
+            <BarChart3 className="h-4 w-4" /> Аналитика мезоцикла
+          </Link>
+        )}
         <CopyLastTwoWeeksButton cycleId={cycle.id} role={user.role} />
       </div>
 

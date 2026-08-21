@@ -21,9 +21,8 @@ export async function GET(req: NextRequest, { params }: { params: { cycleId: str
     if (!cycle) {
       return NextResponse.json({ error: 'Цикл не найден' }, { status: 404 })
     }
-    const owns =
-      user.role === 'COACH' ? cycle.athlete.coachId === user.id : cycle.athlete.userId === user.id
-    if (!owns) {
+    // Coach-only — see cycles/[cycleId]/analytics/page.tsx for why.
+    if (user.role !== 'COACH' || cycle.athlete.coachId !== user.id) {
       return NextResponse.json({ error: 'Нет доступа' }, { status: 403 })
     }
 

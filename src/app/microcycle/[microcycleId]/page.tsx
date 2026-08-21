@@ -63,14 +63,16 @@ export default async function MicrocyclePage({
           >
             <ArrowLeft className="h-4 w-4" /> {microcycle.cycleName}
           </Link>
-          <div className="mb-2">
-            <Link
-              href={`/cycles/${microcycle.cycleId}/analytics`}
-              className={buttonVariants({ variant: 'outline', size: 'sm' })}
-            >
-              <BarChart3 className="h-4 w-4" /> Аналитика мезоцикла
-            </Link>
-          </div>
+          {user.role === 'COACH' && (
+            <div className="mb-2">
+              <Link
+                href={`/cycles/${microcycle.cycleId}/analytics`}
+                className={buttonVariants({ variant: 'outline', size: 'sm' })}
+              >
+                <BarChart3 className="h-4 w-4" /> Аналитика мезоцикла
+              </Link>
+            </div>
+          )}
           <div className="flex items-center justify-center gap-3">
             {microcycle.prevWeek ? (
               <Link
