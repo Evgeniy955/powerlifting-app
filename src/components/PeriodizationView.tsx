@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, Pencil, Trash2, Layers } from 'lucide-react'
 import { Button, Card, Dialog, Input, Select, useToast } from '@/components/ui'
@@ -194,6 +194,16 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
     [mainColumns]
   )
 
+  // Portrait layout: weeks run down as rows instead of across as columns, so
+  // Период/Этап/Мезоцикл merge vertically (rowSpan) instead of horizontally
+  // (colSpan) — same spans, just rotated 90°. These maps let each row of the
+  // mainColumns.map below cheaply check "am I the first row of a span" (and
+  // find that span's own index, needed for the Этап row's "is this the
+  // period's last stage" check) without a linear scan per row.
+  const periodSpanIndexByStart = useMemo(() => new Map(periodSpans.map((s, i) => [s.start, i])), [periodSpans])
+  const stageSpanIndexByStart = useMemo(() => new Map(stageSpans.map((s, i) => [s.start, i])), [stageSpans])
+  const mesocycleSpanIndexByStart = useMemo(() => new Map(mesocycleSpans.map((s, i) => [s.start, i])), [mesocycleSpans])
+
   function periodOf(id: string) {
     return periods.find((p) => p.id === id)
   }
@@ -220,36 +230,50 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
   return (
     <div className="space-y-4">
       <Card padding="none" className="overflow-hidden">
+        {/* Portrait layout: one row per week (or empty-stage/empty-period
+            placeholder), scrolling vertically like any normal page instead
+            of needing a horizontal scrollbar for a whole season's worth of
+            week columns. Период/Этап/Мезоцикл are fixed columns on the
+            left, each merging vertically (rowSpan) across the rows it
+            covers — same grouping as before (periodSpans/stageSpans/
+            mesocycleSpans), just rotated 90°. */}
         <div className="overflow-x-auto">
-          <table className="w-full min-w-max border-collapse text-sm">
+          <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-b border-border">
-                <RowLabel />
-                {mainColumns.map((c) => (
-                  <th
-                    key={c.kind === 'week' ? c.week.microcycleId : c.kind === 'empty-stage' ? `empty-stage-${c.stage.id}` : `empty-${c.period.id}`}
-                    className="min-w-[92px] border-l border-border bg-surface-2 px-1.5 py-1.5 text-center text-[11px] font-normal text-text-secondary"
-                  >
-                    {c.kind === 'week' ? fmtShort(c.week.weekStart) : ''}
-                  </th>
-                ))}
-                {canEdit && <th className="w-12 border-l border-border bg-surface-2" />}
+                <th className="sticky top-0 z-10 min-w-[150px] border-r border-border bg-surface-2 px-2 py-2 text-left text-[11px] font-normal text-text-secondary">
+                  Период
+                </th>
+                <th className="sticky top-0 z-10 min-w-[150px] border-r border-border bg-surface-2 px-2 py-2 text-left text-[11px] font-normal text-text-secondary">
+                  Этап
+                </th>
+                <th className="sticky top-0 z-10 min-w-[150px] border-r border-border bg-surface-2 px-2 py-2 text-left text-[11px] font-normal text-text-secondary">
+                  Мезоцикл
+                </th>
+                <th className="sticky top-0 z-10 min-w-[150px] border-border bg-surface-2 px-2 py-2 text-left text-[11px] font-normal text-text-secondary">
+                  Микроцикл
+                </th>
               </tr>
             </thead>
             <tbody>
-              <tr className="border-b border-border">
-                <RowLabel>Периоды</RowLabel>
-                {periodSpans.map((span) => {
-                  const entry = mainColumns[span.start]
+              {mainColumns.map((entry, i) => {
+                const rowKey =
+                  entry.kind === 'week' ? entry.week.microcycleId : entry.kind === 'empty-stage' ? `empty-stage-${entry.stage.id}` : `empty-${entry.period.id}`
+
+                // ---- Период cell (rowSpan across this period's rows) ----
+                let periodCell: ReactNode = null
+                const periodSpanIdx = periodSpanIndexByStart.get(i)
+                if (periodSpanIdx !== undefined) {
+                  const span = periodSpans[periodSpanIdx]
                   const period = entry.kind === 'week' ? periodOf(entry.week.periodId) : entry.period
                   const color = periodColor(period?.name)
-                  return (
+                  periodCell = (
                     <td
-                      key={span.key}
-                      colSpan={span.span}
-                      className={`border-l border-border px-2 py-2 text-center text-xs font-semibold uppercase tracking-wide ${color.bg} ${color.text}`}
+                      key="period"
+                      rowSpan={span.span}
+                      className={`border-r border-border px-2 py-2 align-top text-xs font-semibold uppercase tracking-wide ${color.bg} ${color.text}`}
                     >
-                      <div className="flex items-center justify-center gap-1">
+                      <div className="flex items-center gap-1">
                         <span className="truncate">{period?.name ?? '—'}</span>
                         {canEdit && period && (
                           <>
@@ -286,159 +310,148 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                       </div>
                     </td>
                   )
-                })}
-                {canEdit && (
-                  <td rowSpan={4} className="border-l border-border p-2 align-middle">
-                    <button
-                      onClick={() => setPeriodDialogOpen(true)}
-                      className="flex h-9 w-9 items-center justify-center rounded-full border border-dashed border-border text-text-secondary transition-colors hover:border-accent hover:text-accent"
-                      title="Добавить период"
-                    >
-                      <Plus className="h-4 w-4" />
-                    </button>
-                  </td>
-                )}
-              </tr>
+                }
 
-              <tr className="border-b border-border">
-                <RowLabel>Этап</RowLabel>
-                {stageSpans.map((span, spanIndex) => {
-                  const entry = mainColumns[span.start]
+                // ---- Этап cell (rowSpan across this stage's rows) ----
+                let stageCell: ReactNode = null
+                const stageSpanIdx = stageSpanIndexByStart.get(i)
+                if (stageSpanIdx !== undefined) {
+                  const span = stageSpans[stageSpanIdx]
                   if (entry.kind === 'empty-period') {
-                    return (
-                      <td key={span.key} colSpan={span.span} className="border-l border-border px-2 py-2 text-center text-xs text-text-secondary">
+                    stageCell = (
+                      <td key="stage" rowSpan={span.span} className="border-r border-border px-2 py-2 align-top text-xs text-text-secondary">
                         —
                       </td>
                     )
-                  }
-                  // A period with at least one Этап already had no direct
-                  // way to add another straight from this row — only the
-                  // Период row's own "+" (a multi-step Этап-picker dialog
-                  // not visually tied to this row), which looked like there
-                  // was simply no way to add a stage at all. Adding a
-                  // whole extra table column here would misalign every row
-                  // below it (they all share the same week-column grid), so
-                  // the "+" instead joins the other icons already packed
-                  // into whichever stage cell is last for its period.
-                  const periodId = periodIdOfEntry(entry)
-                  const nextSpan = stageSpans[spanIndex + 1]
-                  const isLastForPeriod = !nextSpan || periodIdOfEntry(mainColumns[nextSpan.start]) !== periodId
-                  const period = periodOf(periodId)
-                  // Deliberately a different icon and a dashed border,
-                  // not just another plain "+" — sitting right next to the
-                  // "add mesocycle" plus, an identical-looking icon here
-                  // was mistaken for it (added a Мезоцикл when a whole new
-                  // Этап was wanted, or vice versa). The dashed-circle look
-                  // matches the ghost "+ Добавить период" button — same
-                  // "this creates a new container" meaning, one level down.
-                  const addStageButton = canEdit && isLastForPeriod && period && (
-                    <>
-                      <StageFormDialog
-                        open={addingStageToPeriod?.id === period.id}
-                        onOpenChange={(open) => !open && setAddingStageToPeriod(null)}
-                        period={period}
-                        onSaved={() => {
-                          setAddingStageToPeriod(null)
-                          router.refresh()
-                        }}
-                      />
-                      <button
-                        onClick={() => setAddingStageToPeriod(period)}
-                        className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-dashed border-current opacity-70 hover:opacity-100"
-                        title="Новый этап в этом периоде (не мезоцикл)"
-                        aria-label="Добавить этап"
-                      >
-                        <Layers className="h-2.5 w-2.5" />
-                      </button>
-                    </>
-                  )
-                  if (entry.kind === 'empty-stage') {
-                    const color = stageColor(entry.period.name)
-                    const weeksLabel = `${fmtShort(entry.stage.startDate)} – ${fmtShort(entry.stage.endDate)} · ${weeksBetween(entry.stage.startDate, entry.stage.endDate)} нед.`
-                    return (
-                      <td key={span.key} colSpan={span.span} className={`border-l border-border p-0 align-top ${color.bg} ${color.text}`}>
-                        {canEdit ? (
-                          <div className="px-2 py-2 text-center">
-                            <div className="flex items-center justify-center gap-1">
-                              <button onClick={() => setEditingStage({ stage: entry.stage, periodId: entry.period.id })} className="truncate text-xs font-medium hover:underline">
-                                {entry.stage.name}
-                              </button>
-                              <CreateMesocycleDialog
-                                stageId={entry.stage.id}
-                                defaultStartDate={suggestedMesocycleStart(entry.stage.id, entry.stage.startDate)}
-                                stageEndDate={entry.stage.endDate}
-                                trigger={(open) => (
-                                  <button onClick={open} className="shrink-0 rounded p-0.5 hover:bg-black/10" title="Добавить мезоцикл в этот этап" aria-label="Добавить мезоцикл">
-                                    <Plus className="h-3 w-3" />
-                                  </button>
-                                )}
-                                onCreated={() => router.refresh()}
-                              />
-                              {addStageButton}
-                            </div>
-                            <span className="mt-0.5 block text-[10px] font-normal opacity-80">{weeksLabel}</span>
-                          </div>
-                        ) : (
-                          <span className="block px-2 py-2 text-center">
-                            <span className="block text-xs font-medium">{entry.stage.name}</span>
-                            <span className="mt-0.5 block text-[10px] font-normal opacity-80">{weeksLabel}</span>
-                          </span>
-                        )}
-                      </td>
+                  } else {
+                    // A period with at least one Этап already had no direct
+                    // way to add another straight from this column — only
+                    // the Период column's own "+" (a multi-step
+                    // Этап-picker dialog not visually tied to this
+                    // column), which looked like there was simply no way
+                    // to add a stage at all. The "+" instead joins the
+                    // other icons already packed into whichever stage
+                    // cell is last for its period.
+                    const periodId = periodIdOfEntry(entry)
+                    const nextSpan = stageSpans[stageSpanIdx + 1]
+                    const isLastForPeriod = !nextSpan || periodIdOfEntry(mainColumns[nextSpan.start]) !== periodId
+                    const period = periodOf(periodId)
+                    // Deliberately a different icon and a dashed border,
+                    // not just another plain "+" — sitting right next to
+                    // the "add mesocycle" plus, an identical-looking icon
+                    // here was mistaken for it. The dashed-circle look
+                    // matches the ghost "+ Добавить период" button — same
+                    // "this creates a new container" meaning, one level down.
+                    const addStageButton = canEdit && isLastForPeriod && period && (
+                      <>
+                        <StageFormDialog
+                          open={addingStageToPeriod?.id === period.id}
+                          onOpenChange={(open) => !open && setAddingStageToPeriod(null)}
+                          period={period}
+                          onSaved={() => {
+                            setAddingStageToPeriod(null)
+                            router.refresh()
+                          }}
+                        />
+                        <button
+                          onClick={() => setAddingStageToPeriod(period)}
+                          className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-dashed border-current opacity-70 hover:opacity-100"
+                          title="Новый этап в этом периоде (не мезоцикл)"
+                          aria-label="Добавить этап"
+                        >
+                          <Layers className="h-2.5 w-2.5" />
+                        </button>
+                      </>
                     )
-                  }
-                  const stage = period?.stages.find((s) => s.id === entry.week.stageId)
-                  const color = stageColor(period?.name)
-                  const weeksLabel = stage
-                    ? `${fmtShort(stage.startDate)} – ${fmtShort(stage.endDate)} · ${weeksBetween(stage.startDate, stage.endDate)} нед.`
-                    : ''
-                  return (
-                    <td key={span.key} colSpan={span.span} className={`border-l border-border p-0 align-top ${color.bg} ${color.text}`}>
-                      {canEdit && stage && period ? (
-                        <div className="px-2 py-2 text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            <button onClick={() => setEditingStage({ stage, periodId: period.id })} className="truncate text-xs font-medium hover:underline">
-                              {stage.name}
-                            </button>
-                            <CreateMesocycleDialog
-                              stageId={stage.id}
-                              defaultStartDate={suggestedMesocycleStart(stage.id, stage.startDate)}
-                              stageEndDate={stage.endDate}
-                              trigger={(open) => (
-                                <button onClick={open} className="shrink-0 rounded p-0.5 hover:bg-black/10" title="Добавить ещё мезоцикл в этот этап" aria-label="Добавить мезоцикл">
-                                  <Plus className="h-3 w-3" />
+                    if (entry.kind === 'empty-stage') {
+                      const color = stageColor(entry.period.name)
+                      const weeksLabel = `${fmtShort(entry.stage.startDate)} – ${fmtShort(entry.stage.endDate)} · ${weeksBetween(entry.stage.startDate, entry.stage.endDate)} нед.`
+                      stageCell = (
+                        <td key="stage" rowSpan={span.span} className={`border-r border-border p-0 align-top ${color.bg} ${color.text}`}>
+                          {canEdit ? (
+                            <div className="px-2 py-2">
+                              <div className="flex items-center gap-1">
+                                <button onClick={() => setEditingStage({ stage: entry.stage, periodId: entry.period.id })} className="truncate text-xs font-medium hover:underline">
+                                  {entry.stage.name}
                                 </button>
-                              )}
-                              onCreated={() => router.refresh()}
-                            />
-                            {addStageButton}
-                          </div>
-                          <span className="mt-0.5 block text-[10px] font-normal opacity-80">{weeksLabel}</span>
-                        </div>
-                      ) : (
-                        <span className="block px-2 py-2 text-center">
-                          <span className="block text-xs font-medium">{stage?.name ?? '—'}</span>
-                          {stage && <span className="mt-0.5 block text-[10px] font-normal opacity-80">{weeksLabel}</span>}
-                        </span>
-                      )}
-                    </td>
-                  )
-                })}
-              </tr>
+                                <CreateMesocycleDialog
+                                  stageId={entry.stage.id}
+                                  defaultStartDate={suggestedMesocycleStart(entry.stage.id, entry.stage.startDate)}
+                                  stageEndDate={entry.stage.endDate}
+                                  trigger={(open) => (
+                                    <button onClick={open} className="shrink-0 rounded p-0.5 hover:bg-black/10" title="Добавить мезоцикл в этот этап" aria-label="Добавить мезоцикл">
+                                      <Plus className="h-3 w-3" />
+                                    </button>
+                                  )}
+                                  onCreated={() => router.refresh()}
+                                />
+                                {addStageButton}
+                              </div>
+                              <span className="mt-0.5 block text-[10px] font-normal opacity-80">{weeksLabel}</span>
+                            </div>
+                          ) : (
+                            <span className="block px-2 py-2">
+                              <span className="block text-xs font-medium">{entry.stage.name}</span>
+                              <span className="mt-0.5 block text-[10px] font-normal opacity-80">{weeksLabel}</span>
+                            </span>
+                          )}
+                        </td>
+                      )
+                    } else {
+                      const stage = period?.stages.find((s) => s.id === entry.week.stageId)
+                      const color = stageColor(period?.name)
+                      const weeksLabel = stage
+                        ? `${fmtShort(stage.startDate)} – ${fmtShort(stage.endDate)} · ${weeksBetween(stage.startDate, stage.endDate)} нед.`
+                        : ''
+                      stageCell = (
+                        <td key="stage" rowSpan={span.span} className={`border-r border-border p-0 align-top ${color.bg} ${color.text}`}>
+                          {canEdit && stage && period ? (
+                            <div className="px-2 py-2">
+                              <div className="flex items-center gap-1">
+                                <button onClick={() => setEditingStage({ stage, periodId: period.id })} className="truncate text-xs font-medium hover:underline">
+                                  {stage.name}
+                                </button>
+                                <CreateMesocycleDialog
+                                  stageId={stage.id}
+                                  defaultStartDate={suggestedMesocycleStart(stage.id, stage.startDate)}
+                                  stageEndDate={stage.endDate}
+                                  trigger={(open) => (
+                                    <button onClick={open} className="shrink-0 rounded p-0.5 hover:bg-black/10" title="Добавить ещё мезоцикл в этот этап" aria-label="Добавить мезоцикл">
+                                      <Plus className="h-3 w-3" />
+                                    </button>
+                                  )}
+                                  onCreated={() => router.refresh()}
+                                />
+                                {addStageButton}
+                              </div>
+                              <span className="mt-0.5 block text-[10px] font-normal opacity-80">{weeksLabel}</span>
+                            </div>
+                          ) : (
+                            <span className="block px-2 py-2">
+                              <span className="block text-xs font-medium">{stage?.name ?? '—'}</span>
+                              {stage && <span className="mt-0.5 block text-[10px] font-normal opacity-80">{weeksLabel}</span>}
+                            </span>
+                          )}
+                        </td>
+                      )
+                    }
+                  }
+                }
 
-              <tr className="border-b border-border">
-                <RowLabel>Мезоциклы</RowLabel>
-                {mesocycleSpans.map((span) => {
-                  const entry = mainColumns[span.start]
+                // ---- Мезоцикл cell (rowSpan across this mesocycle's rows) ----
+                let mesocycleCell: ReactNode = null
+                const mesocycleSpanIdx = mesocycleSpanIndexByStart.get(i)
+                if (mesocycleSpanIdx !== undefined) {
+                  const span = mesocycleSpans[mesocycleSpanIdx]
                   // A stage with no mesocycles yet used to render a dead "—"
                   // here with nothing to click — the only way in was the
                   // Период "+" button's multi-step Этап-picker flow, which
-                  // isn't obviously connected to this row. Since the stage
-                  // is already known at this point, open mesocycle creation
-                  // for it directly.
+                  // isn't obviously connected to this column. Since the
+                  // stage is already known at this point, open mesocycle
+                  // creation for it directly.
                   if (entry.kind === 'empty-stage') {
-                    return (
-                      <td key={span.key} colSpan={span.span} className="border-l border-border p-0 align-top">
+                    mesocycleCell = (
+                      <td key="meso" rowSpan={span.span} className="border-r border-border p-0 align-top">
                         {canEdit ? (
                           <CreateMesocycleDialog
                             stageId={entry.stage.id}
@@ -447,70 +460,87 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                             trigger={(open) => (
                               <button
                                 onClick={open}
-                                className="flex w-full flex-col items-center gap-0.5 px-2 py-2 text-center text-xs text-text-secondary hover:bg-surface-2 hover:text-text-primary"
+                                className="flex w-full items-center gap-1.5 px-2 py-2 text-xs text-text-secondary hover:bg-surface-2 hover:text-text-primary"
                                 title="Создать мезоцикл в этом этапе"
                               >
-                                <Plus className="h-3.5 w-3.5" />
+                                <Plus className="h-3.5 w-3.5" /> Добавить мезоцикл
                               </button>
                             )}
                             onCreated={() => router.refresh()}
                           />
                         ) : (
-                          <span className="block px-2 py-2 text-center text-xs text-text-secondary">—</span>
+                          <span className="block px-2 py-2 text-xs text-text-secondary">—</span>
                         )}
                       </td>
                     )
-                  }
-                  if (entry.kind !== 'week') {
-                    return (
-                      <td key={span.key} colSpan={span.span} className="border-l border-border px-2 py-2 text-center text-xs text-text-secondary">
+                  } else if (entry.kind !== 'week') {
+                    mesocycleCell = (
+                      <td key="meso" rowSpan={span.span} className="border-r border-border px-2 py-2 text-xs text-text-secondary">
                         —
                       </td>
                     )
+                  } else {
+                    const mesocycle = columns.find((c) => c.id === entry.week.mesocycleId)
+                    mesocycleCell = (
+                      <td key="meso" rowSpan={span.span} className="border-r border-border p-0 align-top">
+                        <button
+                          onClick={() => canEdit && mesocycle && setEditingMesocycle(mesocycle)}
+                          className="flex w-full items-center px-2 py-2 hover:bg-surface-2"
+                        >
+                          <span className="text-xs font-medium">{entry.week.mesocycleName}</span>
+                        </button>
+                      </td>
+                    )
                   }
-                  const mesocycle = columns.find((c) => c.id === entry.week.mesocycleId)
-                  return (
-                    <td key={span.key} colSpan={span.span} className="border-l border-border p-0 align-top">
+                }
+
+                // ---- Микроцикл cell (one per row, not spanned) ----
+                const microcycleCell =
+                  entry.kind !== 'week' ? (
+                    <td key="micro" className="p-1 text-center text-[11px] text-text-secondary">
+                      —
+                    </td>
+                  ) : canEdit ? (
+                    <td key="micro" className="p-0 align-top">
                       <button
-                        onClick={() => canEdit && mesocycle && setEditingMesocycle(mesocycle)}
-                        className="flex w-full flex-col items-center gap-0.5 px-2 py-2 text-center hover:bg-surface-2"
+                        onClick={() => setEditingWeek(entry.week)}
+                        className="flex w-full items-center justify-between gap-2 px-2 py-2 hover:bg-surface-2"
                       >
-                        <span className="text-xs font-medium">{entry.week.mesocycleName}</span>
+                        <span className="text-[11px] text-text-secondary">{fmtShort(entry.week.weekStart)}</span>
+                        <span className="text-[11px]">{entry.week.microcycleType ?? '—'}</span>
                       </button>
                     </td>
-                  )
-                })}
-              </tr>
-
-              <tr>
-                <RowLabel>Микроциклы</RowLabel>
-                {mainColumns.map((entry) => {
-                  const key =
-                    entry.kind === 'week' ? entry.week.microcycleId : entry.kind === 'empty-stage' ? `empty-stage-${entry.stage.id}` : `empty-${entry.period.id}`
-                  if (entry.kind !== 'week') {
-                    return (
-                      <td key={key} className="border-l border-border p-1 text-center text-[11px] text-text-secondary">
-                        —
-                      </td>
-                    )
-                  }
-                  const { week } = entry
-                  return (
-                    <td key={key} className="border-l border-border p-0 align-top">
-                      {canEdit ? (
-                        <button
-                          onClick={() => setEditingWeek(week)}
-                          className="flex w-full flex-col items-center gap-0.5 px-2 py-2 text-center hover:bg-surface-2"
-                        >
-                          <span className="text-[11px]">{week.microcycleType ?? '—'}</span>
-                        </button>
-                      ) : (
-                        <span className="block px-2 py-2 text-center text-[11px]">{week.microcycleType ?? '—'}</span>
-                      )}
+                  ) : (
+                    <td key="micro" className="p-0 align-top">
+                      <span className="flex items-center justify-between gap-2 px-2 py-2">
+                        <span className="text-[11px] text-text-secondary">{fmtShort(entry.week.weekStart)}</span>
+                        <span className="text-[11px]">{entry.week.microcycleType ?? '—'}</span>
+                      </span>
                     </td>
                   )
-                })}
-              </tr>
+
+                return (
+                  <tr key={rowKey} className="border-b border-border">
+                    {periodCell}
+                    {stageCell}
+                    {mesocycleCell}
+                    {microcycleCell}
+                  </tr>
+                )
+              })}
+              {canEdit && (
+                <tr>
+                  <td colSpan={4} className="p-2 text-center">
+                    <button
+                      onClick={() => setPeriodDialogOpen(true)}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-border px-3 py-1.5 text-xs text-text-secondary transition-colors hover:border-accent hover:text-accent"
+                      title="Добавить период"
+                    >
+                      <Plus className="h-4 w-4" /> Добавить период
+                    </button>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -618,14 +648,6 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
         />
       )}
     </div>
-  )
-}
-
-function RowLabel({ children }: { children?: string }) {
-  return (
-    <td className="sticky left-0 z-10 w-28 shrink-0 whitespace-nowrap bg-surface-2 px-2 py-2 text-xs font-semibold uppercase tracking-wide text-text-secondary">
-      {children}
-    </td>
   )
 }
 
