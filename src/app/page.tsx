@@ -28,10 +28,19 @@ export default async function HomePage() {
   }
 
   let athleteProfileId: string | null = null
+  // The coach picks this name when creating the athlete's profile — for an
+  // athlete it's what the greeting below should use, instead of user.name
+  // (whatever their linked Google account happens to be called, which for
+  // some accounts is an auto-generated handle like "autouser_ukr" rather
+  // than a real name).
+  let athleteProfileName: string | null = null
   if (user.role === 'ATHLETE') {
     const profile = await prisma.athleteProfile.findUnique({ where: { userId: user.id } })
     athleteProfileId = profile?.id ?? null
+    athleteProfileName = profile?.displayName ?? null
   }
+
+  const greetingName = athleteProfileName ?? user.name ?? 'спортсмен'
 
   const powerliftingHref =
     user.role === 'COACH'
@@ -48,7 +57,7 @@ export default async function HomePage() {
           <h1 className="font-display text-3xl uppercase tracking-wide">
             Iron<span className="text-accent">Ledger</span>
           </h1>
-          <p className="text-text-secondary">Привет, {user.name ?? 'спортсмен'}. Выбери направление.</p>
+          <p className="text-text-secondary">Привет, {greetingName}. Выбери направление.</p>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
