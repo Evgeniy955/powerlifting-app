@@ -25,13 +25,17 @@ export function SetRow({ set, percentOf1rm, rpe, onChange, onRemove }: Props) {
   return (
     <div className="flex items-center gap-2 py-1">
       {/* Kept at full opacity even when completed (the rest of the row dims
-          below) so the done state stays the brightest thing in the row. */}
+          below) so the done state stays the brightest thing in the row.
+          pointer-events-auto exempts it from the day-level lock (see the
+          pointer-events-none wrapper in WorkoutView) — during an actual
+          session you still need to check sets off without unlocking the
+          whole day first. */}
       <button
         type="button"
         onClick={() => onChange(set.id, { completed: !set.completed })}
         aria-pressed={set.completed}
         aria-label={`Подход ${set.setNumber}${set.completed ? ' выполнен, нажмите чтобы снять отметку' : ', нажмите чтобы отметить выполненным'}`}
-        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border text-sm font-medium transition-colors ${
+        className={`pointer-events-auto flex h-7 w-7 shrink-0 items-center justify-center rounded-md border text-sm font-medium transition-colors ${
           set.completed
             ? 'border-accent bg-accent text-on-accent shadow-[0_0_10px_-1px_var(--color-accent)]'
             : 'border-border bg-surface-2 text-text-secondary hover:border-accent hover:text-accent'
