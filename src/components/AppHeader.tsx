@@ -58,7 +58,6 @@ export async function AppHeader() {
               <span className="hidden text-sm text-text-secondary md:inline">
                 {user.name ?? user.email}
               </span>
-              <MobileNavMenu userLabel={user.name ?? user.email ?? ''} links={mobileLinks} />
 
               {user.role === 'COACH' && (
                 <>
@@ -97,6 +96,11 @@ export async function AppHeader() {
 
           <ThemeToggle />
           {user && <SignOutButton />}
+          {/* Rendered last so it's the rightmost item on mobile — its dropdown
+              anchors right-0 off this button, and needs to sit at the true
+              right edge of the header or the panel hangs off the left side
+              of the screen instead of landing under the button. */}
+          {user && <MobileNavMenu userLabel={user.name ?? user.email ?? ''} links={mobileLinks} />}
         </nav>
       </div>
     </header>
