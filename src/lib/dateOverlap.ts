@@ -21,3 +21,17 @@ export function dateRangesOverlap(aStart: Date, aEnd: Date, bStart: Date, bEnd: 
 export function rangesOverlap(aStart: Date, aWeeks: number, bStart: Date, bWeeks: number): boolean {
   return dateRangesOverlap(aStart, addWeeks(aStart, aWeeks), bStart, addWeeks(bStart, bWeeks))
 }
+
+// Parent-containment check: does [outerStart, outerEnd) fully contain
+// [innerStart, innerEnd)? Siblings not overlapping each other isn't enough —
+// a child (Этап inside a Период, or Мезоцикл inside an Этап) also has to
+// stay inside its own parent's span. Without this, a child's dates can drift
+// past its parent's range and into a *different* sibling's span, which
+// silently splits that one child into several disconnected columns in the
+// periodization table (it stops being date-adjacent to itself). Deleting
+// any one of those columns then deletes the single underlying row and takes
+// every other column of it with it — looking like several stages/mesocycles
+// vanished when only one was ever selected.
+export function rangeContains(outerStart: Date, outerEnd: Date, innerStart: Date, innerEnd: Date): boolean {
+  return outerStart <= innerStart && innerEnd <= outerEnd
+}

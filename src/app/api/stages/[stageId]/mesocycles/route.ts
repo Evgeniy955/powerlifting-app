@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireCoach, statusForAuthError } from '@/lib/session'
 import { assertAthleteBelongsToCoach } from '@/lib/authorization'
-import { rangesOverlap } from '@/lib/dateOverlap'
+import { addWeeks, rangeContains, rangesOverlap } from '@/lib/dateOverlap'
 
 // POST /api/stages/:stageId/mesocycles { name, startDate, weeks } —
 // coach-only. Creates a "Мезоцикл" inside a stage — deliberately a
@@ -51,6 +51,19 @@ export async function POST(req: NextRequest, { params }: { params: { stageId: st
     if (overlapping) {
       return NextResponse.json(
         { error: `Пересекается по датам с мезоциклом «${overlapping.name}» — выберите другую дату начала` },
+        { status: 400 }
+      )
+    }
+
+    // ...and must stay inside the stage's own span — otherwise the
+    // mesocycle's weeks drift past the stage boundary and interleave with a
+    // neighbouring stage, splitting this stage into disconnected columns in
+    // the periodization table (see rangeContains doc comment).
+    if (!rangeContains(stage.startDate, stage.endDate, startDate, addWeeks(startDate, weeks))) {
+      return NextResponse.json(
+        {
+          error: `Даты мезоцикла должны быть в пределах этапа «${stage.name}» (${stage.startDate.toISOString().slice(0, 10)} – ${stage.endDate.toISOString().slice(0, 10)})`,
+        },
         { status: 400 }
       )
     }

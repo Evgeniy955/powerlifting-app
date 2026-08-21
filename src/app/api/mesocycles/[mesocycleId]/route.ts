@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireCoach, statusForAuthError } from '@/lib/session'
 import { assertAthleteBelongsToCoach } from '@/lib/authorization'
-import { rangesOverlap } from '@/lib/dateOverlap'
+import { addWeeks, rangeContains, rangesOverlap } from '@/lib/dateOverlap'
 
 async function loadOwnedMesocycle(mesocycleId: string, coachId: string) {
   const mesocycle = await prisma.mesocycle.findUnique({
@@ -41,7 +41,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { mesocycleI
       }
       data.startDate = startDate
     }
-    if (body.stageId !== undefined && body.stageId !== mesocycle.stageId) {
+    const movingStage = body.stageId !== undefined && body.stageId !== mesocycle.stageId
+    if (movingStage) {
       const targetStage = await prisma.stage.findUnique({
         where: { id: body.stageId },
         include: { period: true },
@@ -65,7 +66,30 @@ export async function PATCH(req: NextRequest, { params }: { params: { mesocycleI
         )
       }
 
-      data.stageId = body.stageId
+      // ...and must stay inside the *target* stage's own span (see
+      // rangeContains doc comment).
+      if (!rangeContains(targetStage.startDate, targetStage.endDate, effectiveStartDate, addWeeks(effectiveStartDate, mesocycle.weeks))) {
+        return NextResponse.json(
+          {
+            error: `Даты мезоцикла должны быть в пределах этапа «${targetStage.name}» (${targetStage.startDate.toISOString().slice(0, 10)} – ${targetStage.endDate.toISOString().slice(0, 10)})`,
+          },
+          { status: 400 }
+        )
+      }
+
+      data.stageId = body.stageId as string
+    } else if (data.startDate instanceof Date) {
+      // startDate changed but the mesocycle is staying in its current stage
+      // — still must stay inside that stage's span.
+      const currentStage = mesocycle.stage
+      if (!rangeContains(currentStage.startDate, currentStage.endDate, data.startDate, addWeeks(data.startDate, mesocycle.weeks))) {
+        return NextResponse.json(
+          {
+            error: `Даты мезоцикла должны быть в пределах этапа «${currentStage.name}» (${currentStage.startDate.toISOString().slice(0, 10)} – ${currentStage.endDate.toISOString().slice(0, 10)})`,
+          },
+          { status: 400 }
+        )
+      }
     }
 
     const updated = await prisma.mesocycle.update({ where: { id: params.mesocycleId }, data })

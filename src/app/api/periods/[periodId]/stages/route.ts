@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireCoach, statusForAuthError } from '@/lib/session'
 import { assertAthleteBelongsToCoach } from '@/lib/authorization'
-import { dateRangesOverlap } from '@/lib/dateOverlap'
+import { dateRangesOverlap, rangeContains } from '@/lib/dateOverlap'
 
 // POST /api/periods/:periodId/stages { name, startDate, endDate } —
 // coach-only. Creates an "Этап" inside a period; several stages can sit
@@ -39,6 +39,16 @@ export async function POST(req: NextRequest, { params }: { params: { periodId: s
     if (overlapping) {
       return NextResponse.json(
         { error: `Пересекается по датам с этапом «${overlapping.name}» — выберите другие даты` },
+        { status: 400 }
+      )
+    }
+
+    // ...and must stay inside the period's own span — otherwise the stage's
+    // weeks can drift past the period boundary and interleave with a
+    // neighbouring period, splitting it into disconnected table columns.
+    if (!rangeContains(period.startDate, period.endDate, startDate, endDate)) {
+      return NextResponse.json(
+        { error: `Даты этапа должны быть в пределах периода «${period.name}» (${period.startDate.toISOString().slice(0, 10)} – ${period.endDate.toISOString().slice(0, 10)})` },
         { status: 400 }
       )
     }

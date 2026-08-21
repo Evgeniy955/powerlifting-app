@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireCoach, statusForAuthError } from '@/lib/session'
 import { assertAthleteBelongsToCoach } from '@/lib/authorization'
-import { dateRangesOverlap } from '@/lib/dateOverlap'
+import { addWeeks, dateRangesOverlap, rangeContains } from '@/lib/dateOverlap'
 
 // PATCH /api/stages/:stageId { name?, startDate?, endDate? } — coach-only.
 export async function PATCH(req: NextRequest, { params }: { params: { stageId: string } }) {
@@ -50,6 +50,36 @@ export async function PATCH(req: NextRequest, { params }: { params: { stageId: s
       if (overlapping) {
         return NextResponse.json(
           { error: `Пересекается по датам с этапом «${overlapping.name}» — выберите другие даты` },
+          { status: 400 }
+        )
+      }
+
+      // ...and must stay inside the period's own span (same reasoning as
+      // creation — see POST /api/periods/:periodId/stages).
+      if (!rangeContains(stage.period.startDate, stage.period.endDate, effectiveStart, effectiveEnd)) {
+        return NextResponse.json(
+          {
+            error: `Даты этапа должны быть в пределах периода «${stage.period.name}» (${stage.period.startDate.toISOString().slice(0, 10)} – ${stage.period.endDate.toISOString().slice(0, 10)})`,
+          },
+          { status: 400 }
+        )
+      }
+
+      // ...and must still fully contain this stage's own mesocycles —
+      // shrinking the stage out from under them would strand a mesocycle's
+      // weeks outside its own stage's range, splitting that stage into
+      // disconnected columns in the periodization table (see rangeContains
+      // doc comment). Move or delete the offending mesocycles first.
+      const ownMesocycles = await prisma.mesocycle.findMany({
+        where: { stageId: params.stageId },
+        select: { name: true, startDate: true, weeks: true },
+      })
+      const stranded = ownMesocycles.find(
+        (m) => !rangeContains(effectiveStart, effectiveEnd, m.startDate, addWeeks(m.startDate, m.weeks))
+      )
+      if (stranded) {
+        return NextResponse.json(
+          { error: `Мезоцикл «${stranded.name}» окажется вне нового диапазона этапа — сначала перенесите или удалите его` },
           { status: 400 }
         )
       }
