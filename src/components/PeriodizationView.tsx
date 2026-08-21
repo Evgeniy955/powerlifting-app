@@ -197,6 +197,19 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
     return periods.find((p) => p.id === id)
   }
 
+  // Where a new mesocycle in this stage should default to starting — right
+  // after whichever of its existing mesocycles ends latest, or the stage's
+  // own start if it has none yet. Same rule AddToPeriodDialog already uses,
+  // pulled out here so the Этап row's own "+" (which knows its stage
+  // directly, no period/этап picker needed) can offer a second, third, etc.
+  // mesocycle in the same stage without colliding dates.
+  function suggestedMesocycleStart(stageId: string, stageStartDate: string) {
+    const inStage = columns.filter((c) => c.stageId === stageId)
+    if (inStage.length === 0) return stageStartDate
+    const latestEnd = inStage.reduce((latest, c) => Math.max(latest, new Date(addDays(c.startDate, c.weeks * 7)).getTime()), 0)
+    return new Date(latestEnd).toISOString()
+  }
+
   return (
     <div className="space-y-4">
       <Card padding="none" className="overflow-hidden">
@@ -297,13 +310,25 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                     return (
                       <td key={span.start} colSpan={span.span} className={`border-l border-border p-0 align-top ${color.bg} ${color.text}`}>
                         {canEdit ? (
-                          <button
-                            onClick={() => setEditingStage({ stage: entry.stage, periodId: entry.period.id })}
-                            className="w-full px-2 py-2 text-center hover:brightness-95"
-                          >
-                            <span className="block text-xs font-medium">{entry.stage.name}</span>
+                          <div className="px-2 py-2 text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              <button onClick={() => setEditingStage({ stage: entry.stage, periodId: entry.period.id })} className="truncate text-xs font-medium hover:underline">
+                                {entry.stage.name}
+                              </button>
+                              <CreateMesocycleDialog
+                                stageId={entry.stage.id}
+                                defaultStartDate={suggestedMesocycleStart(entry.stage.id, entry.stage.startDate)}
+                                stageEndDate={entry.stage.endDate}
+                                trigger={(open) => (
+                                  <button onClick={open} className="shrink-0 rounded p-0.5 hover:bg-black/10" title="Добавить мезоцикл в этот этап" aria-label="Добавить мезоцикл">
+                                    <Plus className="h-3 w-3" />
+                                  </button>
+                                )}
+                                onCreated={() => router.refresh()}
+                              />
+                            </div>
                             <span className="mt-0.5 block text-[10px] font-normal opacity-80">{weeksLabel}</span>
-                          </button>
+                          </div>
                         ) : (
                           <span className="block px-2 py-2 text-center">
                             <span className="block text-xs font-medium">{entry.stage.name}</span>
@@ -320,13 +345,25 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                   return (
                     <td key={span.start} colSpan={span.span} className={`border-l border-border p-0 align-top ${color.bg} ${color.text}`}>
                       {canEdit && stage && period ? (
-                        <button
-                          onClick={() => setEditingStage({ stage, periodId: period.id })}
-                          className="w-full px-2 py-2 text-center hover:brightness-95"
-                        >
-                          <span className="block text-xs font-medium">{stage.name}</span>
+                        <div className="px-2 py-2 text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <button onClick={() => setEditingStage({ stage, periodId: period.id })} className="truncate text-xs font-medium hover:underline">
+                              {stage.name}
+                            </button>
+                            <CreateMesocycleDialog
+                              stageId={stage.id}
+                              defaultStartDate={suggestedMesocycleStart(stage.id, stage.startDate)}
+                              stageEndDate={stage.endDate}
+                              trigger={(open) => (
+                                <button onClick={open} className="shrink-0 rounded p-0.5 hover:bg-black/10" title="Добавить ещё мезоцикл в этот этап" aria-label="Добавить мезоцикл">
+                                  <Plus className="h-3 w-3" />
+                                </button>
+                              )}
+                              onCreated={() => router.refresh()}
+                            />
+                          </div>
                           <span className="mt-0.5 block text-[10px] font-normal opacity-80">{weeksLabel}</span>
-                        </button>
+                        </div>
                       ) : (
                         <span className="block px-2 py-2 text-center">
                           <span className="block text-xs font-medium">{stage?.name ?? '—'}</span>
