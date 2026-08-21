@@ -1,22 +1,27 @@
-import { Resend } from 'resend'
+import nodemailer, { type Transporter } from 'nodemailer'
 import { prisma } from './prisma'
 
 export class EmailNotConfiguredError extends Error {}
 
-function getResendClient(): Resend {
-  const apiKey = process.env.RESEND_API_KEY
-  if (!apiKey) {
+// Sends through the coach's own Gmail account over SMTP (an "App Password",
+// not the regular account password — Google requires 2-Step Verification to
+// be on before one can be created) rather than a transactional-email
+// provider. No domain to buy or verify: Gmail already owns and controls
+// gmail.com's DNS, so the From address is just whatever mailbox is
+// authenticated. Trade-off is Gmail's own sending caps (500 recipients/day
+// on a free account) — comfortably enough for one coach inviting athletes
+// and getting change-notification digests, not meant for bulk mail.
+function getMailer(): { transporter: Transporter; from: string } {
+  const user = process.env.GMAIL_USER
+  const pass = process.env.GMAIL_APP_PASSWORD
+  if (!user || !pass) {
     throw new EmailNotConfiguredError(
-      'RESEND_API_KEY не задан в .env — отправка email недоступна, пока ключ не добавлен.'
+      'GMAIL_USER / GMAIL_APP_PASSWORD не заданы в .env — отправка email недоступна, пока не добавлены.'
     )
   }
-  return new Resend(apiKey)
+  const transporter = nodemailer.createTransport({ service: 'gmail', auth: { user, pass } })
+  return { transporter, from: `IronLedger <${user}>` }
 }
-
-// No custom domain verified in Resend yet -> falls back to their shared sandbox
-// sender, which works out of the box but only delivers to the Resend account's
-// own verified test addresses. Set RESEND_FROM_EMAIL once a domain is verified.
-const FROM = process.env.RESEND_FROM_EMAIL || 'IronLedger <onboarding@resend.dev>'
 
 // Where the "accept invite" link inside the email should point. Used to
 // reference NEXTAUTH_URL — a var this app never actually sets (it's not in
@@ -26,8 +31,8 @@ const FROM = process.env.RESEND_FROM_EMAIL || 'IronLedger <onboarding@resend.dev
 // domain at build/runtime with no configuration needed — prefer that, then
 // the current deployment's own URL (useful for testing from a preview
 // deploy), then finally localhost for local dev. NEXT_PUBLIC_APP_URL is an
-// explicit override for when a custom domain is verified in Resend but
-// hasn't been set as the Vercel project's primary domain yet.
+// explicit override for when the app ends up on a custom domain that isn't
+// yet set as the Vercel project's primary domain.
 function appBaseUrl(): string {
   if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL
   if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
@@ -45,11 +50,11 @@ type InviteEmailInput = {
 // Awaited at its one call site (POST /api/athletes/[id]/invite) and allowed to
 // throw — the coach needs to know immediately if the send failed.
 export async function sendInviteEmail({ to, coachName, athleteDisplayName, token }: InviteEmailInput) {
-  const resend = getResendClient()
+  const { transporter, from } = getMailer()
   const acceptUrl = `${appBaseUrl()}/login?invite=${token}`
 
-  await resend.emails.send({
-    from: FROM,
+  await transporter.sendMail({
+    from,
     to,
     subject: `${coachName} приглашает вас в IronLedger`,
     html: `
@@ -105,8 +110,9 @@ const pendingByAthlete = new Map<string, PendingDigest>()
 const DIGEST_IDLE_MS = 5 * 60 * 1000
 const DIGEST_MAX_WAIT_MS = 20 * 60 * 1000
 
-// Fire-and-forget: never throws, so a missing key or Resend outage can never
-// fail the athlete's actual save. Call only when the editor is the ATHLETE.
+// Fire-and-forget: never throws, so missing credentials or a Gmail outage
+// can never fail the athlete's actual save. Call only when the editor is
+// the ATHLETE.
 export function queueChangeNotification(event: ChangeEvent) {
   try {
     const existing = pendingByAthlete.get(event.athleteId)
@@ -146,7 +152,7 @@ async function flushDigest(athleteId: string) {
   if (!pending || pending.events.length === 0) return
 
   try {
-    const resend = getResendClient()
+    const { transporter, from } = getMailer()
     const [{ coachEmail }] = pending.events
 
     const byWorkout = new Map<string, ChangeEvent[]>()
@@ -165,8 +171,8 @@ async function flushDigest(athleteId: string) {
       })
       .join('')
 
-    await resend.emails.send({
-      from: FROM,
+    await transporter.sendMail({
+      from,
       to: coachEmail,
       subject: 'Атлет внёс изменения в тренировку',
       html: sections,
