@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button, useToast } from '@/components/ui'
 
 type Props = {
@@ -13,6 +14,7 @@ type Props = {
 // The API route also enforces this server-side, but hiding it client-side avoids
 // showing athletes a control they aren't allowed to use.
 export function CopyLastTwoWeeksButton({ cycleId, role, onDone }: Props) {
+  const router = useRouter()
   const toast = useToast()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -31,6 +33,10 @@ export function CopyLastTwoWeeksButton({ cycleId, role, onDone }: Props) {
         throw new Error(body.error ?? 'Не удалось скопировать')
       }
       toast({ title: 'Недели скопированы', variant: 'success' })
+      // The new microcycles are written server-side, but this page's server
+      // component render is cached until told otherwise — without this the
+      // new weeks only showed up after a manual reload.
+      router.refresh()
       onDone?.()
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Ошибка'
