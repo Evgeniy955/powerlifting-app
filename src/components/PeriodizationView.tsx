@@ -274,7 +274,7 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                       </div>
                       <div className="mt-0.5 text-[10px] font-normal normal-case opacity-80">
                         {period
-                          ? `${fmt(period.startDate)} – ${fmt(period.endDate)} · ${weeksBetween(period.startDate, period.endDate)} нед.`
+                          ? `${fmtShort(period.startDate)} – ${fmtShort(period.endDate)} · ${weeksBetween(period.startDate, period.endDate)} нед.`
                           : ''}
                       </div>
                     </td>
@@ -306,7 +306,7 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                   }
                   if (entry.kind === 'empty-stage') {
                     const color = stageColor(entry.period.name)
-                    const weeksLabel = `${weeksBetween(entry.stage.startDate, entry.stage.endDate)} нед.`
+                    const weeksLabel = `${fmtShort(entry.stage.startDate)} – ${fmtShort(entry.stage.endDate)} · ${weeksBetween(entry.stage.startDate, entry.stage.endDate)} нед.`
                     return (
                       <td key={span.start} colSpan={span.span} className={`border-l border-border p-0 align-top ${color.bg} ${color.text}`}>
                         {canEdit ? (
@@ -341,7 +341,9 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                   const period = periodOf(entry.week.periodId)
                   const stage = period?.stages.find((s) => s.id === entry.week.stageId)
                   const color = stageColor(period?.name)
-                  const weeksLabel = stage ? `${weeksBetween(stage.startDate, stage.endDate)} нед.` : ''
+                  const weeksLabel = stage
+                    ? `${fmtShort(stage.startDate)} – ${fmtShort(stage.endDate)} · ${weeksBetween(stage.startDate, stage.endDate)} нед.`
+                    : ''
                   return (
                     <td key={span.start} colSpan={span.span} className={`border-l border-border p-0 align-top ${color.bg} ${color.text}`}>
                       {canEdit && stage && period ? (
@@ -838,7 +840,9 @@ function CreateMesocycleDialog({
           </div>
           {stageEndDate && (
             <p className="text-xs text-text-secondary">
-              {maxWeeks > 0 ? `Свободно в этапе: ${maxWeeks} нед. (до ${fmt(stageEndDate)})` : `В этапе не осталось места после ${fmt(startDate)}`}
+              {maxWeeks > 0
+                ? `Свободно в этапе: ${maxWeeks} нед. (до ${fmtShort(stageEndDate)})`
+                : `В этапе не осталось места после ${fmtShort(startDate)}`}
             </p>
           )}
           {error && <p className="text-xs text-danger">{error}</p>}
@@ -1149,7 +1153,7 @@ function PeriodFormDialog({
             />
           </label>
         </div>
-        <p className="text-xs text-text-secondary">Окончание: {addDays(startDate || todayIso(), durationWeeks * 7)}</p>
+        <p className="text-xs text-text-secondary">Окончание: {fmtShort(addDays(startDate || todayIso(), durationWeeks * 7))}</p>
         {error && <p className="text-xs text-danger">{error}</p>}
         <div className="flex justify-end gap-2">
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
@@ -1288,7 +1292,7 @@ function StageFormDialog({
             />
           </label>
         </div>
-        <p className="text-xs text-text-secondary">Окончание: {addDays(startDate || todayIso(), durationWeeks * 7)}</p>
+        <p className="text-xs text-text-secondary">Окончание: {fmtShort(addDays(startDate || todayIso(), durationWeeks * 7))}</p>
         {error && <p className="text-xs text-danger">{error}</p>}
         {stage && confirmingDelete ? (
           <div className="flex items-center justify-between gap-2 rounded border border-danger/40 bg-danger/10 px-2 py-2">
