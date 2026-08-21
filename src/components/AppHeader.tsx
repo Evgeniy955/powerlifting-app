@@ -95,7 +95,15 @@ export async function AppHeader() {
           )}
 
           <ThemeToggle />
-          {user && <SignOutButton />}
+          {/* Desktop only — on mobile this lived inline too, but with the
+              hamburger it left the row too wide, pushing the hamburger
+              itself off the right edge of narrow phones. Sign-out moved
+              into MobileNavMenu's dropdown for mobile instead. */}
+          {user && (
+            <span className="hidden md:inline-block">
+              <SignOutButton />
+            </span>
+          )}
           {/* Rendered last so it's the rightmost item on mobile — its dropdown
               anchors right-0 off this button, and needs to sit at the true
               right edge of the header or the panel hangs off the left side

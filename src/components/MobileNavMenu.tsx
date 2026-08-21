@@ -2,7 +2,9 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Menu, X } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { LogOut, Menu, X } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 
 export type MobileNavLink = {
   href: string
@@ -20,11 +22,22 @@ type Props = {
 // Mobile-only (md:hidden) hamburger revealing what the desktop header already
 // shows inline but the compact mobile bar has no room for: the signed-in
 // user's name and the role-specific nav links (Мои спортсмены/Админка for a
-// coach, Мои планы/Спортпит for an athlete). Theme switcher and sign-out
-// already render on mobile as-is, so they're left out here rather than
-// duplicated.
+// coach, Мои планы/Спортпит for an athlete). Theme switcher stays visible on
+// mobile as-is. Sign-out lives here too (duplicating SignOutButton's tiny
+// handler rather than sharing it) — with it also rendered inline the row got
+// wide enough to push this hamburger itself off the right edge of narrow
+// phones, so it only shows inline on desktop (see AppHeader) and moves in
+// here for mobile.
 export function MobileNavMenu({ userLabel, links }: Props) {
   const [open, setOpen] = useState(false)
+  const router = useRouter()
+
+  async function handleSignOut() {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/login')
+    router.refresh()
+  }
 
   return (
     <div className="relative md:hidden">
@@ -57,6 +70,18 @@ export function MobileNavMenu({ userLabel, links }: Props) {
                 {link.label}
               </Link>
             ))}
+
+            <div className="my-1 border-t border-border" />
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false)
+                handleSignOut()
+              }}
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-text-secondary transition-colors hover:bg-surface-2 hover:text-danger"
+            >
+              <LogOut className="h-4 w-4" /> Выйти
+            </button>
           </div>
         </>
       )}
