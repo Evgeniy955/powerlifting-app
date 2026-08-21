@@ -5,6 +5,7 @@ import { requireUser } from '@/lib/session'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
+import { isMicrocycleVisibleToAthlete } from '@/lib/weekAccess'
 
 // Server component: loads the workout + RPE table once, then hands off to the
 // client-side WorkoutView for the interactive, reactive editing experience.
@@ -26,6 +27,15 @@ export default async function WorkoutPage({ params }: { params: { workoutId: str
   const owns =
     user.role === 'COACH' ? athlete.coachId === user.id : athlete.userId === user.id
   if (!owns) redirect('/')
+
+  // Same current/past-only rule as the cycle page's week list — block direct
+  // URL access to a day inside a week that hasn't unlocked yet for this athlete.
+  if (
+    user.role === 'ATHLETE' &&
+    !isMicrocycleVisibleToAthlete(workout.cycleStartDate, workout.weekNumber)
+  ) {
+    redirect(`/cycles/${workout.cycleId}`)
+  }
 
   return (
     <main className="min-h-[calc(100vh-3.5rem)] bg-bg text-text-primary py-6">

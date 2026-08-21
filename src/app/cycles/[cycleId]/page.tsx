@@ -7,6 +7,7 @@ import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Card, buttonVariants } from '@/components/ui'
 import { BarChart3 } from 'lucide-react'
+import { isMicrocycleVisibleToAthlete } from '@/lib/weekAccess'
 
 // Cycle overview: list of microcycles (weeks) -> workouts (days), plus the
 // coach-only "Копировать последние 2 недели" action. Access is checked against
@@ -30,6 +31,16 @@ export default async function CyclePage({ params }: { params: { cycleId: string 
   const owns =
     user.role === 'COACH' ? cycle.athlete.coachId === user.id : cycle.athlete.userId === user.id
   if (!owns) redirect('/')
+
+  // An athlete only ever sees the current and past weeks of their plan (plus
+  // the coming week once it unlocks) — the coach can program ahead without
+  // it showing up early. Coaches always see every week.
+  const visibleMicrocycles =
+    user.role === 'COACH'
+      ? cycle.microcycles
+      : cycle.microcycles.filter((mc) =>
+          isMicrocycleVisibleToAthlete(cycle.startDate, mc.weekNumber)
+        )
 
   return (
     <main className="min-h-[calc(100vh-3.5rem)] bg-bg text-text-primary p-6 max-w-md mx-auto space-y-4 lg:max-w-4xl">
@@ -57,7 +68,7 @@ export default async function CyclePage({ params }: { params: { cycleId: string 
       </div>
 
       <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">
-        {cycle.microcycles.map((mc) => (
+        {visibleMicrocycles.map((mc) => (
           <Card key={mc.id} padding="sm">
             <div className="mb-2 flex items-center justify-between gap-2">
               <Link

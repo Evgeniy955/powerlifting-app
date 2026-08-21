@@ -56,6 +56,7 @@ export async function getWorkoutForDisplay(workoutId: string) {
     microcycleId: workout.microcycleId,
     athleteId,
     cycleId: workout.microcycle.cycleId,
+    cycleStartDate: workout.microcycle.cycle.startDate,
     prevDay,
     nextDay,
     exerciseEntries: workout.exerciseEntries.map((entry) => ({
@@ -143,6 +144,7 @@ export async function getMicrocycleForDisplay(microcycleId: string) {
     weekNumber: microcycle.weekNumber,
     cycleId: microcycle.cycleId,
     cycleName: microcycle.cycle.name,
+    cycleStartDate: microcycle.cycle.startDate,
     athleteId,
     prevWeek,
     nextWeek,

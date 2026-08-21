@@ -9,6 +9,7 @@ import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, ArrowRight, BarChart3 } from 'lucide-react'
 import { buttonVariants } from '@/components/ui'
+import { isMicrocycleVisibleToAthlete } from '@/lib/weekAccess'
 
 // Whole-week view: every day (Workout) of a microcycle rendered on one page as a
 // dense spreadsheet-style table (WeekDayTable) — one row per exercise, one narrow
@@ -32,6 +33,20 @@ export default async function MicrocyclePage({
   if (!athlete) notFound()
   const owns = user.role === 'COACH' ? athlete.coachId === user.id : athlete.userId === user.id
   if (!owns) redirect('/')
+
+  // Same current/past-only rule as the cycle page's week list — block direct
+  // URL access to a week that hasn't unlocked yet for this athlete.
+  if (
+    user.role === 'ATHLETE' &&
+    !isMicrocycleVisibleToAthlete(microcycle.cycleStartDate, microcycle.weekNumber)
+  ) {
+    redirect(`/cycles/${microcycle.cycleId}`)
+  }
+
+  const nextWeekVisible =
+    user.role === 'COACH' ||
+    (microcycle.nextWeek &&
+      isMicrocycleVisibleToAthlete(microcycle.cycleStartDate, microcycle.nextWeek.weekNumber))
 
   // Week-total summary, computed once from the initial data (matches the
   // "Микроцикл N" summary row in the source spreadsheet). Doesn't live-update as
@@ -90,7 +105,7 @@ export default async function MicrocyclePage({
               Микроцикл {microcycle.weekNumber}
             </h1>
 
-            {microcycle.nextWeek ? (
+            {microcycle.nextWeek && nextWeekVisible ? (
               <Link
                 href={`/microcycle/${microcycle.nextWeek.id}`}
                 aria-label={`Микроцикл ${microcycle.nextWeek.weekNumber}`}
