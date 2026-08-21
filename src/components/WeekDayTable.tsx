@@ -32,9 +32,12 @@ type Props = {
   workout: WeekWorkoutData
   rpeTable: RpePoint[]
   athleteId: string
-  // 1RM is athlete-wide (not per-day), and the API that upserts it is coach-only —
-  // athletes viewing their own week see the value read-only, same as before.
-  canEditOneRepMax: boolean
+  // 1RM is athlete-wide (not per-day). A coach can edit any exercise's ПМ; an
+  // athlete may only edit their own ОФП (GPP) exercises — Базовые/СФП figures
+  // anchor %1RM-based programming and stay coach-only, read-only for the
+  // athlete. Matches the same split enforced server-side in
+  // POST /api/athletes/:athleteId/one-rep-max.
+  role: 'COACH' | 'ATHLETE'
   // Coach-only: lets the "Добавить упражнение..." / edit-exercise autocompletes
   // create a brand-new ExerciseCatalog row when the search comes up empty.
   canCreateExercise: boolean
@@ -53,7 +56,7 @@ export function WeekDayTable({
   workout,
   rpeTable,
   athleteId,
-  canEditOneRepMax,
+  role,
   canCreateExercise,
 }: Props) {
   const [entries, setEntries] = useState<ExerciseEntryData[]>(workout.exerciseEntries)
@@ -283,6 +286,7 @@ export function WeekDayTable({
           <tbody>
             {entries.map((entry, index) => {
               const m = perEntryMetrics.get(entry.id)!
+              const canEditOneRepMax = role === 'COACH' || entry.exercise.trainingGroup === 'GPP'
               return (
                 <tr
                   key={entry.id}

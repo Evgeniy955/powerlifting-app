@@ -145,7 +145,7 @@ export default async function MicrocyclePage({
               workout={workout}
               rpeTable={rpeTable}
               athleteId={microcycle.athleteId}
-              canEditOneRepMax={user.role === 'COACH'}
+              role={user.role}
               canCreateExercise={user.role === 'COACH'}
             />
           ))}
