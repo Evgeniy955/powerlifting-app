@@ -645,12 +645,14 @@ function AddToPeriodDialog({
   onClose: () => void
   onDone: () => void
 }) {
-  const router = useRouter()
   const [stageId, setStageId] = useState('')
   const [presetName, setPresetName] = useState<string | undefined>(undefined)
   const [stageDialogOpen, setStageDialogOpen] = useState(false)
-  const [stages, setStages] = useState(period.stages)
-  const selectedStage = stages.find((s) => s.id === stageId)
+  // No longer tracked as local state that grows as stages get created in
+  // this same session — creating a new Этап now closes the whole wizard
+  // (see the StageFormDialog onSaved below), so this always just reads the
+  // period's own current stage list.
+  const selectedStage = period.stages.find((s) => s.id === stageId)
 
   // Default the new mesocycle's start date to right after whichever
   // existing mesocycle in this stage ends latest, rather than always the
@@ -676,7 +678,7 @@ function AddToPeriodDialog({
   // created for this period — picking one that doesn't exist yet here opens
   // the creation dialog with that name pre-filled instead of requiring a
   // separate "+ Добавить этап" round trip first.
-  const missingPresets = STAGE_PRESETS.filter((name) => !stages.some((s) => s.name === name))
+  const missingPresets = STAGE_PRESETS.filter((name) => !period.stages.some((s) => s.name === name))
 
   function handleSelect(value: string) {
     if (value === NEW_STAGE) {
@@ -698,7 +700,7 @@ function AddToPeriodDialog({
             Этап
             <Select value={stageId} onChange={(e) => handleSelect(e.target.value)} className="mt-1 w-full">
               <option value="">Выберите этап...</option>
-              {stages.map((s) => (
+              {period.stages.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
                 </option>
@@ -744,14 +746,21 @@ function AddToPeriodDialog({
             setPresetName(undefined)
           }
         }}
-        period={{ ...period, stages }}
+        period={period}
         initialName={presetName}
-        onSaved={(stage) => {
-          setStages((prev) => [...prev, stage])
-          setStageId(stage.id)
-          setPresetName(undefined)
+        // Used to stay open afterwards on an "Этап created, now pick it and
+        // create a Мезоцикл" step — the Select still showing "Этап" with
+        // "+ Добавить этап" as one of its options, right after the coach
+        // had just used that very option, read as the popup asking them to
+        // add another stage. Every stage (including one with zero
+        // mesocycles yet) now gets its own "+" in the table itself (see
+        // addStageButton/CreateMesocycleDialog on the Этап row), so this
+        // wizard no longer needs to be the only path into mesocycle
+        // creation — close it outright and let the coach use that "+" on
+        // the stage they just made, whenever they're ready for it.
+        onSaved={() => {
           setStageDialogOpen(false)
-          router.refresh()
+          onDone()
         }}
       />
     </>
