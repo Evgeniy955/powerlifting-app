@@ -422,7 +422,11 @@ export function WeekDayTable({
                               weight input instead of overlapping it, and gives a
                               properly sized tap target on mobile. Kept at full opacity
                               even when completed (the rest of the row dims below) so
-                              the done state stays the brightest thing in the row. */}
+                              the done state stays the brightest thing in the row.
+                              pointer-events-auto exempts it from the week-level lock
+                              (see the pointer-events-none wrapper below) — during an
+                              actual session you still need to check sets off without
+                              unlocking the whole day/week first. */}
                           <button
                             type="button"
                             onClick={() =>
@@ -430,7 +434,7 @@ export function WeekDayTable({
                             }
                             aria-pressed={set.completed}
                             aria-label={`Подход ${i + 1}${set.completed ? ' выполнен, нажмите чтобы снять отметку' : ', нажмите чтобы отметить выполненным'}`}
-                            className={`flex h-5 w-16 items-center justify-center rounded border text-[10px] font-medium transition-colors ${
+                            className={`pointer-events-auto flex h-5 w-16 items-center justify-center rounded border text-[10px] font-medium transition-colors ${
                               set.completed
                                 ? 'border-accent bg-accent text-on-accent shadow-[0_0_8px_-1px_var(--color-accent)]'
                                 : 'border-border bg-surface-2 text-text-secondary hover:border-accent hover:text-accent'
