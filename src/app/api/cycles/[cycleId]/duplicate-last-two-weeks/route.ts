@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireCoach, statusForAuthError } from '@/lib/session'
@@ -43,52 +44,90 @@ export async function POST(_req: NextRequest, { params }: { params: { cycleId: s
 
     const created: { id: string; weekNumber: number }[] = []
 
+    // Build every row to insert in memory first (ids generated up front, since
+    // children need their parent's id before the parent row actually exists in
+    // the DB), then insert with one createMany per table inside a single
+    // transaction — instead of one sequential await per microcycle/workout/
+    // exercise entry, which was O(workouts × exercises) round-trips and made
+    // this very slow for cycles with a few weeks of real training data.
+    const microcyclesData: { id: string; cycleId: string; weekNumber: number }[] = []
+    const workoutsData: {
+      id: string
+      microcycleId: string
+      scheduledDate: Date
+      dayNumber: number
+    }[] = []
+    const exerciseEntriesData: {
+      id: string
+      workoutId: string
+      exerciseId: string
+      orderIndex: number
+      multiplier: number
+      skipped: boolean
+    }[] = []
+    const setsData: {
+      exerciseEntryId: string
+      setNumber: number
+      weight: number
+      reps: number
+      rpe: number | null
+      completed: boolean
+    }[] = []
+
     for (const source of sourceWeeks) {
-      const newMicrocycle = await prisma.microcycle.create({
-        data: { cycleId: cycle.id, weekNumber: nextWeekNumber },
-      })
+      const newMicrocycleId = randomUUID()
+      microcyclesData.push({ id: newMicrocycleId, cycleId: cycle.id, weekNumber: nextWeekNumber })
 
       for (const workout of source.workouts) {
-        const newWorkout = await prisma.workout.create({
-          data: {
-            microcycleId: newMicrocycle.id,
-            // shift the scheduled date forward by however many weeks separate
-            // the source week from its new slot
-            scheduledDate: new Date(
-              workout.scheduledDate.getTime() +
-                (nextWeekNumber - source.weekNumber) * 7 * 24 * 60 * 60 * 1000
-            ),
-            dayNumber: workout.dayNumber,
-          },
+        const newWorkoutId = randomUUID()
+        workoutsData.push({
+          id: newWorkoutId,
+          microcycleId: newMicrocycleId,
+          // shift the scheduled date forward by however many weeks separate
+          // the source week from its new slot
+          scheduledDate: new Date(
+            workout.scheduledDate.getTime() +
+              (nextWeekNumber - source.weekNumber) * 7 * 24 * 60 * 60 * 1000
+          ),
+          dayNumber: workout.dayNumber,
         })
 
         for (const entry of workout.exerciseEntries) {
-          const newEntry = await prisma.exerciseEntry.create({
-            data: {
-              workoutId: newWorkout.id,
-              exerciseId: entry.exerciseId,
-              orderIndex: entry.orderIndex,
-              multiplier: entry.multiplier,
-            },
+          const newEntryId = randomUUID()
+          exerciseEntriesData.push({
+            id: newEntryId,
+            workoutId: newWorkoutId,
+            exerciseId: entry.exerciseId,
+            orderIndex: entry.orderIndex,
+            multiplier: entry.multiplier,
+            skipped: false,
           })
 
-          if (entry.sets.length) {
-            await prisma.setEntry.createMany({
-              data: entry.sets.map((s) => ({
-                exerciseEntryId: newEntry.id,
-                setNumber: s.setNumber,
-                weight: s.weight,
-                reps: s.reps,
-                rpe: s.rpe,
-              })),
+          for (const s of entry.sets) {
+            setsData.push({
+              exerciseEntryId: newEntryId,
+              setNumber: s.setNumber,
+              weight: s.weight,
+              reps: s.reps,
+              rpe: s.rpe,
+              completed: false,
             })
           }
         }
       }
 
-      created.push({ id: newMicrocycle.id, weekNumber: nextWeekNumber })
+      created.push({ id: newMicrocycleId, weekNumber: nextWeekNumber })
       nextWeekNumber += 1
     }
+
+    await prisma.$transaction([
+      prisma.microcycle.createMany({ data: microcyclesData }),
+      prisma.workout.createMany({ data: workoutsData }),
+      ...(exerciseEntriesData.length
+        ? [prisma.exerciseEntry.createMany({ data: exerciseEntriesData })]
+        : []),
+      ...(setsData.length ? [prisma.setEntry.createMany({ data: setsData })] : []),
+    ])
 
     return NextResponse.json({ createdMicrocycles: created }, { status: 201 })
   } catch (e) {
