@@ -1,10 +1,15 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
+import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { ExerciseCard, type ExerciseEntryData } from './ExerciseCard'
 import { ExerciseAutocomplete, type ExerciseOption } from './ExerciseAutocomplete'
+import { LockToggle } from './LockToggle'
 import { Card } from '@/components/ui'
 import type { RpePoint } from '@/lib/rpe'
+
+type AdjacentDay = { id: string; dayNumber: number }
 
 type Props = {
   workoutId: string
@@ -13,17 +18,36 @@ type Props = {
   // Coach-only: lets the add-exercise / edit-exercise autocompletes create a
   // brand-new ExerciseCatalog row when the search comes up empty.
   canCreateExercise?: boolean
+  // Day-header data, lifted in from the server page: the header lives here
+  // (rather than in the Server Component) so it can share `locked` state
+  // with the editable content below it — a Server Component can't pass a
+  // callback prop across to a Client Component, so the two couldn't
+  // otherwise coordinate one shared lock toggle.
+  weekNumber: number
+  dayNumber: number
+  scheduledDate: string
+  prevDay: AdjacentDay | null
+  nextDay: AdjacentDay | null
 }
 
-// Orchestrates the exercise cards for a single training day and lets the user
-// (coach or athlete) add another exercise on the fly via the autocomplete.
+// Orchestrates the day header (title + prev/next + lock toggle) and the
+// exercise cards for a single training day, and lets the user (coach or
+// athlete) add another exercise on the fly via the autocomplete.
 export function WorkoutView({
   workoutId,
   initialEntries,
   rpeTable,
   canCreateExercise = false,
+  weekNumber,
+  dayNumber,
+  scheduledDate,
+  prevDay,
+  nextDay,
 }: Props) {
   const [entries, setEntries] = useState<ExerciseEntryData[]>(initialEntries)
+  // Defaults locked so a stray tap doesn't remove a set or delete an
+  // exercise — has to be explicitly unlocked via the padlock first.
+  const [locked, setLocked] = useState(true)
 
   async function handleAddExercise(exercise: ExerciseOption) {
     const res = await fetch('/api/exercise-entries', {
@@ -61,24 +85,64 @@ export function WorkoutView({
     // Desktop (lg+): wider canvas, exercises laid out as a 2/3-column grid so
     // a coach reviewing a session sees several exercises at once instead of
     // scrolling through one long column.
-    <div className="max-w-md mx-auto p-4 space-y-4 lg:max-w-6xl lg:space-y-0">
-      <div className="space-y-4 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0 xl:grid-cols-3">
-        {entries.map((entry, index) => (
-          <ExerciseCard
-            key={entry.id}
-            entry={entry}
-            rpeTable={rpeTable}
-            position={index + 1}
-            onRemove={handleRemoveExercise}
-            canCreateExercise={canCreateExercise}
-          />
-        ))}
+    <div className="max-w-md mx-auto p-4 lg:max-w-6xl">
+      <div className="mb-4 flex items-center justify-center gap-3">
+        {prevDay ? (
+          <Link
+            href={`/workout/${prevDay.id}`}
+            aria-label={`День ${prevDay.dayNumber}`}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-2 hover:text-accent"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+        ) : (
+          <span className="h-8 w-8 shrink-0" />
+        )}
+
+        <div className="flex items-center gap-2">
+          <div className="text-center">
+            <h1 className="font-display text-xl uppercase tracking-wide">
+              Микроцикл {weekNumber} · День {dayNumber}
+            </h1>
+            <p className="text-sm text-text-secondary">{scheduledDate}</p>
+          </div>
+          <LockToggle locked={locked} onToggle={() => setLocked((l) => !l)} />
+        </div>
+
+        {nextDay ? (
+          <Link
+            href={`/workout/${nextDay.id}`}
+            aria-label={`День ${nextDay.dayNumber}`}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-2 hover:text-accent"
+          >
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        ) : (
+          <span className="h-8 w-8 shrink-0" />
+        )}
       </div>
 
-      <Card className="lg:mt-4">
-        <p className="text-sm text-text-secondary mb-2">Добавить упражнение</p>
-        <ExerciseAutocomplete onSelect={handleAddExercise} canCreate={canCreateExercise} clearOnSelect />
-      </Card>
+      <div
+        className={`space-y-4 lg:space-y-0 ${locked ? 'pointer-events-none select-none opacity-70' : ''}`}
+      >
+        <div className="space-y-4 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0 xl:grid-cols-3">
+          {entries.map((entry, index) => (
+            <ExerciseCard
+              key={entry.id}
+              entry={entry}
+              rpeTable={rpeTable}
+              position={index + 1}
+              onRemove={handleRemoveExercise}
+              canCreateExercise={canCreateExercise}
+            />
+          ))}
+        </div>
+
+        <Card className="lg:mt-4">
+          <p className="text-sm text-text-secondary mb-2">Добавить упражнение</p>
+          <ExerciseAutocomplete onSelect={handleAddExercise} canCreate={canCreateExercise} clearOnSelect />
+        </Card>
+      </div>
     </div>
   )
 }

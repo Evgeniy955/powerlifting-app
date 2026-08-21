@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Ban, Check, ChevronRight, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { ExerciseAutocomplete, type ExerciseOption } from './ExerciseAutocomplete'
+import { LockToggle } from './LockToggle'
 import type { ExerciseEntryData } from './ExerciseCard'
 import { computeExerciseMetrics, aggregateMetrics } from '@/lib/metrics'
 import type { RpePoint } from '@/lib/rpe'
@@ -61,6 +62,11 @@ export function WeekDayTable({
 }: Props) {
   const [entries, setEntries] = useState<ExerciseEntryData[]>(workout.exerciseEntries)
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+
+  // Defaults locked so a stray tap doesn't remove a set or delete an
+  // exercise straight from the week view — has to be explicitly unlocked
+  // via the padlock in the day header first.
+  const [locked, setLocked] = useState(true)
 
   // Inline "which exercise + Множ" editor — only one row at a time, so a single
   // id/draft pair is enough rather than per-row state.
@@ -250,19 +256,27 @@ export function WeekDayTable({
     // has no bg of its own to clip.
     <div className="animate-slide-up rounded-xl border border-border bg-surface">
       <div className="overflow-hidden rounded-t-xl">
-        <Link
-          href={`/workout/${workout.id}`}
-          className="flex items-center justify-between gap-2 border-b border-border bg-accent px-3 py-1.5 text-on-accent transition-opacity hover:opacity-90"
-          title="Открыть день"
-        >
-          <span className="flex items-baseline gap-2">
-            <span className="font-display text-base uppercase tracking-wide">{weekday}</span>
-            <span className="text-sm opacity-90">{dateLabel}</span>
-          </span>
-          <ChevronRight className="h-4 w-4 shrink-0 opacity-75" />
-        </Link>
+        <div className="flex items-center border-b border-border bg-accent text-on-accent">
+          <Link
+            href={`/workout/${workout.id}`}
+            className="flex flex-1 items-center justify-between gap-2 px-3 py-1.5 transition-opacity hover:opacity-90"
+            title="Открыть день"
+          >
+            <span className="flex items-baseline gap-2">
+              <span className="font-display text-base uppercase tracking-wide">{weekday}</span>
+              <span className="text-sm opacity-90">{dateLabel}</span>
+            </span>
+            <ChevronRight className="h-4 w-4 shrink-0 opacity-75" />
+          </Link>
+          <LockToggle
+            locked={locked}
+            onToggle={() => setLocked((l) => !l)}
+            variant="on-accent"
+            className="mr-1.5"
+          />
+        </div>
 
-        <div className="overflow-x-auto">
+        <div className={`overflow-x-auto ${locked ? 'pointer-events-none select-none opacity-70' : ''}`}>
         <table className="w-full min-w-max border-collapse text-sm">
           <thead>
             <tr className="border-b border-border bg-surface-2 text-text-secondary">
@@ -526,7 +540,9 @@ export function WeekDayTable({
         </div>
       </div>
 
-      <div className="border-t border-border p-2">
+      <div
+        className={`border-t border-border p-2 ${locked ? 'pointer-events-none select-none opacity-70' : ''}`}
+      >
         <ExerciseAutocomplete
           onSelect={handleAddExercise}
           placeholder="Добавить упражнение..."
