@@ -241,16 +241,16 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-b border-border">
-                <th className="sticky top-0 z-10 min-w-[150px] border-r border-border bg-surface-2 px-2 py-2 text-left text-[11px] font-normal text-text-secondary">
+                <th className="sticky top-0 z-10 min-w-[150px] border-r border-border bg-surface-2 px-2 py-2 text-left text-[13px] font-normal text-text-secondary">
                   Период
                 </th>
-                <th className="sticky top-0 z-10 min-w-[150px] border-r border-border bg-surface-2 px-2 py-2 text-left text-[11px] font-normal text-text-secondary">
+                <th className="sticky top-0 z-10 min-w-[150px] border-r border-border bg-surface-2 px-2 py-2 text-left text-[13px] font-normal text-text-secondary">
                   Этап
                 </th>
-                <th className="sticky top-0 z-10 min-w-[150px] border-r border-border bg-surface-2 px-2 py-2 text-left text-[11px] font-normal text-text-secondary">
+                <th className="sticky top-0 z-10 min-w-[150px] border-r border-border bg-surface-2 px-2 py-2 text-left text-[13px] font-normal text-text-secondary">
                   Мезоцикл
                 </th>
-                <th className="sticky top-0 z-10 min-w-[150px] border-border bg-surface-2 px-2 py-2 text-left text-[11px] font-normal text-text-secondary">
+                <th className="sticky top-0 z-10 min-w-[150px] border-border bg-surface-2 px-2 py-2 text-left text-[13px] font-normal text-text-secondary">
                   Микроцикл
                 </th>
               </tr>
@@ -271,7 +271,7 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                     <td
                       key="period"
                       rowSpan={span.span}
-                      className={`border-r border-border px-2 py-2 align-top text-xs font-semibold uppercase tracking-wide ${color.bg} ${color.text}`}
+                      className={`border-r border-border px-2 py-2 align-top text-sm font-semibold uppercase tracking-wide ${color.bg} ${color.text}`}
                     >
                       <div className="flex items-center gap-1">
                         <span className="truncate">{period?.name ?? '—'}</span>
@@ -303,7 +303,7 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                           </>
                         )}
                       </div>
-                      <div className="mt-0.5 text-[10px] font-normal normal-case opacity-80">
+                      <div className="mt-0.5 text-[12px] font-normal normal-case opacity-80">
                         {period
                           ? `${fmtShort(period.startDate)} – ${fmtShort(period.endDate)} · ${weeksBetween(period.startDate, period.endDate)} нед.`
                           : ''}
@@ -319,7 +319,7 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                   const span = stageSpans[stageSpanIdx]
                   if (entry.kind === 'empty-period') {
                     stageCell = (
-                      <td key="stage" rowSpan={span.span} className="border-r border-border px-2 py-2 align-top text-xs text-text-secondary">
+                      <td key="stage" rowSpan={span.span} className="border-r border-border px-2 py-2 align-top text-sm text-text-secondary">
                         —
                       </td>
                     )
@@ -371,7 +371,7 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                           {canEdit ? (
                             <div className="px-2 py-2">
                               <div className="flex items-center gap-1">
-                                <button onClick={() => setEditingStage({ stage: entry.stage, periodId: entry.period.id })} className="truncate text-xs font-medium hover:underline">
+                                <button onClick={() => setEditingStage({ stage: entry.stage, periodId: entry.period.id })} className="truncate text-sm font-medium hover:underline">
                                   {entry.stage.name}
                                 </button>
                                 <CreateMesocycleDialog
@@ -387,12 +387,12 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                                 />
                                 {addStageButton}
                               </div>
-                              <span className="mt-0.5 block text-[10px] font-normal opacity-80">{weeksLabel}</span>
+                              <span className="mt-0.5 block text-[12px] font-normal opacity-80">{weeksLabel}</span>
                             </div>
                           ) : (
                             <span className="block px-2 py-2">
-                              <span className="block text-xs font-medium">{entry.stage.name}</span>
-                              <span className="mt-0.5 block text-[10px] font-normal opacity-80">{weeksLabel}</span>
+                              <span className="block text-sm font-medium">{entry.stage.name}</span>
+                              <span className="mt-0.5 block text-[12px] font-normal opacity-80">{weeksLabel}</span>
                             </span>
                           )}
                         </td>
@@ -408,7 +408,7 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                           {canEdit && stage && period ? (
                             <div className="px-2 py-2">
                               <div className="flex items-center gap-1">
-                                <button onClick={() => setEditingStage({ stage, periodId: period.id })} className="truncate text-xs font-medium hover:underline">
+                                <button onClick={() => setEditingStage({ stage, periodId: period.id })} className="truncate text-sm font-medium hover:underline">
                                   {stage.name}
                                 </button>
                                 <CreateMesocycleDialog
@@ -424,12 +424,12 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                                 />
                                 {addStageButton}
                               </div>
-                              <span className="mt-0.5 block text-[10px] font-normal opacity-80">{weeksLabel}</span>
+                              <span className="mt-0.5 block text-[12px] font-normal opacity-80">{weeksLabel}</span>
                             </div>
                           ) : (
                             <span className="block px-2 py-2">
-                              <span className="block text-xs font-medium">{stage?.name ?? '—'}</span>
-                              {stage && <span className="mt-0.5 block text-[10px] font-normal opacity-80">{weeksLabel}</span>}
+                              <span className="block text-sm font-medium">{stage?.name ?? '—'}</span>
+                              {stage && <span className="mt-0.5 block text-[12px] font-normal opacity-80">{weeksLabel}</span>}
                             </span>
                           )}
                         </td>
@@ -460,7 +460,7 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                             trigger={(open) => (
                               <button
                                 onClick={open}
-                                className="flex w-full items-center gap-1.5 px-2 py-2 text-xs text-text-secondary hover:bg-surface-2 hover:text-text-primary"
+                                className="flex w-full items-center gap-1.5 px-2 py-2 text-sm text-text-secondary hover:bg-surface-2 hover:text-text-primary"
                                 title="Создать мезоцикл в этом этапе"
                               >
                                 <Plus className="h-3.5 w-3.5" /> Добавить мезоцикл
@@ -469,13 +469,13 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                             onCreated={() => router.refresh()}
                           />
                         ) : (
-                          <span className="block px-2 py-2 text-xs text-text-secondary">—</span>
+                          <span className="block px-2 py-2 text-sm text-text-secondary">—</span>
                         )}
                       </td>
                     )
                   } else if (entry.kind !== 'week') {
                     mesocycleCell = (
-                      <td key="meso" rowSpan={span.span} className="border-r border-border px-2 py-2 text-xs text-text-secondary">
+                      <td key="meso" rowSpan={span.span} className="border-r border-border px-2 py-2 text-sm text-text-secondary">
                         —
                       </td>
                     )
@@ -487,7 +487,7 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                           onClick={() => canEdit && mesocycle && setEditingMesocycle(mesocycle)}
                           className="flex w-full items-center px-2 py-2 hover:bg-surface-2"
                         >
-                          <span className="text-xs font-medium">{entry.week.mesocycleName}</span>
+                          <span className="text-sm font-medium">{entry.week.mesocycleName}</span>
                         </button>
                       </td>
                     )
@@ -497,7 +497,7 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                 // ---- Микроцикл cell (one per row, not spanned) ----
                 const microcycleCell =
                   entry.kind !== 'week' ? (
-                    <td key="micro" className="p-1 text-center text-[11px] text-text-secondary">
+                    <td key="micro" className="p-1 text-center text-[13px] text-text-secondary">
                       —
                     </td>
                   ) : canEdit ? (
@@ -506,15 +506,15 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                         onClick={() => setEditingWeek(entry.week)}
                         className="flex w-full items-center justify-between gap-2 px-2 py-2 hover:bg-surface-2"
                       >
-                        <span className="text-[11px] text-text-secondary">{fmtShort(entry.week.weekStart)}</span>
-                        <span className="text-[11px]">{entry.week.microcycleType ?? '—'}</span>
+                        <span className="text-[13px] text-text-secondary">{fmtShort(entry.week.weekStart)}</span>
+                        <span className="text-[13px]">{entry.week.microcycleType ?? '—'}</span>
                       </button>
                     </td>
                   ) : (
                     <td key="micro" className="p-0 align-top">
                       <span className="flex items-center justify-between gap-2 px-2 py-2">
-                        <span className="text-[11px] text-text-secondary">{fmtShort(entry.week.weekStart)}</span>
-                        <span className="text-[11px]">{entry.week.microcycleType ?? '—'}</span>
+                        <span className="text-[13px] text-text-secondary">{fmtShort(entry.week.weekStart)}</span>
+                        <span className="text-[13px]">{entry.week.microcycleType ?? '—'}</span>
                       </span>
                     </td>
                   )
@@ -533,7 +533,7 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                   <td colSpan={4} className="p-2 text-center">
                     <button
                       onClick={() => setPeriodDialogOpen(true)}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-border px-3 py-1.5 text-xs text-text-secondary transition-colors hover:border-accent hover:text-accent"
+                      className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-border px-3 py-1.5 text-sm text-text-secondary transition-colors hover:border-accent hover:text-accent"
                       title="Добавить период"
                     >
                       <Plus className="h-4 w-4" /> Добавить период
@@ -718,7 +718,7 @@ function AddToPeriodDialog({
     <>
       <Dialog open onOpenChange={(open) => !open && onClose()} title={`Добавить в «${period.name}»`}>
         <div className="space-y-3">
-          <label className="block text-xs text-text-secondary">
+          <label className="block text-sm text-text-secondary">
             Этап
             <Select value={stageId} onChange={(e) => handleSelect(e.target.value)} className="mt-1 w-full">
               <option value="">Выберите этап...</option>
@@ -737,7 +737,7 @@ function AddToPeriodDialog({
           </label>
 
           {stageId === NEW_STAGE && (
-            <p className="text-xs text-text-secondary">Укажи даты этапа во всплывшем окне, он появится в списке выше.</p>
+            <p className="text-sm text-text-secondary">Укажи даты этапа во всплывшем окне, он появится в списке выше.</p>
           )}
 
           <div className="flex justify-end gap-2">
@@ -916,7 +916,7 @@ function CreateMesocycleDialog({
       {trigger(openDialog)}
       <Dialog open={open} onOpenChange={setOpen} title="Новый мезоцикл">
         <div className="space-y-3">
-          <label className="block text-xs text-text-secondary">
+          <label className="block text-sm text-text-secondary">
             Название
             <Select value={name} onChange={(e) => setName(e.target.value)} className="mt-1 w-full">
               {MESOCYCLE_PRESETS.map((p) => (
@@ -927,11 +927,11 @@ function CreateMesocycleDialog({
             </Select>
           </label>
           <div className="flex gap-2">
-            <label className="block flex-1 text-xs text-text-secondary">
+            <label className="block flex-1 text-sm text-text-secondary">
               Начало
               <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="mt-1 w-full" />
             </label>
-            <label className="block flex-1 text-xs text-text-secondary">
+            <label className="block flex-1 text-sm text-text-secondary">
               Длительность (недель)
               <Input
                 type="number"
@@ -944,13 +944,13 @@ function CreateMesocycleDialog({
             </label>
           </div>
           {stageEndDate && (
-            <p className="text-xs text-text-secondary">
+            <p className="text-sm text-text-secondary">
               {maxWeeks > 0
                 ? `Свободно в этапе: ${maxWeeks} нед. (до ${fmtShort(stageEndDate)})`
                 : `В этапе не осталось места после ${fmtShort(startDate)}`}
             </p>
           )}
-          {error && <p className="text-xs text-danger">{error}</p>}
+          {error && <p className="text-sm text-danger">{error}</p>}
           <div className="flex justify-end gap-2">
             <Button variant="outline" size="sm" onClick={() => setOpen(false)}>
               Отмена
@@ -1044,7 +1044,7 @@ function MesocycleEditorDialog({
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()} title={mesocycle.name}>
       <div className="space-y-3">
-        <label className="block text-xs text-text-secondary">
+        <label className="block text-sm text-text-secondary">
           Название
           <Select value={name} onChange={(e) => setName(e.target.value)} className="mt-1 w-full">
             {MESOCYCLE_PRESETS.map((p) => (
@@ -1055,7 +1055,7 @@ function MesocycleEditorDialog({
           </Select>
         </label>
 
-        <label className="block text-xs text-text-secondary">
+        <label className="block text-sm text-text-secondary">
           Период
           <Select
             value={periodId}
@@ -1073,7 +1073,7 @@ function MesocycleEditorDialog({
           </Select>
         </label>
 
-        <label className="block text-xs text-text-secondary">
+        <label className="block text-sm text-text-secondary">
           Этап
           <Select value={stageId} onChange={(e) => setStageId(e.target.value)} className="mt-1 w-full">
             <option value="">не выбран</option>
@@ -1086,11 +1086,11 @@ function MesocycleEditorDialog({
         </label>
 
         <div className="flex gap-2">
-          <label className="block flex-1 text-xs text-text-secondary">
+          <label className="block flex-1 text-sm text-text-secondary">
             Начало
             <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="mt-1 w-full" />
           </label>
-          <label className="block flex-1 text-xs text-text-secondary">
+          <label className="block flex-1 text-sm text-text-secondary">
             Длительность (недель)
             <Input
               type="number"
@@ -1102,12 +1102,12 @@ function MesocycleEditorDialog({
             />
           </label>
         </div>
-        <p className="text-xs text-text-secondary">Окончание: {fmtShort(addDays(startDate || todayIso(), durationWeeks * 7))}</p>
-        {error && <p className="text-xs text-danger">{error}</p>}
+        <p className="text-sm text-text-secondary">Окончание: {fmtShort(addDays(startDate || todayIso(), durationWeeks * 7))}</p>
+        {error && <p className="text-sm text-danger">{error}</p>}
 
         {confirmingDelete ? (
           <div className="flex items-center justify-between gap-2 rounded border border-danger/40 bg-danger/10 px-2 py-2">
-            <span className="text-xs">Удалить мезоцикл и все его недели?</span>
+            <span className="text-sm">Удалить мезоцикл и все его недели?</span>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={() => setConfirmingDelete(false)}>
                 Отмена
@@ -1173,7 +1173,7 @@ function MicrocycleEditorDialog({
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()} title={`Микроцикл — ${fmtShort(week.weekStart)}`}>
       <div className="space-y-3">
-        <label className="block text-xs text-text-secondary">
+        <label className="block text-sm text-text-secondary">
           Тип микроцикла
           <Select value={microcycleType} onChange={(e) => setMicrocycleType(e.target.value)} className="mt-1 w-full">
             <option value="">не указан</option>
@@ -1270,7 +1270,7 @@ function PeriodFormDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange} title={period ? 'Редактировать период' : 'Новый период'}>
       <div className="space-y-3">
-        <label className="block text-xs text-text-secondary">
+        <label className="block text-sm text-text-secondary">
           Название
           <Select value={name} onChange={(e) => setName(e.target.value)} className="mt-1 w-full">
             {PERIOD_PRESETS.map((p) => (
@@ -1281,11 +1281,11 @@ function PeriodFormDialog({
           </Select>
         </label>
         <div className="flex gap-2">
-          <label className="block flex-1 text-xs text-text-secondary">
+          <label className="block flex-1 text-sm text-text-secondary">
             Начало
             <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="mt-1 w-full" />
           </label>
-          <label className="block flex-1 text-xs text-text-secondary">
+          <label className="block flex-1 text-sm text-text-secondary">
             Длительность (недель)
             <Input
               type="number"
@@ -1296,8 +1296,8 @@ function PeriodFormDialog({
             />
           </label>
         </div>
-        <p className="text-xs text-text-secondary">Окончание: {fmtShort(addDays(startDate || todayIso(), durationWeeks * 7))}</p>
-        {error && <p className="text-xs text-danger">{error}</p>}
+        <p className="text-sm text-text-secondary">Окончание: {fmtShort(addDays(startDate || todayIso(), durationWeeks * 7))}</p>
+        {error && <p className="text-sm text-danger">{error}</p>}
         <div className="flex justify-end gap-2">
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
             Отмена
@@ -1431,7 +1431,7 @@ function StageFormDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange} title={stage ? 'Редактировать этап' : 'Новый этап'}>
       <div className="space-y-3">
-        <label className="block text-xs text-text-secondary">
+        <label className="block text-sm text-text-secondary">
           Название
           <Select value={name} onChange={(e) => setName(e.target.value)} className="mt-1 w-full">
             {STAGE_PRESETS.map((p) => (
@@ -1442,11 +1442,11 @@ function StageFormDialog({
           </Select>
         </label>
         <div className="flex gap-2">
-          <label className="block flex-1 text-xs text-text-secondary">
+          <label className="block flex-1 text-sm text-text-secondary">
             Начало
             <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="mt-1 w-full" />
           </label>
-          <label className="block flex-1 text-xs text-text-secondary">
+          <label className="block flex-1 text-sm text-text-secondary">
             Длительность (недель)
             <Input
               type="number"
@@ -1458,14 +1458,14 @@ function StageFormDialog({
             />
           </label>
         </div>
-        <p className="text-xs text-text-secondary">Окончание: {fmtShort(addDays(startDate || todayIso(), durationWeeks * 7))}</p>
-        <p className="text-xs text-text-secondary">
+        <p className="text-sm text-text-secondary">Окончание: {fmtShort(addDays(startDate || todayIso(), durationWeeks * 7))}</p>
+        <p className="text-sm text-text-secondary">
           {maxWeeks > 0 ? `Свободно в периоде: ${maxWeeks} нед. (до ${fmtShort(period.endDate)})` : `В периоде не осталось места после ${fmtShort(startDate)}`}
         </p>
-        {error && <p className="text-xs text-danger">{error}</p>}
+        {error && <p className="text-sm text-danger">{error}</p>}
         {stage && confirmingDelete ? (
           <div className="flex items-center justify-between gap-2 rounded border border-danger/40 bg-danger/10 px-2 py-2">
-            <span className="text-xs">Удалить этап и все мезоциклы внутри него?</span>
+            <span className="text-sm">Удалить этап и все мезоциклы внутри него?</span>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={() => setConfirmingDelete(false)}>
                 Отмена
