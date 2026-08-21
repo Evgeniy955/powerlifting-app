@@ -342,6 +342,37 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                 <RowLabel>Мезоциклы</RowLabel>
                 {mesocycleSpans.map((span) => {
                   const entry = mainColumns[span.start]
+                  // A stage with no mesocycles yet used to render a dead "—"
+                  // here with nothing to click — the only way in was the
+                  // Период "+" button's multi-step Этап-picker flow, which
+                  // isn't obviously connected to this row. Since the stage
+                  // is already known at this point, open mesocycle creation
+                  // for it directly.
+                  if (entry.kind === 'empty-stage') {
+                    return (
+                      <td key={span.start} colSpan={span.span} className="border-l border-border p-0 align-top">
+                        {canEdit ? (
+                          <CreateMesocycleDialog
+                            stageId={entry.stage.id}
+                            defaultStartDate={entry.stage.startDate}
+                            stageEndDate={entry.stage.endDate}
+                            trigger={(open) => (
+                              <button
+                                onClick={open}
+                                className="flex w-full flex-col items-center gap-0.5 px-2 py-2 text-center text-xs text-text-secondary hover:bg-surface-2 hover:text-text-primary"
+                                title="Создать мезоцикл в этом этапе"
+                              >
+                                <Plus className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                            onCreated={() => router.refresh()}
+                          />
+                        ) : (
+                          <span className="block px-2 py-2 text-center text-xs text-text-secondary">—</span>
+                        )}
+                      </td>
+                    )
+                  }
                   if (entry.kind !== 'week') {
                     return (
                       <td key={span.start} colSpan={span.span} className="border-l border-border px-2 py-2 text-center text-xs text-text-secondary">
