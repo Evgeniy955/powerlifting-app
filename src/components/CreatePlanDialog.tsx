@@ -1,11 +1,17 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { CalendarDays } from 'lucide-react'
 import { Button, Dialog, Input, useToast } from '@/components/ui'
 
-type Props = { athleteId: string }
+type Props = {
+  athleteId: string
+  // Lets a caller swap in its own trigger (e.g. a mobile menu item) instead
+  // of the default "Создать план" button — the dialog's own open/close state
+  // still lives here either way, this just changes what opens it.
+  renderTrigger?: (open: () => void) => ReactNode
+}
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10)
@@ -35,7 +41,7 @@ const PRESETS = [
 // afterward per-day, same as any ad-hoc cycle — this just bootstraps the
 // week/day structure up front, with each Workout's date landing on a real
 // matching weekday.
-export function CreatePlanDialog({ athleteId }: Props) {
+export function CreatePlanDialog({ athleteId, renderTrigger }: Props) {
   const router = useRouter()
   const toast = useToast()
   const [open, setOpen] = useState(false)
@@ -98,9 +104,13 @@ export function CreatePlanDialog({ athleteId }: Props) {
 
   return (
     <>
-      <Button onClick={() => setOpen(true)} size="sm">
-        Создать план
-      </Button>
+      {renderTrigger ? (
+        renderTrigger(() => setOpen(true))
+      ) : (
+        <Button onClick={() => setOpen(true)} size="sm">
+          Создать план
+        </Button>
+      )}
 
       <Dialog
         open={open}
