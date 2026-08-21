@@ -18,6 +18,23 @@ function getResendClient(): Resend {
 // own verified test addresses. Set RESEND_FROM_EMAIL once a domain is verified.
 const FROM = process.env.RESEND_FROM_EMAIL || 'IronLedger <onboarding@resend.dev>'
 
+// Where the "accept invite" link inside the email should point. Used to
+// reference NEXTAUTH_URL — a var this app never actually sets (it's not in
+// .env.example; auth moved to Supabase Auth, see login/page.tsx), so on
+// Vercel it silently fell back to http://localhost:3000, baking a dead link
+// into every real invite email. Vercel already exposes the project's real
+// domain at build/runtime with no configuration needed — prefer that, then
+// the current deployment's own URL (useful for testing from a preview
+// deploy), then finally localhost for local dev. NEXT_PUBLIC_APP_URL is an
+// explicit override for when a custom domain is verified in Resend but
+// hasn't been set as the Vercel project's primary domain yet.
+function appBaseUrl(): string {
+  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`
+  return 'http://localhost:3000'
+}
+
 type InviteEmailInput = {
   to: string
   coachName: string
@@ -29,8 +46,7 @@ type InviteEmailInput = {
 // throw — the coach needs to know immediately if the send failed.
 export async function sendInviteEmail({ to, coachName, athleteDisplayName, token }: InviteEmailInput) {
   const resend = getResendClient()
-  const baseUrl = process.env.NEXTAUTH_URL ?? 'http://localhost:3000'
-  const acceptUrl = `${baseUrl}/login?invite=${token}`
+  const acceptUrl = `${appBaseUrl()}/login?invite=${token}`
 
   await resend.emails.send({
     from: FROM,
