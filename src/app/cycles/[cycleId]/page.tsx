@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { requireUser } from '@/lib/session'
 import { CopyLastTwoWeeksButton } from '@/components/CopyLastTwoWeeksButton'
 import { DeleteCycleButton } from '@/components/DeleteCycleButton'
+import { DeleteMicrocycleButton } from '@/components/DeleteMicrocycleButton'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Card, buttonVariants } from '@/components/ui'
@@ -56,13 +57,18 @@ export default async function CyclePage({ params }: { params: { cycleId: string 
       <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">
         {cycle.microcycles.map((mc) => (
           <Card key={mc.id} padding="sm">
-            <Link
-              href={`/microcycle/${mc.id}`}
-              className="mb-2 block text-sm text-text-secondary transition-colors duration-150 hover:text-accent"
-            >
-              Микроцикл {mc.weekNumber}
-              {mc.workouts[0] && ` · ${mc.workouts[0].scheduledDate.toISOString().slice(0, 10)}`}
-            </Link>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <Link
+                href={`/microcycle/${mc.id}`}
+                className="text-sm text-text-secondary transition-colors duration-150 hover:text-accent"
+              >
+                Микроцикл {mc.weekNumber}
+                {mc.workouts[0] && ` · ${mc.workouts[0].scheduledDate.toISOString().slice(0, 10)}`}
+              </Link>
+              {user.role === 'COACH' && (
+                <DeleteMicrocycleButton microcycleId={mc.id} weekNumber={mc.weekNumber} />
+              )}
+            </div>
             <div className="flex flex-wrap gap-2">
               {mc.workouts.map((w) => (
                 <Link
