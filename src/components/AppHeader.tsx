@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { AvatarUploader } from './AvatarUploader'
 import { SignOutButton } from './SignOutButton'
 import { ThemeToggle } from './ThemeToggle'
+import { MobileNavMenu, type MobileNavLink } from './MobileNavMenu'
 
 // Shared top bar, rendered once from layout.tsx above every page.
 //
@@ -24,6 +25,21 @@ export async function AppHeader() {
     athleteProfileId = profile?.id ?? null
   }
 
+  // Same links as the desktop nav below, just collected once so the mobile
+  // hamburger (MobileNavMenu) can render the identical set.
+  const mobileLinks: MobileNavLink[] =
+    user?.role === 'COACH'
+      ? [
+          { href: '/athletes', label: 'Мои спортсмены', emphasis: true },
+          { href: '/admin/users', label: 'Админка' },
+        ]
+      : user?.role === 'ATHLETE' && athleteProfileId
+        ? [
+            { href: `/athletes/${athleteProfileId}/cycles`, label: 'Мои планы', emphasis: true },
+            { href: `/athletes/${athleteProfileId}/supplements`, label: 'Спортпит' },
+          ]
+        : []
+
   return (
     <header className="sticky top-0 z-10 border-b border-border bg-bg/95 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 md:px-6">
@@ -42,6 +58,7 @@ export async function AppHeader() {
               <span className="hidden text-sm text-text-secondary md:inline">
                 {user.name ?? user.email}
               </span>
+              <MobileNavMenu userLabel={user.name ?? user.email ?? ''} links={mobileLinks} />
 
               {user.role === 'COACH' && (
                 <>
