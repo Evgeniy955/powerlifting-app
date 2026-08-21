@@ -520,6 +520,7 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
         open={periodDialogOpen}
         onOpenChange={setPeriodDialogOpen}
         athleteId={athleteId}
+        periods={periods}
         onSaved={() => {
           setPeriodDialogOpen(false)
           router.refresh()
@@ -531,6 +532,7 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
           open
           onOpenChange={(open) => !open && setEditingPeriod(null)}
           period={editingPeriod}
+          periods={periods}
           onSaved={() => {
             setEditingPeriod(null)
             router.refresh()
@@ -783,6 +785,16 @@ function suggestedStageStart(period: PeriodOption, excludeStageId?: string): str
   const siblings = period.stages.filter((s) => s.id !== excludeStageId)
   if (siblings.length === 0) return period.startDate
   const latestEnd = siblings.reduce((latest, s) => Math.max(latest, new Date(s.endDate).getTime()), 0)
+  return new Date(latestEnd).toISOString()
+}
+
+// Where a new Период should default to starting — right after whichever of
+// the athlete's existing Периоды ends latest, or today if there are none
+// yet. Периоды have no parent to stay contained inside (unlike Этап/
+// Мезоцикл), so this is just the sibling half of the same rule.
+function suggestedPeriodStart(periods: PeriodOption[]): string {
+  if (periods.length === 0) return todayIso()
+  const latestEnd = periods.reduce((latest, p) => Math.max(latest, new Date(p.endDate).getTime()), 0)
   return new Date(latestEnd).toISOString()
 }
 
@@ -1160,17 +1172,22 @@ function PeriodFormDialog({
   onOpenChange,
   athleteId,
   period,
+  periods,
   onSaved,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   athleteId?: string
   period?: { id: string; name: string; startDate: string; endDate: string }
+  // Existing periods for this athlete — used only when creating (period is
+  // undefined) to default the start date to right after whichever period
+  // ends latest, same rule as suggestedStageStart for Этап-in-Период.
+  periods: PeriodOption[]
   onSaved: (period: { id: string; name: string; startDate: string; endDate: string }) => void
 }) {
   const toast = useToast()
   const [name, setName] = useState(period?.name ?? PERIOD_PRESETS[0])
-  const [startDate, setStartDate] = useState(period ? fmt(period.startDate) : todayIso())
+  const [startDate, setStartDate] = useState(period ? fmt(period.startDate) : fmt(suggestedPeriodStart(periods)))
   const [durationWeeks, setDurationWeeks] = useState(period ? weeksBetween(period.startDate, period.endDate) : 12)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -1178,7 +1195,7 @@ function PeriodFormDialog({
   useEffect(() => {
     if (!open) return
     setName(period?.name ?? PERIOD_PRESETS[0])
-    setStartDate(period ? fmt(period.startDate) : todayIso())
+    setStartDate(period ? fmt(period.startDate) : fmt(suggestedPeriodStart(periods)))
     setDurationWeeks(period ? weeksBetween(period.startDate, period.endDate) : 12)
     setError(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
