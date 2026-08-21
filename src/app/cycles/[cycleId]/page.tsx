@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { requireUser } from '@/lib/session'
 import { CopyLastTwoWeeksButton } from '@/components/CopyLastTwoWeeksButton'
+import { AddMicrocycleButton } from '@/components/AddMicrocycleButton'
 import { DeleteCycleButton } from '@/components/DeleteCycleButton'
 import { DeleteMicrocycleButton } from '@/components/DeleteMicrocycleButton'
 import { notFound, redirect } from 'next/navigation'
@@ -65,6 +66,7 @@ export default async function CyclePage({ params }: { params: { cycleId: string 
           </Link>
         )}
         <CopyLastTwoWeeksButton cycleId={cycle.id} role={user.role} />
+        {user.role === 'COACH' && <AddMicrocycleButton cycleId={cycle.id} />}
       </div>
 
       <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">
