@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, Layers } from 'lucide-react'
 import { Button, Card, Dialog, Input, Select, useToast } from '@/components/ui'
 import { PERIOD_PRESETS, STAGE_PRESETS, MESOCYCLE_PRESETS, MICROCYCLE_PRESETS, periodColor, stageColor } from '@/lib/periodization'
 
@@ -324,6 +324,13 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                   const nextSpan = stageSpans[spanIndex + 1]
                   const isLastForPeriod = !nextSpan || periodIdOfEntry(mainColumns[nextSpan.start]) !== periodId
                   const period = periodOf(periodId)
+                  // Deliberately a different icon and a dashed border,
+                  // not just another plain "+" — sitting right next to the
+                  // "add mesocycle" plus, an identical-looking icon here
+                  // was mistaken for it (added a Мезоцикл when a whole new
+                  // Этап was wanted, or vice versa). The dashed-circle look
+                  // matches the ghost "+ Добавить период" button — same
+                  // "this creates a new container" meaning, one level down.
                   const addStageButton = canEdit && isLastForPeriod && period && (
                     <>
                       <StageFormDialog
@@ -337,11 +344,11 @@ export function PeriodizationView({ athleteId, periods, columns, canEdit }: Prop
                       />
                       <button
                         onClick={() => setAddingStageToPeriod(period)}
-                        className="shrink-0 rounded p-0.5 hover:bg-black/10"
-                        title="Добавить ещё этап в этот период"
+                        className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-dashed border-current opacity-70 hover:opacity-100"
+                        title="Новый этап в этом периоде (не мезоцикл)"
                         aria-label="Добавить этап"
                       >
-                        <Plus className="h-3 w-3" />
+                        <Layers className="h-2.5 w-2.5" />
                       </button>
                     </>
                   )
