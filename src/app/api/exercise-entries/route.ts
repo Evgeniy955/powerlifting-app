@@ -51,6 +51,7 @@ export async function POST(req: NextRequest) {
       })
       void recordChangeLog({
         athleteId: chain.athlete.id,
+        cycleId: chain.cycle.id,
         workoutId: chain.workout.id,
         workoutDate: chain.workout.scheduledDate,
         weekNumber: chain.microcycle.weekNumber,

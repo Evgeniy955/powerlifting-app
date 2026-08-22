@@ -7,7 +7,7 @@ import { DeleteMicrocycleButton } from '@/components/DeleteMicrocycleButton'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Card, buttonVariants } from '@/components/ui'
-import { BarChart3 } from 'lucide-react'
+import { BarChart3, History } from 'lucide-react'
 import { isMicrocycleVisibleToAthlete } from '@/lib/weekAccess'
 
 // Cycle overview: list of microcycles (weeks) -> workouts (days), plus the
@@ -64,6 +64,14 @@ export default async function CyclePage({ params }: { params: { cycleId: string 
         )
       : new Set<string | null>()
 
+  // Unseen-changes count for THIS plan's "История" button badge — scoped by
+  // cycleId (not the whole athlete), same reasoning as the History screen
+  // itself: several plans per athlete shouldn't share one blended count.
+  const unseenCount =
+    user.role === 'COACH'
+      ? await prisma.changeLog.count({ where: { cycleId: cycle.id, seenByCoach: false } })
+      : 0
+
   return (
     <main className="min-h-[calc(100vh-3.5rem)] bg-bg text-text-primary p-6 max-w-md mx-auto space-y-4 lg:max-w-4xl">
       <div className="flex items-center justify-between gap-2">
@@ -86,6 +94,17 @@ export default async function CyclePage({ params }: { params: { cycleId: string 
             <BarChart3 className="h-4 w-4" /> Аналитика мезоцикла
           </Link>
         )}
+        <Link
+          href={`/cycles/${cycle.id}/history`}
+          className={`relative ${buttonVariants({ variant: 'outline', size: 'sm' })}`}
+        >
+          <History className="h-4 w-4" /> История
+          {unseenCount > 0 && (
+            <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1 text-xs font-bold text-on-danger">
+              {unseenCount > 9 ? '9+' : unseenCount}
+            </span>
+          )}
+        </Link>
         <CopyLastTwoWeeksButton cycleId={cycle.id} role={user.role} />
         {user.role === 'COACH' && <AddMicrocycleButton cycleId={cycle.id} />}
       </div>
