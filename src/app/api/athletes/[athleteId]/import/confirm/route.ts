@@ -30,7 +30,18 @@ export async function POST(req: NextRequest, { params }: { params: { athleteId: 
       entries: ParsedExerciseRow[]
     }
 
-    const validEntries = entries.filter((e) => e.matchedExerciseId)
+    // The import UI sends recognized-on-first-pass rows and coach-resolved
+    // (originally unrecognized) rows as two separate concatenated blocks —
+    // see ImportPage's `entries = [...preview.recognized, ...newlyRecognized]`
+    // — so a day where even one exercise needed coach confirmation would have
+    // that row's rawName pushed to the end of its day instead of its actual
+    // spot, once the loop below assigns fallback orderIndex by array
+    // position. Re-sorting by (date, rowNumber) here restores the source
+    // sheet's true top-to-bottom order regardless of which block a row came
+    // from, so the fallback counter always increments in real document order.
+    const validEntries = entries
+      .filter((e) => e.matchedExerciseId)
+      .sort((a, b) => (a.date === b.date ? a.rowNumber - b.rowNumber : a.date < b.date ? -1 : 1))
     if (validEntries.length === 0) {
       return NextResponse.json({ error: 'Нет распознанных строк для импорта' }, { status: 400 })
     }
