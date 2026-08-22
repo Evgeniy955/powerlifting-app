@@ -67,21 +67,32 @@ export async function POST(req: NextRequest, { params }: { params: { athleteId: 
       dayNumber: number
     }[] = []
 
+    // ISO weekday order (Monday=0 .. Sunday=6), so dayNumber always reflects
+    // normal week order regardless of which weekday `startDate` itself falls
+    // on — otherwise, e.g. a Saturday startDate would put Saturday's workout
+    // at dayNumber 1 (it's the earliest date in that offset window) even
+    // though Пн/Ср/Пт/Сб should read as day 1/2/3/4 in that order.
+    const isoWeekday = (d: Date) => (d.getUTCDay() + 6) % 7
+
     for (let week = 1; week <= weeks; week++) {
       const microcycleId = randomUUID()
       microcyclesData.push({ id: microcycleId, cycleId, weekNumber: week })
 
-      let dayNumber = 1
+      const weekDates: Date[] = []
       for (let offset = 0; offset < 7; offset++) {
         const date = new Date(startDate.getTime() + ((week - 1) * 7 + offset) * DAY_MS)
-        if (!weekdays.includes(date.getUTCDay())) continue
+        if (weekdays.includes(date.getUTCDay())) weekDates.push(date)
+      }
+      weekDates.sort((a, b) => isoWeekday(a) - isoWeekday(b))
+
+      weekDates.forEach((date, i) => {
         workoutsData.push({
           id: randomUUID(),
           microcycleId,
           scheduledDate: date,
-          dayNumber: dayNumber++,
+          dayNumber: i + 1,
         })
-      }
+      })
     }
 
     await prisma.$transaction([
