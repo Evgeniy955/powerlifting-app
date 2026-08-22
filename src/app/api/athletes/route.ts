@@ -15,11 +15,11 @@ const MAIN_LIFT_NAMES = {
   deadlift: 'Тяга',
 } as const
 
-const TWELVE_WEEKS_MS = 12 * 7 * 24 * 60 * 60 * 1000
+const MAIN_LIFTS_WINDOW_MS = 36 * 7 * 24 * 60 * 60 * 1000
 
 // GET /api/athletes — list *active* (non-archived) athletes attached to the
 // signed-in coach, each with their best logged weight in the three total
-// lifts over the last 12 weeks (not the manually-maintained Athlete1RM
+// lifts over the last 36 weeks (not the manually-maintained Athlete1RM
 // field, which can go stale — this reflects what they've actually lifted
 // recently), plus the summed total if all three have a result in that
 // window. Archived athletes live at GET /api/athletes/archive instead.
@@ -42,7 +42,7 @@ export async function GET() {
     const liftIdByName = new Map(mainLiftExercises.map((e) => [e.name, e.id]))
     const liftIds = mainLiftExercises.map((e) => e.id)
 
-    const windowStart = new Date(Date.now() - TWELVE_WEEKS_MS)
+    const windowStart = new Date(Date.now() - MAIN_LIFTS_WINDOW_MS)
 
     const recentSets =
       athletes.length && liftIds.length
