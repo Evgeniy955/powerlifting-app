@@ -18,9 +18,19 @@ export async function PATCH(req: NextRequest, { params }: { params: { setId: str
       rpe?: number | null
       completed?: boolean
     }
+    // Built field-by-field rather than passing `body` straight through —
+    // SetEntry also has an `exerciseEntryId` FK column, and assertCanAccessSet
+    // above only checks ownership of *this* set, not of whatever exerciseEntryId
+    // a client could otherwise smuggle in to relocate it onto someone else's entry.
+    const data: { weight?: number; reps?: number; rpe?: number | null; completed?: boolean } = {}
+    if (body.weight !== undefined) data.weight = body.weight
+    if (body.reps !== undefined) data.reps = body.reps
+    if (body.rpe !== undefined) data.rpe = body.rpe
+    if (body.completed !== undefined) data.completed = body.completed
+
     const set = await prisma.setEntry.update({
       where: { id: params.setId },
-      data: body,
+      data,
     })
 
     const coachEmail = await coachEmailToNotify(user.role, chain.athlete.coachId)
