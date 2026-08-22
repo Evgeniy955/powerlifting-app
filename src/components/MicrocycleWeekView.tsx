@@ -8,6 +8,7 @@ import { MetricsBadge } from './MetricsBadge'
 import { TrainingGroupLegend } from './TrainingGroupLegend'
 import { WeekDayTable, type WeekWorkoutData } from './WeekDayTable'
 import { AddWorkoutDayButton } from './AddWorkoutDayButton'
+import { ToggleFourthDayButton } from './ToggleFourthDayButton'
 import type { RpePoint } from '@/lib/rpe'
 
 type AdjacentWeek = { id: string; weekNumber: number }
@@ -152,6 +153,9 @@ export function MicrocycleWeekView({
                   with zero days and, without this, had no way to ever get
                   any — this is that missing add-day affordance. */}
               <AddWorkoutDayButton microcycleId={microcycleId} />
+              {/* One-click 3<->4 day toggle for the two most common splits —
+                  only renders itself once this week already has 3 or 4 days. */}
+              <ToggleFourthDayButton microcycleId={microcycleId} workouts={workouts} />
             </div>
           )}
         </div>
