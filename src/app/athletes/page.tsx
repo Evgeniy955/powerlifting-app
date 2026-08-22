@@ -161,7 +161,7 @@ export default function AthletesPage() {
                 </div>
                 {!a.userId && (
                   <div onClick={(e) => e.stopPropagation()}>
-                    <InviteAthleteButton athleteId={a.id} onSent={load} />
+                    <InviteAthleteButton athleteId={a.id} inviteEmail={a.inviteEmail} onSent={load} />
                   </div>
                 )}
               </Card>
