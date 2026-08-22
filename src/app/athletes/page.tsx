@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { FileDown, FileUp, Pill, Users } from 'lucide-react'
 import { Badge, Button, Card, Input } from '@/components/ui'
 import { EmptyState } from '@/components/EmptyState'
+import { DeleteAthleteButton } from '@/components/DeleteAthleteButton'
 import { InviteAthleteButton } from '@/components/InviteAthleteButton'
 import { LoadingIndicator } from '@/components/LoadingIndicator'
 import { athleteDisplayName } from '@/lib/athlete'
@@ -158,6 +159,12 @@ export default function AthletesPage() {
                   >
                     <Pill className="h-4 w-4" />
                   </a>
+                  <DeleteAthleteButton
+                    athleteId={a.id}
+                    athleteName={athleteDisplayName(a)}
+                    accepted={!!a.userId}
+                    onDeleted={load}
+                  />
                 </div>
                 {!a.userId && (
                   <div onClick={(e) => e.stopPropagation()}>

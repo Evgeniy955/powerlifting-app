@@ -46,3 +46,30 @@ export async function PATCH(req: NextRequest, { params }: { params: { athleteId:
     return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
   }
 }
+
+// DELETE /api/athletes/:athleteId — removes this athlete from the coach's
+// roster. Coach-scoped (assertAthleteBelongsToCoach), unlike the admin
+// panel's DELETE /api/admin/users/:userId (which any coach can point at any
+// user — there's no separate ADMIN role in this app). Two cases:
+//  - Still-pending placeholder (no userId yet, invite not accepted): no User
+//    row exists at all for them, just delete the AthleteProfile itself.
+//  - Already-accepted athlete (has userId): delete their User account —
+//    AthleteProfile, and everything under it (cycles/workouts/sets/1RM/
+//    supplements/periods/changelog), cascades via the schema's onDelete:
+//    Cascade FKs, same destructive effect as the admin panel's delete.
+export async function DELETE(_req: NextRequest, { params }: { params: { athleteId: string } }) {
+  try {
+    const coach = await requireCoach()
+    const athlete = await assertAthleteBelongsToCoach(params.athleteId, coach.id)
+
+    if (athlete.userId) {
+      await prisma.user.delete({ where: { id: athlete.userId } })
+    } else {
+      await prisma.athleteProfile.delete({ where: { id: athlete.id } })
+    }
+
+    return NextResponse.json({ ok: true })
+  } catch (e) {
+    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+  }
+}
