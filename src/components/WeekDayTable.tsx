@@ -487,6 +487,7 @@ export function WeekDayTable({
                     <button
                       onClick={() => addSet(entry.id)}
                       aria-label="Добавить подход"
+                      title="Добавить подход с теми же весом/повторами, что и последний"
                       className="mt-1 text-text-secondary transition-colors hover:text-accent"
                     >
                       <Plus className="h-3.5 w-3.5" />
