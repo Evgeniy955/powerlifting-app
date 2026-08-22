@@ -187,6 +187,7 @@ export function AdminPendingInvites({ initialInvites }: Props) {
                         accepted={false}
                         hasPlans={inv.hasPlans}
                         deleteUrl={`/api/admin/pending-invites/${inv.id}`}
+                        size="sm"
                         onDone={() => handleDeleted(inv.id)}
                       />
                     </div>
