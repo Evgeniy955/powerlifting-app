@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { ArrowDownAZ, ArrowUpAZ, FileDown, History, Search } from 'lucide-react'
 import { Badge, Card, Input } from '@/components/ui'
 import { DeleteCycleButton } from '@/components/DeleteCycleButton'
+import { RenameCycleButton } from '@/components/RenameCycleButton'
+import { CopyCycleButton } from '@/components/CopyCycleButton'
 
 export type CycleListItem = {
   id: string
@@ -38,14 +40,16 @@ function cycleStatus(cycle: CycleListItem, now: number): Exclude<Status, 'all'> 
 
 type Props = {
   cycles: CycleListItem[]
-  canDelete: boolean
+  // Coach-only actions: rename, copy, delete. An athlete viewing their own
+  // plans only ever gets read/export/history.
+  canManage: boolean
 }
 
 // Client-side sort/filter over a coach's (or athlete's) plan list — the list
 // is small per athlete (tens, not thousands, of cycles), so filtering the
 // already-fetched array locally avoids round-tripping to the server for
 // every keystroke/toggle.
-export function AthleteCyclesList({ cycles, canDelete }: Props) {
+export function AthleteCyclesList({ cycles, canManage }: Props) {
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState<Status>('all')
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
@@ -170,7 +174,13 @@ export function AthleteCyclesList({ cycles, canDelete }: Props) {
                     </span>
                   )}
                 </Link>
-                {canDelete && <DeleteCycleButton cycleId={cycle.id} cycleName={cycle.name} />}
+                {canManage && (
+                  <>
+                    <RenameCycleButton cycleId={cycle.id} cycleName={cycle.name} />
+                    <CopyCycleButton cycleId={cycle.id} cycleName={cycle.name} />
+                    <DeleteCycleButton cycleId={cycle.id} cycleName={cycle.name} />
+                  </>
+                )}
               </div>
             </div>
           </Card>

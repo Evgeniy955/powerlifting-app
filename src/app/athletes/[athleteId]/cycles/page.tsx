@@ -75,7 +75,7 @@ export default async function AthleteCyclesPage({ params }: { params: { athleteI
             microcycleCount: cycle.microcycles.length,
             unseenChangesCount: unseenCountByCycleId.get(cycle.id) ?? 0,
           }))}
-          canDelete={user.role === 'COACH'}
+          canManage={user.role === 'COACH'}
         />
       )}
     </main>
