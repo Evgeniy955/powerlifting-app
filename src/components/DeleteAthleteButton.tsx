@@ -1,48 +1,77 @@
 'use client'
 
 import { useState } from 'react'
-import { Trash2 } from 'lucide-react'
+import { Archive, Trash2 } from 'lucide-react'
 import { Button, Dialog, useToast } from '@/components/ui'
 
 type Props = {
   athleteId: string
   athleteName: string
   // Whether this athlete has accepted their invite (has a real account) —
-  // changes both the confirm wording (a pending placeholder has nothing to
-  // lose but its own row; an accepted athlete's cycles/workouts/sets/1RM go
-  // with it) and how destructive this actually is.
+  // changes the wording (a pending placeholder has nothing tied to a real
+  // login; an accepted athlete's account goes with a permanent delete).
   accepted: boolean
-  onDeleted: () => void
+  // 'roster' (default): used on the main athletes list. If the athlete has
+  // at least one plan, the server archives instead of deleting (reversible);
+  // pass hasPlans so the button/dialog reflect that up front. No plans at
+  // all -> nothing to lose, deletes immediately, same as archive mode.
+  // 'archive': used on the archive screen for an athlete who's already
+  // archived — here DELETE is always the real, permanent, unrecoverable one.
+  mode?: 'roster' | 'archive'
+  hasPlans?: boolean
+  onDone: () => void
 }
 
-// Coach-only. Covers both athlete states — pending invite (placeholder,
-// never signed in) and already-accepted (real account) — since neither
-// currently had a delete path from this page: a pending placeholder has no
-// User row at all, so it never showed up in the admin panel's user list;
-// an accepted athlete could only be removed by going to Админка.
-export function DeleteAthleteButton({ athleteId, athleteName, accepted, onDeleted }: Props) {
+export function DeleteAthleteButton({
+  athleteId,
+  athleteName,
+  accepted,
+  mode = 'roster',
+  hasPlans = false,
+  onDone,
+}: Props) {
   const toast = useToast()
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [loading, setLoading] = useState(false)
 
-  async function handleDelete() {
+  const willArchive = mode === 'roster' && hasPlans
+
+  async function handleConfirm() {
     setConfirmOpen(false)
     setLoading(true)
     try {
       const res = await fetch(`/api/athletes/${athleteId}`, { method: 'DELETE' })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
-        throw new Error(body.error ?? 'Не удалось удалить')
+        throw new Error(body.error ?? 'Не удалось выполнить действие')
       }
-      toast({ title: `«${athleteName}» удалён`, variant: 'success' })
-      onDeleted()
+      const body = (await res.json().catch(() => ({}))) as { archived?: boolean }
+      toast({
+        title: body.archived ? `«${athleteName}» перемещён в архив` : `«${athleteName}» удалён`,
+        variant: 'success',
+      })
+      onDone()
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Ошибка'
-      toast({ title: 'Не удалось удалить', description: message, variant: 'error' })
+      toast({ title: 'Не удалось выполнить действие', description: message, variant: 'error' })
     } finally {
       setLoading(false)
     }
   }
+
+  const dialogTitle = willArchive ? 'Отправить в архив?' : mode === 'archive' ? 'Удалить навсегда?' : 'Удалить атлета?'
+
+  const dialogDescription = willArchive
+    ? `У «${athleteName}» есть планы тренировок — вместо удаления профиль переместится в архив: пропадёт из общего списка, но все циклы, тренировки и подходы сохранятся. Восстановить можно в любой момент со страницы «Архив».`
+    : mode === 'archive'
+      ? accepted
+        ? `«${athleteName}» будет удалён без возможности восстановления — вместе с аккаунтом сотрутся ВСЕ его циклы, тренировки, подходы и 1ПМ.`
+        : `Профиль «${athleteName}» будет удалён без возможности восстановления.`
+      : accepted
+        ? `«${athleteName}» уже принял приглашение — удаление сотрёт ВСЕ его циклы, тренировки, подходы и 1ПМ без возможности восстановления.`
+        : `«${athleteName}» ещё не принял приглашение. Страница атлета удалится без возможности восстановления.`
+
+  const confirmLabel = willArchive ? 'В архив' : mode === 'archive' ? 'Удалить навсегда' : 'Удалить'
 
   return (
     <>
@@ -50,29 +79,22 @@ export function DeleteAthleteButton({ athleteId, athleteName, accepted, onDelete
         type="button"
         onClick={() => setConfirmOpen(true)}
         disabled={loading}
-        title="Удалить атлета"
-        aria-label="Удалить атлета"
-        className="flex h-8 w-8 items-center justify-center rounded-full bg-danger text-on-danger shadow-card transition-transform hover:scale-110 hover:brightness-110 disabled:opacity-50"
+        title={willArchive ? 'Архивировать атлета' : mode === 'archive' ? 'Удалить навсегда' : 'Удалить атлета'}
+        aria-label={willArchive ? 'Архивировать атлета' : mode === 'archive' ? 'Удалить навсегда' : 'Удалить атлета'}
+        className={`flex h-8 w-8 items-center justify-center rounded-full shadow-card transition-transform hover:scale-110 hover:brightness-110 disabled:opacity-50 ${
+          willArchive ? 'bg-slate-500 text-white' : 'bg-danger text-on-danger'
+        }`}
       >
-        <Trash2 className="h-4 w-4" />
+        {willArchive ? <Archive className="h-4 w-4" /> : <Trash2 className="h-4 w-4" />}
       </button>
 
-      <Dialog
-        open={confirmOpen}
-        onOpenChange={setConfirmOpen}
-        title="Удалить атлета?"
-        description={
-          accepted
-            ? `«${athleteName}» уже принял приглашение — удаление сотрёт ВСЕ его циклы, тренировки, подходы и 1ПМ без возможности восстановления.`
-            : `«${athleteName}» ещё не принял приглашение. Страница атлета удалится без возможности восстановления.`
-        }
-      >
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen} title={dialogTitle} description={dialogDescription}>
         <div className="flex justify-end gap-2">
           <Button variant="outline" size="sm" onClick={() => setConfirmOpen(false)}>
             Отмена
           </Button>
-          <Button variant="danger" size="sm" onClick={handleDelete}>
-            Удалить
+          <Button variant={willArchive ? 'secondary' : 'danger'} size="sm" onClick={handleConfirm}>
+            {confirmLabel}
           </Button>
         </div>
       </Dialog>

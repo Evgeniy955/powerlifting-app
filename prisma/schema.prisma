@@ -98,6 +98,13 @@ model AthleteProfile {
   inviteStatus String    @default("NONE")
   invitedAt    DateTime?
 
+  // Set when a coach "deletes" an athlete who already has at least one plan
+  // (Cycle) — instead of destroying real training data, the profile is
+  // hidden from the main roster but kept intact and restorable. Only an
+  // already-archived athlete can be permanently deleted (from /athletes/archive).
+  // Null = active/visible on the normal roster.
+  archivedAt DateTime?
+
   oneRepMaxes Athlete1RM[]
   cycles      Cycle[]
   supplements Supplement[]

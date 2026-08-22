@@ -17,17 +17,21 @@ const MAIN_LIFT_NAMES = {
 
 const TWELVE_WEEKS_MS = 12 * 7 * 24 * 60 * 60 * 1000
 
-// GET /api/athletes — list athletes attached to the signed-in coach, each with
-// their best logged weight in the three total lifts over the last 12 weeks
-// (not the manually-maintained Athlete1RM field, which can go stale — this
-// reflects what they've actually lifted recently), plus the summed total if
-// all three have a result in that window.
+// GET /api/athletes — list *active* (non-archived) athletes attached to the
+// signed-in coach, each with their best logged weight in the three total
+// lifts over the last 12 weeks (not the manually-maintained Athlete1RM
+// field, which can go stale — this reflects what they've actually lifted
+// recently), plus the summed total if all three have a result in that
+// window. Archived athletes live at GET /api/athletes/archive instead.
 export async function GET() {
   try {
     const coach = await requireCoach()
     const athletes = await prisma.athleteProfile.findMany({
-      where: { coachId: coach.id },
-      include: { user: { select: { id: true, name: true, email: true, image: true } } },
+      where: { coachId: coach.id, archivedAt: null },
+      include: {
+        user: { select: { id: true, name: true, email: true, image: true } },
+        _count: { select: { cycles: true } },
+      },
       orderBy: { createdAt: 'asc' },
     })
 
@@ -89,7 +93,8 @@ export async function GET() {
       const total =
         squat !== null && bench !== null && deadlift !== null ? squat + bench + deadlift : null
 
-      return { ...athlete, mainLifts: { squat, bench, deadlift, total } }
+      const { _count, ...rest } = athlete
+      return { ...rest, hasPlans: _count.cycles > 0, mainLifts: { squat, bench, deadlift, total } }
     })
 
     return NextResponse.json(withMainLifts)
