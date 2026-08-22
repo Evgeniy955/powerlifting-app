@@ -128,14 +128,21 @@ export function AthleteCyclesList({ cycles, canManage }: Props) {
         {visible.map((cycle) => (
           <Card key={cycle.id} padding="sm" className="transition-colors hover:bg-surface-2">
             {/* Badge and the action icons share a top row of their own (badge
-                pinned left, icons pinned right via justify-between) instead
-                of sitting next to the name — with 5 action icons now (export,
-                history, rename, copy, delete) that column got wide enough to
-                squeeze the name into a sliver, wrapping it one or two
-                characters per line. Splitting them onto their own row gives
-                the name the card's full width on the line below, and keeps
-                the badge from ending up crowded against the first icon. */}
-            <div className="flex items-center justify-between gap-2">
+                pinned left, icons pinned right) instead of sitting next to
+                the name — with 5 action icons now (export, history, rename,
+                copy, delete) that column got wide enough to squeeze the name
+                into a sliver, wrapping it one or two characters per line.
+                Splitting them onto their own row gives the name the card's
+                full width on the line below, and keeps the badge from
+                ending up crowded against the first icon.
+                flex-wrap + ml-auto (rather than justify-between) on the icon
+                group: on a card too narrow to fit the badge and all 5 icons
+                on one line (the "Удалить" button in particular doesn't
+                shrink), the icon group wraps down to its own line as a whole
+                unit instead of overflowing/getting clipped past the card's
+                edge — ml-auto keeps it right-aligned whichever line it ends
+                up on. */}
+            <div className="flex flex-wrap items-center gap-2">
               <Badge
                 tone={
                   cycleStatus(cycle, now) === 'active'
@@ -147,7 +154,7 @@ export function AthleteCyclesList({ cycles, canManage }: Props) {
               >
                 {STATUS_LABEL[cycleStatus(cycle, now)]}
               </Badge>
-              <div className="flex shrink-0 items-center gap-2">
+              <div className="ml-auto flex shrink-0 items-center gap-2">
                 <a
                   href={`/api/cycles/${cycle.id}/export`}
                   title="Экспорт в Excel"
