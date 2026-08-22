@@ -1,7 +1,9 @@
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
-import { Ban, Check, Pencil, Plus, Trash2, X } from 'lucide-react'
+import { useSortable } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import { Ban, Check, GripVertical, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { SetRow, type SetChange, type SetValue } from './SetRow'
 import { MetricsBadge } from './MetricsBadge'
 import { ExerciseAutocomplete, type ExerciseOption } from './ExerciseAutocomplete'
@@ -79,6 +81,22 @@ export function ExerciseCard({
   const [draftExercise, setDraftExercise] = useState<ExerciseOption | null>(null)
   const [draftMultiplier, setDraftMultiplier] = useState(entry.multiplier)
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+
+  // Drag-to-reorder — the handle (GripVertical, next to the skip toggle) is
+  // the only element wired to listeners/attributes, not the whole card,
+  // since the card is full of its own interactive controls (inputs,
+  // buttons). Card itself isn't a forwardRef component, so the sortable
+  // ref/transform lands on a plain wrapper div around it instead of on Card
+  // directly. Locking is handled by the parent (WorkoutView) disabling
+  // pointer-events on the whole entries grid — no separate `disabled` flag
+  // needed here.
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: entry.id,
+  })
+  const sortableStyle = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  }
 
   async function toggleSkipped() {
     const next = !skipped
@@ -174,13 +192,28 @@ export function ExerciseCard({
   }
 
   return (
-    <Card
-      className={`space-y-3 animate-slide-up ${skipped ? 'opacity-60' : ''} ${
-        isNewExercise ? 'border-l-4 border-l-zone-moderate' : ''
-      }`}
-    >
+    <div ref={setNodeRef} style={sortableStyle} className={isDragging ? 'relative z-20' : undefined}>
+      <Card
+        className={`space-y-3 animate-slide-up ${skipped ? 'opacity-60' : ''} ${
+          isNewExercise ? 'border-l-4 border-l-zone-moderate' : ''
+        } ${isDragging ? 'shadow-lg' : ''}`}
+      >
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-start gap-2">
+          {/* touch-action:none is required by dnd-kit's pointer sensor —
+              without it, a touch-drag on this handle gets eaten by the
+              browser's own scroll gesture instead. */}
+          <button
+            type="button"
+            {...attributes}
+            {...listeners}
+            aria-label="Перетащить, чтобы изменить порядок"
+            title="Перетащить, чтобы изменить порядок"
+            style={{ touchAction: 'none' }}
+            className="mt-0.5 flex h-6 w-6 shrink-0 cursor-grab items-center justify-center text-text-secondary transition-colors hover:text-accent active:cursor-grabbing"
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
           <button
             type="button"
             onClick={toggleSkipped}
@@ -296,6 +329,7 @@ export function ExerciseCard({
       </button>
 
       <MetricsBadge {...metrics} />
-    </Card>
+      </Card>
+    </div>
   )
 }
