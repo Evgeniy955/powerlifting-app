@@ -32,11 +32,13 @@ export async function AppHeader() {
       ? [
           { href: '/athletes', label: 'Мои спортсмены', emphasis: true },
           { href: '/admin/users', label: 'Админка' },
+          { href: '/faq', label: 'Помощь' },
         ]
       : user?.role === 'ATHLETE' && athleteProfileId
         ? [
             { href: `/athletes/${athleteProfileId}/cycles`, label: 'Мои планы', emphasis: true },
             { href: `/athletes/${athleteProfileId}/supplements`, label: 'Спортпит' },
+            { href: '/faq', label: 'Помощь' },
           ]
         : []
 
@@ -91,6 +93,12 @@ export async function AppHeader() {
                   </Link>
                 </>
               )}
+              <Link
+                href="/faq"
+                className="hidden text-sm text-text-secondary transition-colors hover:text-accent hover:underline md:inline"
+              >
+                Помощь
+              </Link>
             </>
           )}
 
