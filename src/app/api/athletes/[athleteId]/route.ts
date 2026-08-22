@@ -46,3 +46,43 @@ export async function PATCH(req: NextRequest, { params }: { params: { athleteId:
     return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
   }
 }
+
+// DELETE /api/athletes/:athleteId — removes this athlete from the coach's
+// roster. Coach-scoped (assertAthleteBelongsToCoach), unlike the admin
+// panel's DELETE /api/admin/users/:userId (which any coach can point at any
+// user — there's no separate ADMIN role in this app).
+//
+// An athlete with at least one plan (Cycle) is never destroyed outright on
+// first delete — real training data (cycles/workouts/sets/1RM) would be lost
+// for good. Instead the first DELETE archives them (archivedAt set, hidden
+// from the normal roster, restorable from /athletes/archive). A second
+// DELETE — only reachable from the archive screen, once already archived —
+// performs the real, permanent removal. An athlete with no plans at all has
+// nothing to lose, so DELETE removes them immediately, same as before.
+export async function DELETE(_req: NextRequest, { params }: { params: { athleteId: string } }) {
+  try {
+    const coach = await requireCoach()
+    const athlete = await assertAthleteBelongsToCoach(params.athleteId, coach.id)
+    const cycleCount = await prisma.cycle.count({ where: { athleteId: athlete.id } })
+
+    if (!athlete.archivedAt && cycleCount > 0) {
+      await prisma.athleteProfile.update({
+        where: { id: athlete.id },
+        data: { archivedAt: new Date() },
+      })
+      return NextResponse.json({ archived: true })
+    }
+
+    // Pending placeholder (no userId yet) or an already-archived athlete —
+    // permanent removal either way.
+    if (athlete.userId) {
+      await prisma.user.delete({ where: { id: athlete.userId } })
+    } else {
+      await prisma.athleteProfile.delete({ where: { id: athlete.id } })
+    }
+
+    return NextResponse.json({ deleted: true })
+  } catch (e) {
+    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+  }
+}

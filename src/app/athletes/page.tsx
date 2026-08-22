@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { FileDown, FileUp, Pill, Users } from 'lucide-react'
+import Link from 'next/link'
+import { Archive, FileDown, FileUp, Pill, Users } from 'lucide-react'
 import { Badge, Button, Card, Input } from '@/components/ui'
 import { EmptyState } from '@/components/EmptyState'
+import { DeleteAthleteButton } from '@/components/DeleteAthleteButton'
 import { InviteAthleteButton } from '@/components/InviteAthleteButton'
 import { LoadingIndicator } from '@/components/LoadingIndicator'
 import { athleteDisplayName } from '@/lib/athlete'
@@ -17,6 +19,9 @@ type Athlete = {
   inviteStatus: 'NONE' | 'PENDING' | 'ACCEPTED'
   invitedAt: string | null
   user: { id: string; name: string | null; email: string; image: string | null } | null
+  // Whether this athlete has at least one plan (Cycle) — decides whether the
+  // delete button archives (reversible) or removes them outright.
+  hasPlans: boolean
   // Current best (Athlete1RM) in the three total lifts — classic squat, paused
   // bench, classic deadlift — plus the summed total if all three are set.
   mainLifts: {
@@ -69,7 +74,16 @@ export default function AthletesPage() {
 
   return (
     <main className="min-h-[calc(100vh-3.5rem)] bg-bg text-text-primary p-6 max-w-md mx-auto space-y-4 lg:max-w-4xl">
-      <h1 className="font-display text-xl uppercase tracking-wide">Мои спортсмены</h1>
+      <div className="flex items-center justify-between gap-2">
+        <h1 className="font-display text-xl uppercase tracking-wide">Мои спортсмены</h1>
+        <Link
+          href="/athletes/archive"
+          className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary transition-colors hover:bg-surface-2 hover:text-text-primary"
+        >
+          <Archive className="h-3.5 w-3.5" />
+          Архив
+        </Link>
+      </div>
 
       {athletes === null && <LoadingIndicator label="Загружаем атлетов" />}
 
@@ -158,6 +172,13 @@ export default function AthletesPage() {
                   >
                     <Pill className="h-4 w-4" />
                   </a>
+                  <DeleteAthleteButton
+                    athleteId={a.id}
+                    athleteName={athleteDisplayName(a)}
+                    accepted={!!a.userId}
+                    hasPlans={a.hasPlans}
+                    onDone={load}
+                  />
                 </div>
                 {!a.userId && (
                   <div onClick={(e) => e.stopPropagation()}>
