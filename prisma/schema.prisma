@@ -272,6 +272,7 @@ model Cycle {
   createdAt DateTime       @default(now())
 
   microcycles Microcycle[]
+  changeLogs  ChangeLog[]
 }
 
 model Microcycle {
@@ -351,6 +352,15 @@ model ChangeLog {
   athleteId String
   athlete   AthleteProfile @relation(fields: [athleteId], references: [id], onDelete: Cascade)
 
+  // Which plan this edit happened in — the History screen is scoped per-Cycle
+  // (not athlete-wide) so a coach juggling several plans for one athlete
+  // isn't stuck guessing which plan a given change belongs to. Nullable only
+  // because workoutId itself is nullable in principle; every real write
+  // (recordChangeLog always has a workout in hand) fills it in. Cascades with
+  // the plan — its history goes with it, same as everything else under Cycle.
+  cycleId String?
+  cycle   Cycle?  @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+
   workoutId       String?
   workoutDate     DateTime?
   weekNumber      Int?
@@ -378,6 +388,7 @@ model ChangeLog {
   createdAt   DateTime @default(now())
 
   @@index([athleteId, createdAt])
+  @@index([cycleId, createdAt])
   @@index([workoutId])
   @@index([exerciseEntryId, setEntryId])
 }

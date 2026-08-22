@@ -38,6 +38,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { setId: str
       } as const
       const logBase = {
         athleteId: chain.athlete.id,
+        cycleId: chain.cycle.id,
         workoutId: chain.workout.id,
         workoutDate: chain.workout.scheduledDate,
         weekNumber: chain.microcycle.weekNumber,
@@ -113,6 +114,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { setId: s
       })
       void recordChangeLog({
         athleteId: chain.athlete.id,
+        cycleId: chain.cycle.id,
         workoutId: chain.workout.id,
         workoutDate: chain.workout.scheduledDate,
         weekNumber: chain.microcycle.weekNumber,

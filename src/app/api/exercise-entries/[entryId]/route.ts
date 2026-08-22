@@ -56,6 +56,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { entryId:
       })
       void recordChangeLog({
         athleteId: chain.athlete.id,
+        cycleId: chain.cycle.id,
         workoutId: chain.workout.id,
         workoutDate: chain.workout.scheduledDate,
         weekNumber: chain.microcycle.weekNumber,

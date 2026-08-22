@@ -4,6 +4,7 @@ export type ChangeLogKind = 'set-updated' | 'set-removed' | 'exercise-added' | '
 
 type RecordChangeInput = {
   athleteId: string
+  cycleId: string
   workoutId: string
   workoutDate: Date
   weekNumber: number
@@ -33,6 +34,7 @@ export async function recordChangeLog(input: RecordChangeInput) {
     await prisma.changeLog.create({
       data: {
         athleteId: input.athleteId,
+        cycleId: input.cycleId,
         workoutId: input.workoutId,
         workoutDate: input.workoutDate,
         weekNumber: input.weekNumber,
