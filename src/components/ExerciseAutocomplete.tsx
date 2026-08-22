@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Plus } from 'lucide-react'
 import { Input } from '@/components/ui'
 
@@ -44,6 +45,10 @@ export function ExerciseAutocomplete({
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const wrapperRef = useRef<HTMLDivElement>(null)
+  const [menuRect, setMenuRect] = useState<{ top: number; left: number; width: number } | null>(
+    null
+  )
 
   useEffect(() => {
     setCreateError(null)
@@ -87,8 +92,40 @@ export function ExerciseAutocomplete({
     }
   }
 
+  const menuOpen = open && (options.length > 0 || showCreateOption)
+
+  // Positioned via a portal to document.body instead of `absolute` inside
+  // this component's own wrapper — the plain z-index approach (still visible
+  // in git history) never reliably won: WeekDayTable's sticky first column
+  // and this dropdown are each their own stacking context (position + a
+  // z-index establishes one), so a *child's* z-index only ever out-ranks
+  // siblings *within that same context* — it can't reach past its own
+  // container's box to beat a sibling table row's sticky cell, no matter how
+  // high the number. A portal sidesteps the whole table/card stacking-context
+  // nesting by rendering the menu as a sibling of <body> instead of a
+  // descendant of the row it opened from.
+  useLayoutEffect(() => {
+    if (!menuOpen || !wrapperRef.current) {
+      setMenuRect(null)
+      return
+    }
+    function updateRect() {
+      const rect = wrapperRef.current!.getBoundingClientRect()
+      setMenuRect({ top: rect.bottom, left: rect.left, width: rect.width })
+    }
+    updateRect()
+    // capture: true — the table's horizontal scroll container (and any other
+    // scrollable ancestor) fires 'scroll' but doesn't bubble it, only capture.
+    window.addEventListener('scroll', updateRect, true)
+    window.addEventListener('resize', updateRect)
+    return () => {
+      window.removeEventListener('scroll', updateRect, true)
+      window.removeEventListener('resize', updateRect)
+    }
+  }, [menuOpen])
+
   return (
-    <div className="relative">
+    <div className="relative" ref={wrapperRef}>
       <Input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
@@ -97,46 +134,48 @@ export function ExerciseAutocomplete({
         placeholder={placeholder ?? 'Упражнение...'}
         className="w-full"
       />
-      {open && (options.length > 0 || showCreateOption) && (
-        // z-30, not z-10: WeekDayTable's sticky first column also sits at z-10,
-        // and on the week page every day is a sibling card — with equal
-        // z-index, whichever one is later in the DOM wins the tie, so a later
-        // day's sticky cells were painting over this dropdown. Needs to win
-        // outright, not by DOM-order luck.
-        <ul className="absolute z-30 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-border bg-surface shadow-elevated animate-scale-in">
-          {options.map((opt) => (
-            <li key={opt.id}>
-              <button
-                type="button"
-                onClick={() => {
-                  onSelect(opt)
-                  setQuery(clearOnSelect ? '' : opt.name)
-                  setOpen(false)
-                }}
-                className="w-full px-3 py-2 text-left text-sm transition-colors hover:bg-surface-2"
-              >
-                {opt.name}
-                {opt.category && (
-                  <span className="ml-2 text-text-secondary text-xs">{opt.category}</span>
-                )}
-              </button>
-            </li>
-          ))}
-          {showCreateOption && (
-            <li className="border-t border-border">
-              <button
-                type="button"
-                onClick={handleCreate}
-                disabled={creating}
-                className="flex w-full items-center gap-1.5 px-3 py-2 text-left text-sm text-accent transition-colors hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Plus className="h-3.5 w-3.5 shrink-0" />
-                {creating ? 'Создаю...' : `Создать «${trimmedQuery}»`}
-              </button>
-            </li>
-          )}
-        </ul>
-      )}
+      {menuOpen &&
+        menuRect &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <ul
+            style={{ top: menuRect.top, left: menuRect.left, width: menuRect.width }}
+            className="fixed z-50 mt-1 max-h-64 overflow-auto rounded-lg border border-border bg-surface shadow-elevated animate-scale-in"
+          >
+            {options.map((opt) => (
+              <li key={opt.id}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSelect(opt)
+                    setQuery(clearOnSelect ? '' : opt.name)
+                    setOpen(false)
+                  }}
+                  className="w-full px-3 py-2 text-left text-sm transition-colors hover:bg-surface-2"
+                >
+                  {opt.name}
+                  {opt.category && (
+                    <span className="ml-2 text-text-secondary text-xs">{opt.category}</span>
+                  )}
+                </button>
+              </li>
+            ))}
+            {showCreateOption && (
+              <li className="border-t border-border">
+                <button
+                  type="button"
+                  onClick={handleCreate}
+                  disabled={creating}
+                  className="flex w-full items-center gap-1.5 px-3 py-2 text-left text-sm text-accent transition-colors hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Plus className="h-3.5 w-3.5 shrink-0" />
+                  {creating ? 'Создаю...' : `Создать «${trimmedQuery}»`}
+                </button>
+              </li>
+            )}
+          </ul>,
+          document.body
+        )}
       {createError && <p className="mt-1 text-xs text-danger">{createError}</p>}
     </div>
   )
