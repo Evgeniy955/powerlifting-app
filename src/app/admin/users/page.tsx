@@ -36,7 +36,7 @@ export default async function AdminUsersPage() {
   // the athlete's own card on /athletes. Not scoped to the current coach,
   // same "any coach can act on anyone" rule as the rest of this page.
   const pendingInvites = await prisma.athleteProfile.findMany({
-    where: { userId: null },
+    where: { userId: null, archivedAt: null },
     orderBy: { createdAt: 'asc' },
     select: {
       id: true,
@@ -45,8 +45,13 @@ export default async function AdminUsersPage() {
       inviteStatus: true,
       invitedAt: true,
       coach: { select: { name: true, email: true } },
+      _count: { select: { cycles: true } },
     },
   })
+  const pendingInvitesWithPlans = pendingInvites.map(({ _count, ...rest }) => ({
+    ...rest,
+    hasPlans: _count.cycles > 0,
+  }))
 
   return (
     <main className="min-h-[calc(100vh-3.5rem)] bg-bg text-text-primary p-6 max-w-md mx-auto space-y-6 lg:max-w-4xl">
@@ -69,10 +74,10 @@ export default async function AdminUsersPage() {
 
       <AdminUsersView initialUsers={users} currentUserId={user.id} />
 
-      {pendingInvites.length > 0 && (
+      {pendingInvitesWithPlans.length > 0 && (
         <div className="space-y-2">
           <h2 className="font-display text-lg uppercase tracking-wide">Ожидают приглашения</h2>
-          <AdminPendingInvites initialInvites={pendingInvites} />
+          <AdminPendingInvites initialInvites={pendingInvitesWithPlans} />
         </div>
       )}
     </main>

@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { Check, Mail, Pencil, X } from 'lucide-react'
 import { Badge, Card, Input, useToast } from '@/components/ui'
+import { DeleteAthleteButton } from '@/components/DeleteAthleteButton'
+import { athleteDisplayName } from '@/lib/athlete'
 
 export type PendingInvite = {
   id: string
@@ -11,6 +13,7 @@ export type PendingInvite = {
   inviteStatus: string
   invitedAt: string | Date | null
   coach: { name: string | null; email: string } | null
+  hasPlans: boolean
 }
 
 type Props = { initialInvites: PendingInvite[] }
@@ -28,6 +31,10 @@ export function AdminPendingInvites({ initialInvites }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draftName, setDraftName] = useState('')
   const [draftEmail, setDraftEmail] = useState('')
+
+  function handleDeleted(id: string) {
+    setInvites((prev) => prev.filter((x) => x.id !== id))
+  }
 
   function startEdit(inv: PendingInvite) {
     setError(null)
@@ -164,15 +171,25 @@ export function AdminPendingInvites({ initialInvites }: Props) {
                           : 'Отправить приглашение'}
                     </button>
 
-                    <button
-                      type="button"
-                      onClick={() => startEdit(inv)}
-                      aria-label="Редактировать приглашение"
-                      title="Редактировать приглашение"
-                      className="text-text-secondary transition-colors hover:text-accent"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => startEdit(inv)}
+                        aria-label="Редактировать приглашение"
+                        title="Редактировать приглашение"
+                        className="text-text-secondary transition-colors hover:text-accent"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <DeleteAthleteButton
+                        athleteId={inv.id}
+                        athleteName={athleteDisplayName(inv)}
+                        accepted={false}
+                        hasPlans={inv.hasPlans}
+                        deleteUrl={`/api/admin/pending-invites/${inv.id}`}
+                        onDone={() => handleDeleted(inv.id)}
+                      />
+                    </div>
                   </div>
                 </div>
               )}
