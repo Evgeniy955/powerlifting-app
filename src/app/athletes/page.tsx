@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Archive, FileDown, FileUp, Pill, Users } from 'lucide-react'
+import { Archive, FileUp, Pill, Users } from 'lucide-react'
 import { Badge, Button, Card, Input } from '@/components/ui'
 import { EmptyState } from '@/components/EmptyState'
 import { DeleteAthleteButton } from '@/components/DeleteAthleteButton'
@@ -147,15 +147,9 @@ export default function AthletesPage() {
                   {/* No athlete-wide analytics shortcut here on purpose — analytics
                       is scoped to a training cycle ("Аналитика мезоцикла" on the
                       cycle/microcycle pages), reached via Циклы below, not a
-                      standalone per-athlete view. */}
-                  <a
-                    href={`/api/athletes/${a.id}/export`}
-                    title="Экспорт в Excel"
-                    aria-label="Экспорт в Excel"
-                    className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-white shadow-card transition-transform hover:scale-110 hover:brightness-110"
-                  >
-                    <FileDown className="h-4 w-4" />
-                  </a>
+                      standalone per-athlete view. Export moved the same way —
+                      it's per-plan now (see AthleteCyclesList), not athlete-wide,
+                      since a coach juggling several plans wants one at a time. */}
                   <a
                     href={`/athletes/${a.id}/import`}
                     title="Импорт из Excel"

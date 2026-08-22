@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { ArrowDownAZ, ArrowUpAZ, History, Search } from 'lucide-react'
+import { ArrowDownAZ, ArrowUpAZ, FileDown, History, Search } from 'lucide-react'
 import { Badge, Card, Input } from '@/components/ui'
 import { DeleteCycleButton } from '@/components/DeleteCycleButton'
 
@@ -145,6 +145,15 @@ export function AthleteCyclesList({ cycles, canDelete }: Props) {
                 </p>
               </Link>
               <div className="flex shrink-0 items-center gap-2">
+                <a
+                  href={`/api/cycles/${cycle.id}/export`}
+                  onClick={(e) => e.stopPropagation()}
+                  title="Экспорт в Excel"
+                  aria-label="Экспорт в Excel"
+                  className="flex h-7 w-7 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-2 hover:text-accent"
+                >
+                  <FileDown className="h-3.5 w-3.5" />
+                </a>
                 <Link
                   href={`/cycles/${cycle.id}/history`}
                   onClick={(e) => e.stopPropagation()}
