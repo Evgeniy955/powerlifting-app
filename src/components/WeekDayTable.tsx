@@ -273,8 +273,17 @@ export function WeekDayTable({
           <LockToggle locked={locked} onToggle={onToggleLocked} variant="on-accent" className="mr-1.5" />
         </div>
 
-        <div className={`overflow-x-auto ${locked ? 'pointer-events-none select-none opacity-70' : ''}`}>
-        <table className="w-full min-w-max border-collapse text-sm">
+        {/* pointer-events-none lives on the <table> itself, not this
+            overflow-x-auto wrapper — putting it here used to also block
+            horizontal touch-scroll/swipe on the table (pointer-events:none
+            disables touch-drag panning too, not just clicks), so a locked
+            (default) day couldn't be swiped sideways on mobile at all. The
+            table still visually dims/disables the same way; only the
+            scroll container itself stays interactive. */}
+        <div className="overflow-x-auto">
+        <table
+          className={`w-full min-w-max border-collapse text-sm ${locked ? 'pointer-events-none select-none opacity-70' : ''}`}
+        >
           <thead>
             <tr className="border-b border-border bg-surface-2 text-text-secondary">
               <th className="sticky left-0 z-10 bg-surface-2 px-2 py-1 text-left font-bold">
