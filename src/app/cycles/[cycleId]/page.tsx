@@ -43,6 +43,27 @@ export default async function CyclePage({ params }: { params: { cycleId: string 
           isMicrocycleVisibleToAthlete(cycle.startDate, mc.weekNumber)
         )
 
+  // Which days (workouts) in this cycle have athlete edits the coach hasn't
+  // seen yet — drives the colored dot on "День N" below. Coach-only, same
+  // ChangeLog signal as the "История" badge and the per-set highlight inside
+  // the workout itself.
+  const daysWithUnseenChanges =
+    user.role === 'COACH'
+      ? new Set(
+          (
+            await prisma.changeLog.findMany({
+              where: {
+                athleteId: cycle.athleteId,
+                seenByCoach: false,
+                workoutId: { in: cycle.microcycles.flatMap((mc) => mc.workouts.map((w) => w.id)) },
+              },
+              select: { workoutId: true },
+              distinct: ['workoutId'],
+            })
+          ).map((c) => c.workoutId)
+        )
+      : new Set<string | null>()
+
   return (
     <main className="min-h-[calc(100vh-3.5rem)] bg-bg text-text-primary p-6 max-w-md mx-auto space-y-4 lg:max-w-4xl">
       <div className="flex items-center justify-between gap-2">
@@ -89,9 +110,15 @@ export default async function CyclePage({ params }: { params: { cycleId: string 
                 <Link
                   key={w.id}
                   href={`/workout/${w.id}`}
-                  className="rounded-lg bg-surface-2 px-3 py-1 text-sm transition-colors duration-150 hover:bg-accent hover:text-on-accent"
+                  className="relative rounded-lg bg-surface-2 px-3 py-1 text-sm transition-colors duration-150 hover:bg-accent hover:text-on-accent"
                 >
                   День {w.dayNumber}
+                  {daysWithUnseenChanges.has(w.id) && (
+                    <span
+                      title="Есть непросмотренные изменения от атлета"
+                      className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-danger"
+                    />
+                  )}
                 </Link>
               ))}
             </div>

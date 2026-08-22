@@ -11,19 +11,29 @@ export type SetValue = {
   completed: boolean
 }
 
+// Which fields the athlete changed on this set since the coach last looked,
+// carrying the previous value (the input already shows the current one) —
+// null until the coach views this workout (WorkoutPage marks it seen there).
+export type SetChange = { weight?: number; reps?: number }
+
 type Props = {
   set: SetValue
   percentOf1rm: number | null
   rpe: number | null // ИУ for this set, reverse-looked-up from the RPE chart
+  changed?: SetChange
   onChange: (id: string, patch: Partial<Pick<SetValue, 'weight' | 'reps' | 'completed'>>) => void
   onRemove: (id: string) => void
 }
 
 // A single set row. Deliberately starts empty when added (no auto-fill from the
 // previous set) and only reports changes upward — the parent owns debounced saving.
-export function SetRow({ set, percentOf1rm, rpe, onChange, onRemove }: Props) {
+export function SetRow({ set, percentOf1rm, rpe, changed, onChange, onRemove }: Props) {
   return (
-    <div className="flex items-center gap-2 py-1">
+    <div
+      className={`flex items-center gap-2 py-1 ${
+        changed ? 'border-l-4 border-l-zone-moderate bg-zone-moderate/10 pl-2' : ''
+      }`}
+    >
       {/* Kept at full opacity even when completed (the rest of the row dims
           below) so the done state stays the brightest thing in the row.
           pointer-events-auto exempts it from the day-level lock (see the
@@ -45,27 +55,43 @@ export function SetRow({ set, percentOf1rm, rpe, onChange, onRemove }: Props) {
       </button>
 
       <div className={`flex items-center gap-2 ${set.completed ? 'opacity-70' : ''}`}>
-        <Input
-          type="number"
-          inputMode="decimal"
-          placeholder="Вес"
-          value={set.weight || ''}
-          onChange={(e) => onChange(set.id, { weight: parseFloat(e.target.value) || 0 })}
-          fieldSize="sm"
-          className="w-20 font-bold text-accent"
-        />
+        <div className="flex flex-col items-start">
+          <Input
+            type="number"
+            inputMode="decimal"
+            placeholder="Вес"
+            value={set.weight || ''}
+            onChange={(e) => onChange(set.id, { weight: parseFloat(e.target.value) || 0 })}
+            fieldSize="sm"
+            title={changed?.weight !== undefined ? `Атлет изменил: было ${changed.weight}` : undefined}
+            className={`w-20 font-bold text-accent ${
+              changed?.weight !== undefined ? 'ring-1 ring-zone-moderate' : ''
+            }`}
+          />
+          {changed?.weight !== undefined && (
+            <span className="text-[10px] leading-tight text-zone-moderate">было {changed.weight}</span>
+          )}
+        </div>
 
         <span className="text-text-secondary">×</span>
 
-        <Input
-          type="number"
-          inputMode="numeric"
-          placeholder="Повт"
-          value={set.reps || ''}
-          onChange={(e) => onChange(set.id, { reps: parseInt(e.target.value, 10) || 0 })}
-          fieldSize="sm"
-          className="w-16 text-text-secondary"
-        />
+        <div className="flex flex-col items-start">
+          <Input
+            type="number"
+            inputMode="numeric"
+            placeholder="Повт"
+            value={set.reps || ''}
+            onChange={(e) => onChange(set.id, { reps: parseInt(e.target.value, 10) || 0 })}
+            fieldSize="sm"
+            title={changed?.reps !== undefined ? `Атлет изменил: было ${changed.reps}` : undefined}
+            className={`w-16 text-text-secondary ${
+              changed?.reps !== undefined ? 'ring-1 ring-zone-moderate' : ''
+            }`}
+          />
+          {changed?.reps !== undefined && (
+            <span className="text-[10px] leading-tight text-zone-moderate">было {changed.reps}</span>
+          )}
+        </div>
 
         <span className="w-12 text-sm text-text-secondary">
           {percentOf1rm !== null ? `${Math.round(percentOf1rm * 100)}%` : '—'}

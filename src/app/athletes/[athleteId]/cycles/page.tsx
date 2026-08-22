@@ -2,11 +2,11 @@ import { prisma } from '@/lib/prisma'
 import { requireUser } from '@/lib/session'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { CalendarX } from 'lucide-react'
+import { CalendarX, History } from 'lucide-react'
 import { AthleteLiveUpdates } from '@/components/AthleteLiveUpdates'
 import { DeleteCycleButton } from '@/components/DeleteCycleButton'
 import { PlansHeaderActions } from '@/components/PlansHeaderActions'
-import { Card } from '@/components/ui'
+import { Card, buttonVariants } from '@/components/ui'
 import { EmptyState } from '@/components/EmptyState'
 import { athleteDisplayName } from '@/lib/athlete'
 
@@ -31,6 +31,14 @@ export default async function AthleteCyclesPage({ params }: { params: { athleteI
   const owns = user.role === 'COACH' ? athlete.coachId === user.id : athlete.userId === user.id
   if (!owns) redirect('/')
 
+  // Unseen-changes count for the "История" button badge — coach-only, same
+  // signal used for the per-day dot on the cycle page and the per-set
+  // highlight in the workout view.
+  const unseenCount =
+    user.role === 'COACH'
+      ? await prisma.changeLog.count({ where: { athleteId: athlete.id, seenByCoach: false } })
+      : 0
+
   return (
     <main className="min-h-[calc(100vh-3.5rem)] bg-bg text-text-primary p-6 max-w-md mx-auto space-y-4 lg:max-w-4xl">
       <div className="flex items-center justify-between gap-2">
@@ -40,7 +48,20 @@ export default async function AthleteCyclesPage({ params }: { params: { athleteI
           </h1>
           <AthleteLiveUpdates athleteId={athlete.id} />
         </div>
-        {user.role === 'COACH' && <PlansHeaderActions athleteId={athlete.id} />}
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/athletes/${athlete.id}/history`}
+            className={`relative ${buttonVariants({ variant: 'outline', size: 'sm' })}`}
+          >
+            <History className="h-4 w-4" /> История
+            {unseenCount > 0 && (
+              <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1 text-xs font-bold text-on-danger">
+                {unseenCount > 9 ? '9+' : unseenCount}
+              </span>
+            )}
+          </Link>
+          {user.role === 'COACH' && <PlansHeaderActions athleteId={athlete.id} />}
+        </div>
       </div>
 
       {athlete.cycles.length === 0 && (

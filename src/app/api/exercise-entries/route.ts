@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { requireUser, statusForAuthError } from '@/lib/session'
 import { assertCanAccessWorkout } from '@/lib/authorization'
 import { coachEmailToNotify, queueChangeNotification } from '@/lib/email'
+import { recordChangeLog } from '@/lib/changeLog'
 
 // POST /api/exercise-entries { workoutId, exerciseId, multiplier? }
 // Adds an exercise block to a workout. Coach normally plans it; athlete could also
@@ -47,6 +48,18 @@ export async function POST(req: NextRequest) {
         exerciseName: entry.exercise.name,
         kind: 'exercise-added',
         at: new Date(),
+      })
+      void recordChangeLog({
+        athleteId: chain.athlete.id,
+        workoutId: chain.workout.id,
+        workoutDate: chain.workout.scheduledDate,
+        weekNumber: chain.microcycle.weekNumber,
+        dayNumber: chain.workout.dayNumber,
+        exerciseEntryId: entry.id,
+        exerciseName: entry.exercise.name,
+        kind: 'exercise-added',
+        actorId: user.id,
+        actorRole: user.role,
       })
     }
 
