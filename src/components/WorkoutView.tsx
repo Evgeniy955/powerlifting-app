@@ -3,6 +3,15 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
+import {
+  DndContext,
+  type DragEndEvent,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
+import { SortableContext, arrayMove, rectSortingStrategy } from '@dnd-kit/sortable'
 import { ExerciseCard, type ExerciseEntryData } from './ExerciseCard'
 import type { SetChange } from './SetRow'
 import { ExerciseAutocomplete, type ExerciseOption } from './ExerciseAutocomplete'
@@ -90,6 +99,31 @@ export function WorkoutView({
     setEntries((prev) => prev.filter((e) => e.id !== entryId))
   }
 
+  // Same drag-to-reorder as WeekDayTable's rows, applied to this page's card
+  // grid instead of table rows — same PATCH /api/workouts/:workoutId
+  // endpoint either way, since both views edit the same day's exercise order.
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    setEntries((prev) => {
+      const oldIndex = prev.findIndex((e) => e.id === active.id)
+      const newIndex = prev.findIndex((e) => e.id === over.id)
+      if (oldIndex === -1 || newIndex === -1) return prev
+      const next = arrayMove(prev, oldIndex, newIndex)
+
+      fetch(`/api/workouts/${workoutId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entryIds: next.map((e) => e.id) }),
+      })
+
+      return next
+    })
+  }
+
   return (
     // Mobile: single stacked column of cards (unchanged touch-first layout).
     // Desktop (lg+): wider canvas, exercises laid out as a 2/3-column grid so
@@ -135,20 +169,24 @@ export function WorkoutView({
       <div
         className={`space-y-4 lg:space-y-0 ${locked ? 'pointer-events-none select-none opacity-70' : ''}`}
       >
-        <div className="space-y-4 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0 xl:grid-cols-3">
-          {entries.map((entry, index) => (
-            <ExerciseCard
-              key={entry.id}
-              entry={entry}
-              rpeTable={rpeTable}
-              position={index + 1}
-              onRemove={handleRemoveExercise}
-              canCreateExercise={canCreateExercise}
-              changedSets={changedSets}
-              isNewExercise={newExerciseEntryIdSet.has(entry.id)}
-            />
-          ))}
-        </div>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={entries.map((e) => e.id)} strategy={rectSortingStrategy}>
+            <div className="space-y-4 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0 xl:grid-cols-3">
+              {entries.map((entry, index) => (
+                <ExerciseCard
+                  key={entry.id}
+                  entry={entry}
+                  rpeTable={rpeTable}
+                  position={index + 1}
+                  onRemove={handleRemoveExercise}
+                  canCreateExercise={canCreateExercise}
+                  changedSets={changedSets}
+                  isNewExercise={newExerciseEntryIdSet.has(entry.id)}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
 
         <Card className="lg:mt-4">
           <p className="text-sm text-text-secondary mb-2">Добавить упражнение</p>

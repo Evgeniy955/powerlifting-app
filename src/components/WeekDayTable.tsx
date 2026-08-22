@@ -2,13 +2,22 @@
 
 import { useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { Ban, Check, ChevronRight, Pencil, Plus, Trash2, X } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
+import {
+  DndContext,
+  type DragEndEvent,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
+import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { ExerciseAutocomplete, type ExerciseOption } from './ExerciseAutocomplete'
 import { LockToggle } from './LockToggle'
+import { WeekDayTableRow } from './WeekDayTableRow'
 import type { ExerciseEntryData } from './ExerciseCard'
 import { computeExerciseMetrics, aggregateMetrics } from '@/lib/metrics'
 import type { RpePoint } from '@/lib/rpe'
-import { TRAINING_GROUP_LABEL, isTrainingGroup, trainingGroupColor } from '@/lib/trainingGroups'
 
 const WEEKDAY_SHORT = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']
 
@@ -123,6 +132,31 @@ export function WeekDayTable({
   }, [perEntryMetrics, entries])
 
   const maxSets = Math.max(1, ...entries.map((e) => e.sets.length))
+
+  // Requires an 8px pointer move before a drag starts — without this, the
+  // handle's own click/tap (e.g. a quick accidental touch) could register as
+  // a zero-distance drag and reorder nothing while still eating the tap.
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    setEntries((prev) => {
+      const oldIndex = prev.findIndex((e) => e.id === active.id)
+      const newIndex = prev.findIndex((e) => e.id === over.id)
+      if (oldIndex === -1 || newIndex === -1) return prev
+      const next = arrayMove(prev, oldIndex, newIndex)
+
+      fetch(`/api/workouts/${workout.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entryIds: next.map((e) => e.id) }),
+      })
+
+      return next
+    })
+  }
 
   function updateSetLocally(
     entryId: string,
@@ -304,227 +338,45 @@ export function WeekDayTable({
             </tr>
           </thead>
           <tbody>
-            {entries.map((entry, index) => {
-              const m = perEntryMetrics.get(entry.id)!
-              const canEditOneRepMax = role === 'COACH' || entry.exercise.trainingGroup === 'GPP'
-              return (
-                <tr
-                  key={entry.id}
-                  className={`border-b border-border last:border-b-0 ${entry.skipped ? 'opacity-50' : ''}`}
-                >
-                  <td className="sticky left-0 z-10 w-40 max-w-[10rem] bg-surface px-2 py-1 font-medium align-top">
-                    <div className="flex w-full flex-col items-start gap-0.5">
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => toggleSkipped(entry.id, !entry.skipped)}
-                          aria-pressed={entry.skipped}
-                          title={
-                            entry.skipped ? 'Отметить как выполненное' : 'Отметить как пропущенное'
-                          }
-                          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors ${
-                            entry.skipped
-                              ? 'border-danger bg-danger text-on-danger'
-                              : 'border-border bg-surface-2 text-text-secondary hover:border-danger hover:text-danger'
-                          }`}
-                        >
-                          <Ban className="h-2.5 w-2.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => startEditingExercise(entry)}
-                          aria-label="Редактировать упражнение"
-                          title="Редактировать упражнение"
-                          className="flex h-4 w-4 shrink-0 items-center justify-center text-text-secondary transition-colors hover:text-accent"
-                        >
-                          <Pencil className="h-3 w-3" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => removeExercise(entry.id, entry.exercise.name)}
-                          aria-label="Убрать упражнение из плана"
-                          title="Убрать упражнение из плана"
-                          className="flex h-4 w-4 shrink-0 items-center justify-center text-text-secondary transition-colors hover:text-danger"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
-                      </div>
-                      {editingEntryId === entry.id ? (
-                        <div className="flex w-full flex-col gap-1 rounded border border-border bg-surface-2 p-1">
-                          <ExerciseAutocomplete
-                            onSelect={setDraftExercise}
-                            placeholder={draftExercise?.name ?? entry.exercise.name}
-                            canCreate={canCreateExercise}
-                          />
-                          <div className="flex items-center gap-1">
-                            <label className="flex items-center gap-1 text-[10px] text-text-secondary">
-                              Множ
-                              <input
-                                type="number"
-                                inputMode="decimal"
-                                value={draftMultiplier}
-                                onChange={(e) => setDraftMultiplier(parseFloat(e.target.value) || 1)}
-                                className="w-10 min-w-0 rounded border border-border bg-surface px-0.5 py-0.5 text-center text-xs"
-                              />
-                            </label>
-                            <button
-                              type="button"
-                              onClick={() => saveExerciseEdit(entry.id)}
-                              aria-label="Сохранить"
-                              title="Сохранить"
-                              className="ml-auto text-accent transition-colors hover:text-accent-2"
-                            >
-                              <Check className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setEditingEntryId(null)}
-                              aria-label="Отменить"
-                              title="Отменить"
-                              className="text-text-secondary transition-colors hover:text-danger"
-                            >
-                              <X className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <span className={`block w-full break-words ${entry.skipped ? 'line-through' : ''}`}>
-                          {/* Block-color dot — Базовые/СФП/ОФП, same palette as
-                              the admin exercise page. Nothing shown for an
-                              exercise that hasn't been sorted into a block yet,
-                              so an unset state doesn't read as a 4th color. */}
-                          {isTrainingGroup(entry.exercise.trainingGroup) && (
-                            <span
-                              title={TRAINING_GROUP_LABEL[entry.exercise.trainingGroup]}
-                              aria-label={TRAINING_GROUP_LABEL[entry.exercise.trainingGroup]}
-                              className={`mr-1 inline-block h-2 w-2 shrink-0 rounded-full align-middle ${trainingGroupColor(entry.exercise.trainingGroup).dot}`}
-                            />
-                          )}
-                          <span className="text-text-secondary">{index + 1}. </span>
-                          {entry.exercise.name}
-                          {entry.multiplier !== 1 && (
-                            <span className="ml-1 text-text-secondary">×{entry.multiplier}</span>
-                          )}
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  {Array.from({ length: maxSets }).map((_, i) => {
-                    const set = entry.sets[i]
-                    if (!set) return <td key={i} className="px-0.5 py-0.5" />
-                    const pct = entry.oneRepMax ? set.weight / entry.oneRepMax : null
-                    return (
-                      <td key={i} className="group relative px-0.5 py-0.5 align-top">
-                        <button
-                          onClick={() => removeSet(entry.id, set.id)}
-                          aria-label="Удалить подход"
-                          className="absolute right-0 top-0 hidden text-text-secondary hover:text-danger group-hover:block"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                        <div className="flex flex-col items-center gap-0.5">
-                          {/* Set-number pill doubles as the "done" toggle (swaps to a
-                              checkmark when tapped) — sits in normal flow above the
-                              weight input instead of overlapping it, and gives a
-                              properly sized tap target on mobile. Kept at full opacity
-                              even when completed (the rest of the row dims below) so
-                              the done state stays the brightest thing in the row.
-                              pointer-events-auto exempts it from the week-level lock
-                              (see the pointer-events-none wrapper below) — during an
-                              actual session you still need to check sets off without
-                              unlocking the whole day/week first. */}
-                          <button
-                            type="button"
-                            onClick={() =>
-                              updateSetLocally(entry.id, set.id, { completed: !set.completed })
-                            }
-                            aria-pressed={set.completed}
-                            aria-label={`Подход ${i + 1}${set.completed ? ' выполнен, нажмите чтобы снять отметку' : ', нажмите чтобы отметить выполненным'}`}
-                            className={`pointer-events-auto flex h-5 w-16 items-center justify-center rounded border text-[10px] font-medium transition-colors ${
-                              set.completed
-                                ? 'border-accent bg-accent text-on-accent shadow-[0_0_8px_-1px_var(--color-accent)]'
-                                : 'border-border bg-surface-2 text-text-secondary hover:border-accent hover:text-accent'
-                            }`}
-                          >
-                            {set.completed ? <Check className="h-3 w-3" /> : i + 1}
-                          </button>
-                          <div
-                            className={`flex flex-col items-center gap-0.5 ${set.completed ? 'opacity-70' : ''}`}
-                          >
-                            <input
-                              type="number"
-                              inputMode="decimal"
-                              value={set.weight || ''}
-                              onChange={(e) =>
-                                updateSetLocally(entry.id, set.id, {
-                                  weight: parseFloat(e.target.value) || 0,
-                                })
-                              }
-                              className={`w-16 min-w-0 rounded border px-0.5 py-0.5 text-center text-sm font-bold text-accent outline-none focus:border-accent focus:ring-1 focus:ring-accent ${set.completed ? 'border-zone-low bg-surface-3' : 'border-border bg-surface-2'}`}
-                            />
-                            <input
-                              type="number"
-                              inputMode="numeric"
-                              value={set.reps || ''}
-                              onChange={(e) =>
-                                updateSetLocally(entry.id, set.id, {
-                                  reps: parseInt(e.target.value, 10) || 0,
-                                })
-                              }
-                              className={`w-16 min-w-0 rounded border px-0.5 py-0.5 text-center text-sm text-text-secondary outline-none focus:border-accent focus:ring-1 focus:ring-accent ${set.completed ? 'border-zone-low bg-surface-3' : 'border-border bg-surface-2'}`}
-                            />
-                            <span
-                              className={`text-xs ${pct !== null ? zoneClass(pct) : 'text-text-secondary'}`}
-                            >
-                              {pct !== null ? `${Math.round(pct * 100)}%` : '—'}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-                    )
-                  })}
-                  <td className="px-0.5 py-0.5 align-top">
-                    <button
-                      onClick={() => addSet(entry.id)}
-                      aria-label="Добавить подход"
-                      title="Добавить подход с теми же весом/повторами, что и последний"
-                      className="mt-1 text-text-secondary transition-colors hover:text-accent"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                    </button>
-                  </td>
-                  <td className="px-1.5 py-1 text-right align-top">{m.tonnage}</td>
-                  <td className="px-1.5 py-1 text-right align-top">{m.avgWeight}</td>
-                  <td className={`px-1.5 py-1 text-right align-top ${zoneClass(m.relativeIntensity)}`}>
-                    {Math.round(m.relativeIntensity * 100)}%
-                  </td>
-                  <td className="px-1.5 py-1 text-right align-top">
-                    {canEditOneRepMax ? (
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        value={entry.oneRepMax || ''}
-                        onChange={(e) =>
-                          updateOneRepMaxLocally(
-                            entry.id,
-                            entry.exercise.id,
-                            parseFloat(e.target.value) || 0
-                          )
-                        }
-                        className="w-14 min-w-0 rounded border-none bg-accent-2 px-1 py-0.5 text-center text-sm font-bold text-on-accent-2 outline-none focus:ring-1 focus:ring-accent"
-                      />
-                    ) : (
-                      <span className="rounded bg-accent-2 px-1.5 py-0.5 font-bold text-on-accent-2">
-                        {entry.oneRepMax ?? '—'}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-1.5 py-1 text-right align-top">{m.kpsh}</td>
-                  <td className="px-1.5 py-1 text-right align-top">{m.loadCoefficient}</td>
-                </tr>
-              )
-            })}
-
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext items={entries.map((e) => e.id)} strategy={verticalListSortingStrategy}>
+                {entries.map((entry, index) => {
+                  const m = perEntryMetrics.get(entry.id)!
+                  const canEditOneRepMax =
+                    role === 'COACH' || entry.exercise.trainingGroup === 'GPP'
+                  return (
+                    <WeekDayTableRow
+                      key={entry.id}
+                      entry={entry}
+                      index={index}
+                      metrics={m}
+                      maxSets={maxSets}
+                      canEditOneRepMax={canEditOneRepMax}
+                      canCreateExercise={canCreateExercise}
+                      locked={locked}
+                      isEditing={editingEntryId === entry.id}
+                      draftExercise={draftExercise}
+                      draftMultiplier={draftMultiplier}
+                      onStartEdit={startEditingExercise}
+                      onCancelEdit={() => setEditingEntryId(null)}
+                      onSaveEdit={saveExerciseEdit}
+                      onDraftExerciseChange={setDraftExercise}
+                      onDraftMultiplierChange={setDraftMultiplier}
+                      onToggleSkipped={toggleSkipped}
+                      onRemoveExercise={removeExercise}
+                      onRemoveSet={removeSet}
+                      onAddSet={addSet}
+                      onUpdateSet={updateSetLocally}
+                      onUpdateOneRepMax={updateOneRepMaxLocally}
+                    />
+                  )
+                })}
+              </SortableContext>
+            </DndContext>
             {entries.length === 0 && (
               <tr>
                 <td colSpan={totalCols} className="px-2 py-2 text-center text-text-secondary">
