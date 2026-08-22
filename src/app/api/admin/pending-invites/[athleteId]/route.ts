@@ -97,3 +97,33 @@ export async function POST(_req: NextRequest, { params }: { params: { athleteId:
     return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
   }
 }
+
+// DELETE — admin-unscoped counterpart to /api/athletes/[athleteId] DELETE,
+// for a pending invite acted on from /admin/users rather than its owning
+// coach's own /athletes list. Same archive-or-delete rule: a placeholder
+// with at least one plan (Cycle) already built for it gets archived
+// (archivedAt set, reversible from the owning coach's /athletes/archive)
+// instead of destroyed outright; one with nothing built yet is just removed.
+export async function DELETE(_req: NextRequest, { params }: { params: { athleteId: string } }) {
+  try {
+    await requireCoach()
+    const result = await loadPendingAthlete(params.athleteId)
+    if ('error' in result) return result.error
+    const { athlete } = result
+
+    const cycleCount = await prisma.cycle.count({ where: { athleteId: athlete.id } })
+
+    if (!athlete.archivedAt && cycleCount > 0) {
+      await prisma.athleteProfile.update({
+        where: { id: athlete.id },
+        data: { archivedAt: new Date() },
+      })
+      return NextResponse.json({ archived: true })
+    }
+
+    await prisma.athleteProfile.delete({ where: { id: athlete.id } })
+    return NextResponse.json({ deleted: true })
+  } catch (e) {
+    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+  }
+}

@@ -19,6 +19,11 @@ type Props = {
   // archived — here DELETE is always the real, permanent, unrecoverable one.
   mode?: 'roster' | 'archive'
   hasPlans?: boolean
+  // Which endpoint to DELETE. Defaults to the coach-scoped
+  // /api/athletes/:id (assertAthleteBelongsToCoach). The admin "Ожидают
+  // приглашения" list (any coach can act on any pending invite, same as the
+  // rest of /admin/users) passes /api/admin/pending-invites/:id instead.
+  deleteUrl?: string
   onDone: () => void
 }
 
@@ -28,6 +33,7 @@ export function DeleteAthleteButton({
   accepted,
   mode = 'roster',
   hasPlans = false,
+  deleteUrl,
   onDone,
 }: Props) {
   const toast = useToast()
@@ -40,7 +46,7 @@ export function DeleteAthleteButton({
     setConfirmOpen(false)
     setLoading(true)
     try {
-      const res = await fetch(`/api/athletes/${athleteId}`, { method: 'DELETE' })
+      const res = await fetch(deleteUrl ?? `/api/athletes/${athleteId}`, { method: 'DELETE' })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
         throw new Error(body.error ?? 'Не удалось выполнить действие')
