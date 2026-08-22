@@ -63,6 +63,16 @@ export async function assertCanAccessSupplement(supplementId: string, user: Sess
   return supplement
 }
 
+export async function assertCanAccessCompetition(competitionId: string, user: SessionUser) {
+  const competition = await prisma.competition.findUnique({
+    where: { id: competitionId },
+    include: { athlete: true },
+  })
+  if (!competition) throw new NotFoundError('Запись не найдена')
+  if (!ownsAthlete(competition.athlete, user)) throw new ForbiddenError('Нет доступа к этой записи')
+  return competition
+}
+
 export async function assertCanAccessSet(setId: string, user: SessionUser) {
   const set = await prisma.setEntry.findUnique({
     where: { id: setId },

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Archive, FileUp, Pill, Users } from 'lucide-react'
+import { Archive, FileUp, Pill, Trophy, Users } from 'lucide-react'
 import { Badge, Button, Card, Input } from '@/components/ui'
 import { EmptyState } from '@/components/EmptyState'
 import { DeleteAthleteButton } from '@/components/DeleteAthleteButton'
@@ -157,6 +157,14 @@ export default function AthletesPage() {
                     className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-500 text-white shadow-card transition-transform hover:scale-110 hover:brightness-110"
                   >
                     <FileUp className="h-4 w-4" />
+                  </a>
+                  <a
+                    href={`/athletes/${a.id}/competitions`}
+                    title="Соревнования"
+                    aria-label="Соревнования"
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-500 text-white shadow-card transition-transform hover:scale-110 hover:brightness-110"
+                  >
+                    <Trophy className="h-4 w-4" />
                   </a>
                   <a
                     href={`/athletes/${a.id}/supplements`}

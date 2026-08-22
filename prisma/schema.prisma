@@ -105,11 +105,12 @@ model AthleteProfile {
   // Null = active/visible on the normal roster.
   archivedAt DateTime?
 
-  oneRepMaxes Athlete1RM[]
-  cycles      Cycle[]
-  supplements Supplement[]
-  periods     Period[]
-  changeLogs  ChangeLog[]
+  oneRepMaxes  Athlete1RM[]
+  cycles       Cycle[]
+  supplements  Supplement[]
+  periods      Period[]
+  changeLogs   ChangeLog[]
+  competitions Competition[]
 
   createdAt DateTime @default(now())
 
@@ -198,6 +199,32 @@ model Supplement {
   endDate   DateTime?
   notes     String?
   createdAt DateTime       @default(now())
+
+  @@index([athleteId])
+}
+
+// Соревнования — an athlete's competition results log. One row per meet:
+// name, date, weight class and the weigh-in bodyweight, plus the best
+// accepted attempt in each of the three lifts. Each lift is independently
+// nullable (a no-lift/bombout in one shouldn't block recording the other
+// two, and a coach might log a meet before all three results are in). Total
+// isn't a stored column — it's derived from squat+bench+deadlift wherever
+// all three are present, same as the Мои спортсмены main-lifts widget, so
+// it can never drift out of sync with the three numbers it's built from.
+model Competition {
+  id          String         @id @default(uuid())
+  athleteId   String
+  athlete     AthleteProfile @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  name        String
+  date        DateTime
+  weightClass String?
+  bodyweight  Float?
+  squat       Float?
+  bench       Float?
+  deadlift    Float?
+  place       Int?
+  notes       String?
+  createdAt   DateTime       @default(now())
 
   @@index([athleteId])
 }
