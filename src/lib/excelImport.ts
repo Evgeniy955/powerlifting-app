@@ -326,12 +326,21 @@ export async function parseWorkbookPreview(buffer: Buffer): Promise<ImportPrevie
       const rawName = cellText(row.getCell(header.exerciseCol))
       if (!rawName || !currentDate) continue
 
+      // Weight is intentionally not required here — some exercises (bands,
+      // bodyweight movements) are legitimately tracked by sets/reps alone
+      // with the Вес column left blank, and previously requiring weight > 0
+      // silently dropped those rows from the import entirely, with no trace
+      // in either recognized or unrecognized. A blank weight just becomes 0,
+      // which the metrics engine already treats safely (zero tonnage; %1ПМ
+      // only ever computes off a set ПМ — see computeExerciseMetrics — so a
+      // weightless set with no ПМ naturally stays out of intensity-based
+      // analytics without any extra filtering here).
       const sets: ParsedSet[] = []
       for (const block of header.setBlocks) {
         const weight = cellNumber(row.getCell(block.weightCol))
         const setCount = cellNumber(row.getCell(block.setsCol))
         const reps = cellNumber(row.getCell(block.repsCol))
-        if (weight > 0 && setCount > 0 && reps > 0) {
+        if (setCount > 0 && reps > 0) {
           for (let i = 0; i < setCount; i++) sets.push({ weight, reps })
         }
       }
