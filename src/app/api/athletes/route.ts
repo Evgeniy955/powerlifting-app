@@ -2,18 +2,24 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireCoach, statusForAuthError } from '@/lib/session'
 
+type MainLift = 'squat' | 'bench' | 'deadlift'
+
 // The powerlifting "total" — classic squat, paused bench, classic deadlift.
-// Matched by exact ExerciseCatalog name rather than a hardcoded id, so it
+// Matched by exact ExerciseCatalog name(s) rather than a hardcoded id, so it
 // still works after a reseed (new uuids) as long as the names stay the same.
 //
-// Deadlift is just "Тяга" — confirmed against the coach's actual log (not the
-// generic seeded "Становая тяга", which nobody's data ever references, and
-// not "Тяга классика" either).
-const MAIN_LIFT_NAMES = {
-  squat: 'Приседание',
-  bench: 'Жим лежа с паузой',
-  deadlift: 'Тяга',
-} as const
+// Squat and bench are a single exercise name each, confirmed against the
+// coach's actual catalog (not the seeded singular "Приседание", which turned
+// out to not be what anyone's log actually uses — the coach's real entry is
+// the plural "Приседания"). Deadlift covers every stance/style the coach
+// might log a competition pull under — "Тяга", "Становая", "Становая тяга",
+// "Тяга сумо" — and takes whichever of those has the higher best weight,
+// since a lifter isn't necessarily pulling the same stance every cycle.
+const MAIN_LIFT_NAMES: Record<MainLift, string[]> = {
+  squat: ['Приседания'],
+  bench: ['Жим лежа с паузой'],
+  deadlift: ['Тяга', 'Становая', 'Становая тяга', 'Тяга сумо'],
+}
 
 const MAIN_LIFTS_WINDOW_MS = 36 * 7 * 24 * 60 * 60 * 1000
 
@@ -36,10 +42,20 @@ export async function GET() {
     })
 
     const mainLiftExercises = await prisma.exerciseCatalog.findMany({
-      where: { name: { in: Object.values(MAIN_LIFT_NAMES) } },
+      where: { name: { in: Object.values(MAIN_LIFT_NAMES).flat() } },
       select: { id: true, name: true },
     })
-    const liftIdByName = new Map(mainLiftExercises.map((e) => [e.name, e.id]))
+    // Multiple ExerciseCatalog rows (e.g. every deadlift stance) can map to
+    // the same MainLift key — aggregated below by key, not by exercise id, so
+    // "best deadlift" is the higher of whichever stance the athlete actually
+    // pulled more in.
+    const liftKeyByExerciseId = new Map<string, MainLift>()
+    for (const ex of mainLiftExercises) {
+      const liftKey = (Object.entries(MAIN_LIFT_NAMES) as [MainLift, string[]][]).find(([, names]) =>
+        names.includes(ex.name)
+      )?.[0]
+      if (liftKey) liftKeyByExerciseId.set(ex.id, liftKey)
+    }
     const liftIds = mainLiftExercises.map((e) => e.id)
 
     const windowStart = new Date(Date.now() - MAIN_LIFTS_WINDOW_MS)
@@ -71,25 +87,22 @@ export async function GET() {
           })
         : []
 
-    const bestByAthleteAndExercise = new Map<string, number>()
+    const bestByAthleteAndLift = new Map<string, number>()
     for (const set of recentSets) {
+      const liftKey = liftKeyByExerciseId.get(set.exerciseEntry.exerciseId)
+      if (!liftKey) continue
       const athleteId = set.exerciseEntry.workout.microcycle.cycle.athleteId
-      const key = `${athleteId}:${set.exerciseEntry.exerciseId}`
-      const prev = bestByAthleteAndExercise.get(key) ?? 0
-      if (set.weight > prev) bestByAthleteAndExercise.set(key, set.weight)
+      const key = `${athleteId}:${liftKey}`
+      const prev = bestByAthleteAndLift.get(key) ?? 0
+      if (set.weight > prev) bestByAthleteAndLift.set(key, set.weight)
     }
 
-    const squatId = liftIdByName.get(MAIN_LIFT_NAMES.squat) ?? null
-    const benchId = liftIdByName.get(MAIN_LIFT_NAMES.bench) ?? null
-    const deadliftId = liftIdByName.get(MAIN_LIFT_NAMES.deadlift) ?? null
-
     const withMainLifts = athletes.map((athlete) => {
-      const lookup = (exerciseId: string | null) =>
-        exerciseId ? (bestByAthleteAndExercise.get(`${athlete.id}:${exerciseId}`) ?? null) : null
+      const lookup = (liftKey: MainLift) => bestByAthleteAndLift.get(`${athlete.id}:${liftKey}`) ?? null
 
-      const squat = lookup(squatId)
-      const bench = lookup(benchId)
-      const deadlift = lookup(deadliftId)
+      const squat = lookup('squat')
+      const bench = lookup('bench')
+      const deadlift = lookup('deadlift')
       const total =
         squat !== null && bench !== null && deadlift !== null ? squat + bench + deadlift : null
 
