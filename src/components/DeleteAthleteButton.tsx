@@ -24,6 +24,11 @@ type Props = {
   // приглашения" list (any coach can act on any pending invite, same as the
   // rest of /admin/users) passes /api/admin/pending-invites/:id instead.
   deleteUrl?: string
+  // 'md' (default, 32px): the icon-row size used on /athletes and
+  // /athletes/archive, matching the other action buttons there. 'sm' (24px):
+  // for tighter contexts like the admin pending-invites list, next to a
+  // plain small Pencil icon rather than other 32px circular buttons.
+  size?: 'sm' | 'md'
   onDone: () => void
 }
 
@@ -34,6 +39,7 @@ export function DeleteAthleteButton({
   mode = 'roster',
   hasPlans = false,
   deleteUrl,
+  size = 'md',
   onDone,
 }: Props) {
   const toast = useToast()
@@ -87,11 +93,15 @@ export function DeleteAthleteButton({
         disabled={loading}
         title={willArchive ? 'Архивировать атлета' : mode === 'archive' ? 'Удалить навсегда' : 'Удалить атлета'}
         aria-label={willArchive ? 'Архивировать атлета' : mode === 'archive' ? 'Удалить навсегда' : 'Удалить атлета'}
-        className={`flex h-8 w-8 items-center justify-center rounded-full shadow-card transition-transform hover:scale-110 hover:brightness-110 disabled:opacity-50 ${
-          willArchive ? 'bg-slate-500 text-white' : 'bg-danger text-on-danger'
-        }`}
+        className={`flex items-center justify-center rounded-full shadow-card transition-transform hover:scale-110 hover:brightness-110 disabled:opacity-50 ${
+          size === 'sm' ? 'h-6 w-6' : 'h-8 w-8'
+        } ${willArchive ? 'bg-slate-500 text-white' : 'bg-danger text-on-danger'}`}
       >
-        {willArchive ? <Archive className="h-4 w-4" /> : <Trash2 className="h-4 w-4" />}
+        {willArchive ? (
+          <Archive className={size === 'sm' ? 'h-3 w-3' : 'h-4 w-4'} />
+        ) : (
+          <Trash2 className={size === 'sm' ? 'h-3 w-3' : 'h-4 w-4'} />
+        )}
       </button>
 
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen} title={dialogTitle} description={dialogDescription}>
