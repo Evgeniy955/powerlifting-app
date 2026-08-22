@@ -19,9 +19,18 @@ export async function PATCH(req: NextRequest, { params }: { params: { entryId: s
       exerciseId?: string
       multiplier?: number
     }
+    // Built field-by-field rather than passing `body` straight through —
+    // ExerciseEntry also has a `workoutId` FK column, and assertCanAccessExerciseEntry
+    // above only checks ownership of *this* entry, not of whatever workoutId a
+    // client could otherwise smuggle in to relocate it into someone else's plan.
+    const data: { skipped?: boolean; exerciseId?: string; multiplier?: number } = {}
+    if (body.skipped !== undefined) data.skipped = body.skipped
+    if (body.exerciseId !== undefined) data.exerciseId = body.exerciseId
+    if (body.multiplier !== undefined) data.multiplier = body.multiplier
+
     const entry = await prisma.exerciseEntry.update({
       where: { id: params.entryId },
-      data: body,
+      data,
       include: { exercise: true },
     })
 

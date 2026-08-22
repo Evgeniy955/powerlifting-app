@@ -3,6 +3,21 @@ import { prisma } from './prisma'
 
 export class EmailNotConfiguredError extends Error {}
 
+// Every string interpolated into an email's `html` below ultimately traces
+// back to coach-editable fields (their own name, an athlete's display name,
+// an exercise's catalog name) — none are validated to be markup-free, so
+// escape before interpolating rather than trusting them raw. Guards against
+// a coach embedding links/styling into invite emails sent to their athletes
+// (display spoofing / phishing), or into their own change-digest emails.
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 // Sends through the coach's own Gmail account over SMTP (an "App Password",
 // not the regular account password — Google requires 2-Step Verification to
 // be on before one can be created) rather than a transactional-email
@@ -53,13 +68,16 @@ export async function sendInviteEmail({ to, coachName, athleteDisplayName, token
   const { transporter, from } = getMailer()
   const acceptUrl = `${appBaseUrl()}/login?invite=${token}`
 
+  const safeCoachName = escapeHtml(coachName)
+  const safeAthleteName = escapeHtml(athleteDisplayName)
+
   await transporter.sendMail({
     from,
     to,
     subject: `${coachName} приглашает вас в IronLedger`,
     html: `
-      <p>Привет${athleteDisplayName ? `, ${athleteDisplayName}` : ''}!</p>
-      <p><strong>${coachName}</strong> приглашает вас как атлета в IronLedger — дневник тренировок по пауэрлифтингу.</p>
+      <p>Привет${safeAthleteName ? `, ${safeAthleteName}` : ''}!</p>
+      <p><strong>${safeCoachName}</strong> приглашает вас как атлета в IronLedger — дневник тренировок по пауэрлифтингу.</p>
       <p><a href="${acceptUrl}">Принять приглашение и войти через Google</a></p>
       <p style="color:#888;font-size:12px">Если вы не ожидали это письмо, просто проигнорируйте его.</p>
     `,
@@ -140,10 +158,11 @@ function fieldLabel(field: ChangeEvent['field']) {
 }
 
 function describeEvent(e: ChangeEvent): string {
-  if (e.kind === 'exercise-added') return `+ Добавлено упражнение: ${e.exerciseName}`
-  if (e.kind === 'exercise-removed') return `− Удалено упражнение из плана: ${e.exerciseName}`
-  if (e.kind === 'set-removed') return `− Удалён подход ${e.setNumber} (${e.exerciseName})`
-  return `Подход ${e.setNumber} (${e.exerciseName}): ${fieldLabel(e.field)} ${e.before ?? '—'} → ${e.after ?? '—'}`
+  const exerciseName = escapeHtml(e.exerciseName)
+  if (e.kind === 'exercise-added') return `+ Добавлено упражнение: ${exerciseName}`
+  if (e.kind === 'exercise-removed') return `− Удалено упражнение из плана: ${exerciseName}`
+  if (e.kind === 'set-removed') return `− Удалён подход ${e.setNumber} (${exerciseName})`
+  return `Подход ${e.setNumber} (${exerciseName}): ${fieldLabel(e.field)} ${e.before ?? '—'} → ${e.after ?? '—'}`
 }
 
 async function flushDigest(athleteId: string) {
