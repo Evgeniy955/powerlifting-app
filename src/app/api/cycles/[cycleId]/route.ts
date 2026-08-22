@@ -5,8 +5,9 @@ import { assertAthleteBelongsToCoach } from '@/lib/authorization'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
-// PATCH /api/cycles/:cycleId { startDate? } — coach-only. Doesn't touch
-// name/weeks — those are still only editable at creation.
+// PATCH /api/cycles/:cycleId { name?, startDate? } — coach-only. Weeks is
+// still only editable at creation (changing it would require adding/removing
+// whole microcycles, not just a field).
 //
 // startDate moves the whole plan: every already-scheduled Workout under
 // it is shifted by the same number of days, so the actual training days
@@ -22,9 +23,18 @@ export async function PATCH(req: NextRequest, { params }: { params: { cycleId: s
     await assertAthleteBelongsToCoach(cycle.athleteId, coach.id)
 
     const body = (await req.json()) as {
+      name?: string
       startDate?: string
     }
     const data: Record<string, string | null | Date> = {}
+
+    if (body.name !== undefined) {
+      const trimmed = body.name.trim()
+      if (!trimmed) {
+        return NextResponse.json({ error: 'Название не может быть пустым' }, { status: 400 })
+      }
+      data.name = trimmed
+    }
 
     let deltaDays = 0
     if (body.startDate) {

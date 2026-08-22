@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { ArrowDownAZ, ArrowUpAZ, FileDown, History, Search } from 'lucide-react'
 import { Badge, Card, Input } from '@/components/ui'
 import { DeleteCycleButton } from '@/components/DeleteCycleButton'
+import { RenameCycleButton } from '@/components/RenameCycleButton'
+import { CopyCycleButton } from '@/components/CopyCycleButton'
 
 export type CycleListItem = {
   id: string
@@ -38,14 +40,16 @@ function cycleStatus(cycle: CycleListItem, now: number): Exclude<Status, 'all'> 
 
 type Props = {
   cycles: CycleListItem[]
-  canDelete: boolean
+  // Coach-only actions: rename, copy, delete. An athlete viewing their own
+  // plans only ever gets read/export/history.
+  canManage: boolean
 }
 
 // Client-side sort/filter over a coach's (or athlete's) plan list — the list
 // is small per athlete (tens, not thousands, of cycles), so filtering the
 // already-fetched array locally avoids round-tripping to the server for
 // every keystroke/toggle.
-export function AthleteCyclesList({ cycles, canDelete }: Props) {
+export function AthleteCyclesList({ cycles, canManage }: Props) {
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState<Status>('all')
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
@@ -123,33 +127,36 @@ export function AthleteCyclesList({ cycles, canDelete }: Props) {
       <div className="space-y-2 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0 xl:grid-cols-3">
         {visible.map((cycle) => (
           <Card key={cycle.id} padding="sm" className="transition-colors hover:bg-surface-2">
-            <div className="flex items-start justify-between gap-2">
-              {/* Badge sits above the name (not inline next to it) so a long
-                  plan name gets the card's full width to itself and wraps
-                  instead of being squeezed down to a sliver of truncated
-                  text by the badge + action icons sharing its row. */}
-              <Link href={`/cycles/${cycle.id}`} className="min-w-0 flex-1">
-                <Badge
-                  tone={
-                    cycleStatus(cycle, now) === 'active'
-                      ? 'low'
-                      : cycleStatus(cycle, now) === 'upcoming'
-                        ? 'moderate'
-                        : 'neutral'
-                  }
-                >
-                  {STATUS_LABEL[cycleStatus(cycle, now)]}
-                </Badge>
-                <p className="mt-1 break-words font-medium">{cycle.name}</p>
-                <p className="text-xs text-text-secondary">
-                  {new Date(cycle.startDate).toISOString().slice(0, 10)} ·{' '}
-                  {cycle.microcycleCount} нед.
-                </p>
-              </Link>
-              <div className="flex shrink-0 items-center gap-2">
+            {/* Badge and the action icons share a top row of their own (badge
+                pinned left, icons pinned right) instead of sitting next to
+                the name — with 5 action icons now (export, history, rename,
+                copy, delete) that column got wide enough to squeeze the name
+                into a sliver, wrapping it one or two characters per line.
+                Splitting them onto their own row gives the name the card's
+                full width on the line below, and keeps the badge from
+                ending up crowded against the first icon.
+                flex-wrap + ml-auto (rather than justify-between) on the icon
+                group: on a card too narrow to fit the badge and all 5 icons
+                on one line (the "Удалить" button in particular doesn't
+                shrink), the icon group wraps down to its own line as a whole
+                unit instead of overflowing/getting clipped past the card's
+                edge — ml-auto keeps it right-aligned whichever line it ends
+                up on. */}
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge
+                tone={
+                  cycleStatus(cycle, now) === 'active'
+                    ? 'low'
+                    : cycleStatus(cycle, now) === 'upcoming'
+                      ? 'moderate'
+                      : 'neutral'
+                }
+              >
+                {STATUS_LABEL[cycleStatus(cycle, now)]}
+              </Badge>
+              <div className="ml-auto flex shrink-0 items-center gap-2">
                 <a
                   href={`/api/cycles/${cycle.id}/export`}
-                  onClick={(e) => e.stopPropagation()}
                   title="Экспорт в Excel"
                   aria-label="Экспорт в Excel"
                   className="flex h-7 w-7 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-2 hover:text-accent"
@@ -158,7 +165,6 @@ export function AthleteCyclesList({ cycles, canDelete }: Props) {
                 </a>
                 <Link
                   href={`/cycles/${cycle.id}/history`}
-                  onClick={(e) => e.stopPropagation()}
                   title="История изменений этого плана"
                   aria-label="История изменений этого плана"
                   className="relative flex h-7 w-7 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-2 hover:text-accent"
@@ -170,9 +176,22 @@ export function AthleteCyclesList({ cycles, canDelete }: Props) {
                     </span>
                   )}
                 </Link>
-                {canDelete && <DeleteCycleButton cycleId={cycle.id} cycleName={cycle.name} />}
+                {canManage && (
+                  <>
+                    <RenameCycleButton cycleId={cycle.id} cycleName={cycle.name} />
+                    <CopyCycleButton cycleId={cycle.id} cycleName={cycle.name} />
+                    <DeleteCycleButton cycleId={cycle.id} cycleName={cycle.name} />
+                  </>
+                )}
               </div>
             </div>
+            <Link href={`/cycles/${cycle.id}`} className="mt-1.5 block">
+              <p className="break-words font-medium">{cycle.name}</p>
+              <p className="text-xs text-text-secondary">
+                {new Date(cycle.startDate).toISOString().slice(0, 10)} ·{' '}
+                {cycle.microcycleCount} нед.
+              </p>
+            </Link>
           </Card>
         ))}
       </div>

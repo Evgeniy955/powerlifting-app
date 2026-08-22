@@ -44,7 +44,7 @@ export default async function AthleteCyclesPage({ params }: { params: { athleteI
   const unseenCountByCycleId = new Map(unseenByCycle.map((row) => [row.cycleId as string, row._count._all]))
 
   return (
-    <main className="min-h-[calc(100vh-3.5rem)] bg-bg text-text-primary p-6 max-w-md mx-auto space-y-4 lg:max-w-4xl">
+    <main className="min-h-[calc(100vh-3.5rem)] bg-bg text-text-primary p-6 max-w-xl mx-auto space-y-4 lg:max-w-4xl">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <h1 className="font-display text-xl uppercase tracking-wide">
@@ -75,7 +75,7 @@ export default async function AthleteCyclesPage({ params }: { params: { athleteI
             microcycleCount: cycle.microcycles.length,
             unseenChangesCount: unseenCountByCycleId.get(cycle.id) ?? 0,
           }))}
-          canDelete={user.role === 'COACH'}
+          canManage={user.role === 'COACH'}
         />
       )}
     </main>
