@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { CalendarRange, Menu, Plus, X } from 'lucide-react'
+import { CalendarRange, MoreVertical, Plus, X } from 'lucide-react'
 import { buttonVariants } from '@/components/ui'
 import { CreatePlanDialog } from './CreatePlanDialog'
 
@@ -28,15 +28,20 @@ export function PlansHeaderActions({ athleteId }: Props) {
         <CreatePlanDialog athleteId={athleteId} />
       </div>
 
+      {/* Distinct look from AppHeader's own mobile hamburger (MobileNavMenu,
+          "Menu" lines icon, plain/muted) on purpose — the two sit close
+          together on this page (sticky site header right above, this row
+          right below) and looked like the same control twice. Dots icon +
+          accent-2 fill read as "this page's actions", not "site nav". */}
       <div className="relative md:hidden">
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
           aria-label={open ? 'Закрыть меню' : 'Открыть меню'}
           aria-expanded={open}
-          className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-2 hover:text-accent"
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-2 text-on-accent-2 shadow-card transition-transform hover:scale-105"
         >
-          {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          {open ? <X className="h-5 w-5" /> : <MoreVertical className="h-5 w-5" />}
         </button>
 
         {open && (
