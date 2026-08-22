@@ -26,6 +26,11 @@ const config: Config = {
           moderate: '#FBBF24',
           high: '#FB923C',
           max: '#F87171',
+          // Fixed dark text for solid zone-colored badges (bg-zone-*) — all
+          // four zone hues are light/mid-brightness, so this one dark color
+          // reads clearly on every one of them, in every theme. Not meant
+          // for use as a background or on any other surface.
+          ink: '#1c140d',
         },
       },
       fontFamily: {
