@@ -54,9 +54,11 @@ type Props = {
   isNewExercise?: boolean
 }
 
-// One exercise block in the day view: dynamic set list ("+ Добавить подход"),
-// reactive metrics recomputed on every keystroke, debounced persistence to the API.
-// No auto-fill of new sets — they start empty by design.
+// One exercise block in the day view: dynamic set list ("+ Добавить подход",
+// which duplicates the last set's weight/reps — see the sets route — so a
+// coach programming e.g. 5x5 doesn't have to retype the same numbers into
+// every row), reactive metrics recomputed on every keystroke, debounced
+// persistence to the API.
 export function ExerciseCard({
   entry,
   rpeTable,
@@ -287,6 +289,7 @@ export function ExerciseCard({
 
       <button
         onClick={addSet}
+        title="Добавить подход с теми же весом/повторами, что и последний"
         className="inline-flex items-center gap-1 text-sm text-accent transition-colors hover:underline"
       >
         <Plus className="h-3.5 w-3.5" /> Добавить подход

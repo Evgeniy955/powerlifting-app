@@ -25,8 +25,10 @@ type Props = {
   onRemove: (id: string) => void
 }
 
-// A single set row. Deliberately starts empty when added (no auto-fill from the
-// previous set) and only reports changes upward — the parent owns debounced saving.
+// A single set row. New sets are added pre-filled with the previous set's
+// weight/reps (see POST .../sets) so building e.g. 5x5 doesn't mean retyping
+// the same numbers each time; this component itself only reports changes
+// upward — the parent owns debounced saving.
 export function SetRow({ set, percentOf1rm, rpe, changed, onChange, onRemove }: Props) {
   return (
     <div
