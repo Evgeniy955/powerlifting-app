@@ -123,22 +123,24 @@ export function AthleteCyclesList({ cycles, canDelete }: Props) {
       <div className="space-y-2 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0 xl:grid-cols-3">
         {visible.map((cycle) => (
           <Card key={cycle.id} padding="sm" className="transition-colors hover:bg-surface-2">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex items-start justify-between gap-2">
+              {/* Badge sits above the name (not inline next to it) so a long
+                  plan name gets the card's full width to itself and wraps
+                  instead of being squeezed down to a sliver of truncated
+                  text by the badge + action icons sharing its row. */}
               <Link href={`/cycles/${cycle.id}`} className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <p className="truncate font-medium">{cycle.name}</p>
-                  <Badge
-                    tone={
-                      cycleStatus(cycle, now) === 'active'
-                        ? 'low'
-                        : cycleStatus(cycle, now) === 'upcoming'
-                          ? 'moderate'
-                          : 'neutral'
-                    }
-                  >
-                    {STATUS_LABEL[cycleStatus(cycle, now)]}
-                  </Badge>
-                </div>
+                <Badge
+                  tone={
+                    cycleStatus(cycle, now) === 'active'
+                      ? 'low'
+                      : cycleStatus(cycle, now) === 'upcoming'
+                        ? 'moderate'
+                        : 'neutral'
+                  }
+                >
+                  {STATUS_LABEL[cycleStatus(cycle, now)]}
+                </Badge>
+                <p className="mt-1 break-words font-medium">{cycle.name}</p>
                 <p className="text-xs text-text-secondary">
                   {new Date(cycle.startDate).toISOString().slice(0, 10)} ·{' '}
                   {cycle.microcycleCount} нед.
