@@ -93,6 +93,10 @@ export function CreatePlanDialog({ athleteId, renderTrigger }: Props) {
       toast({ title: 'План создан', variant: 'success' })
       setOpen(false)
       router.push(`/cycles/${cycleId}`)
+      // The Планы list this dialog lives on is a cached server component —
+      // without this, the new plan is missing from it until a manual reload
+      // (same class of staleness as CopyLastTwoWeeksButton).
+      router.refresh()
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Ошибка'
       setError(message)
