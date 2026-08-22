@@ -127,33 +127,29 @@ export function AthleteCyclesList({ cycles, canManage }: Props) {
       <div className="space-y-2 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0 xl:grid-cols-3">
         {visible.map((cycle) => (
           <Card key={cycle.id} padding="sm" className="transition-colors hover:bg-surface-2">
-            <div className="flex items-start justify-between gap-2">
-              {/* Badge sits above the name (not inline next to it) so a long
-                  plan name gets the card's full width to itself and wraps
-                  instead of being squeezed down to a sliver of truncated
-                  text by the badge + action icons sharing its row. */}
-              <Link href={`/cycles/${cycle.id}`} className="min-w-0 flex-1">
-                <Badge
-                  tone={
-                    cycleStatus(cycle, now) === 'active'
-                      ? 'low'
-                      : cycleStatus(cycle, now) === 'upcoming'
-                        ? 'moderate'
-                        : 'neutral'
-                  }
-                >
-                  {STATUS_LABEL[cycleStatus(cycle, now)]}
-                </Badge>
-                <p className="mt-1 break-words font-medium">{cycle.name}</p>
-                <p className="text-xs text-text-secondary">
-                  {new Date(cycle.startDate).toISOString().slice(0, 10)} ·{' '}
-                  {cycle.microcycleCount} нед.
-                </p>
-              </Link>
+            {/* Badge and the action icons share a top row of their own (badge
+                pinned left, icons pinned right via justify-between) instead
+                of sitting next to the name — with 5 action icons now (export,
+                history, rename, copy, delete) that column got wide enough to
+                squeeze the name into a sliver, wrapping it one or two
+                characters per line. Splitting them onto their own row gives
+                the name the card's full width on the line below, and keeps
+                the badge from ending up crowded against the first icon. */}
+            <div className="flex items-center justify-between gap-2">
+              <Badge
+                tone={
+                  cycleStatus(cycle, now) === 'active'
+                    ? 'low'
+                    : cycleStatus(cycle, now) === 'upcoming'
+                      ? 'moderate'
+                      : 'neutral'
+                }
+              >
+                {STATUS_LABEL[cycleStatus(cycle, now)]}
+              </Badge>
               <div className="flex shrink-0 items-center gap-2">
                 <a
                   href={`/api/cycles/${cycle.id}/export`}
-                  onClick={(e) => e.stopPropagation()}
                   title="Экспорт в Excel"
                   aria-label="Экспорт в Excel"
                   className="flex h-7 w-7 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-2 hover:text-accent"
@@ -162,7 +158,6 @@ export function AthleteCyclesList({ cycles, canManage }: Props) {
                 </a>
                 <Link
                   href={`/cycles/${cycle.id}/history`}
-                  onClick={(e) => e.stopPropagation()}
                   title="История изменений этого плана"
                   aria-label="История изменений этого плана"
                   className="relative flex h-7 w-7 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-2 hover:text-accent"
@@ -183,6 +178,13 @@ export function AthleteCyclesList({ cycles, canManage }: Props) {
                 )}
               </div>
             </div>
+            <Link href={`/cycles/${cycle.id}`} className="mt-1.5 block">
+              <p className="break-words font-medium">{cycle.name}</p>
+              <p className="text-xs text-text-secondary">
+                {new Date(cycle.startDate).toISOString().slice(0, 10)} ·{' '}
+                {cycle.microcycleCount} нед.
+              </p>
+            </Link>
           </Card>
         ))}
       </div>
