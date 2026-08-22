@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { requireUser, statusForAuthError } from '@/lib/session'
 import { assertCanAccessExerciseEntry } from '@/lib/authorization'
 import { coachEmailToNotify, queueChangeNotification } from '@/lib/email'
+import { recordChangeLog } from '@/lib/changeLog'
 
 // PATCH /api/exercise-entries/:entryId { skipped?, exerciseId?, multiplier? } —
 // toggles the "didn't get to this exercise" flag, and/or edits which catalog
@@ -52,6 +53,18 @@ export async function DELETE(_req: NextRequest, { params }: { params: { entryId:
         exerciseName: chain.entry.exercise.name,
         kind: 'exercise-removed',
         at: new Date(),
+      })
+      void recordChangeLog({
+        athleteId: chain.athlete.id,
+        workoutId: chain.workout.id,
+        workoutDate: chain.workout.scheduledDate,
+        weekNumber: chain.microcycle.weekNumber,
+        dayNumber: chain.workout.dayNumber,
+        exerciseEntryId: params.entryId,
+        exerciseName: chain.entry.exercise.name,
+        kind: 'exercise-removed',
+        actorId: user.id,
+        actorRole: user.role,
       })
     }
 

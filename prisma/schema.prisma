@@ -102,6 +102,7 @@ model AthleteProfile {
   cycles      Cycle[]
   supplements Supplement[]
   periods     Period[]
+  changeLogs  ChangeLog[]
 
   createdAt DateTime @default(now())
 
@@ -323,4 +324,53 @@ model SetEntry {
   completed       Boolean       @default(false)
 
   @@index([exerciseEntryId])
+}
+
+// Durable audit trail of athlete-made edits to their own plan (weight/reps
+// changes, sets removed, exercises added/removed) — the coach's "История"
+// screen reads this, and the workout view uses `seenByCoach` to highlight
+// whatever changed since the coach last looked. Complements (doesn't
+// replace) the fire-and-forget email digest in lib/email.ts: that one is an
+// in-memory buffer that's lost on a server restart and gives no way to look
+// back later, this is the persisted source of truth.
+//
+// Deliberately no FK to Workout/ExerciseEntry/SetEntry — history must
+// survive even after the workout/exercise/set it refers to is later deleted,
+// so those ids (and the display fields alongside them) are stored as plain
+// denormalized values, same as ChangeEvent in lib/email.ts already does for
+// the digest email.
+model ChangeLog {
+  id        String         @id @default(uuid())
+  athleteId String
+  athlete   AthleteProfile @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+
+  workoutId       String?
+  workoutDate     DateTime?
+  weekNumber      Int?
+  dayNumber       Int?
+  exerciseEntryId String?
+  exerciseName    String
+
+  // "set-updated" | "set-removed" | "exercise-added" | "exercise-removed"
+  kind       String
+  setEntryId String?
+  setNumber  Int?
+  // "weight" | "reps" — only set when kind is "set-updated"
+  field       String?
+  beforeValue Float?
+  afterValue  Float?
+
+  actorId String
+  // "COACH" | "ATHLETE" — always "ATHLETE" today (recordChangeLog is only
+  // ever called for athlete-made edits), kept generic in case that changes.
+  actorRole String
+
+  // Flips to true once the coach has viewed it (History screen or the
+  // workout it happened on) — drives the "new" highlight until then.
+  seenByCoach Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([athleteId, createdAt])
+  @@index([workoutId])
+  @@index([exerciseEntryId, setEntryId])
 }

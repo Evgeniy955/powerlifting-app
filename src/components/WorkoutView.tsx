@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { ExerciseCard, type ExerciseEntryData } from './ExerciseCard'
+import type { SetChange } from './SetRow'
 import { ExerciseAutocomplete, type ExerciseOption } from './ExerciseAutocomplete'
 import { LockToggle } from './LockToggle'
 import { Card } from '@/components/ui'
@@ -28,6 +29,12 @@ type Props = {
   scheduledDate: string
   prevDay: AdjacentDay | null
   nextDay: AdjacentDay | null
+  // Coach-only "what the athlete changed since you last opened this day" —
+  // computed server-side from unseen ChangeLog rows and already marked seen
+  // by the time this page rendered (see workout/[workoutId]/page.tsx), so
+  // this is a one-time highlight, not a persistent state.
+  changedSets?: Record<string, SetChange>
+  newExerciseEntryIds?: string[]
 }
 
 // Orchestrates the day header (title + prev/next + lock toggle) and the
@@ -43,8 +50,11 @@ export function WorkoutView({
   scheduledDate,
   prevDay,
   nextDay,
+  changedSets,
+  newExerciseEntryIds,
 }: Props) {
   const [entries, setEntries] = useState<ExerciseEntryData[]>(initialEntries)
+  const newExerciseEntryIdSet = new Set(newExerciseEntryIds ?? [])
   // Defaults locked so a stray tap doesn't remove a set or delete an
   // exercise — has to be explicitly unlocked via the padlock first.
   const [locked, setLocked] = useState(true)
@@ -134,6 +144,8 @@ export function WorkoutView({
               position={index + 1}
               onRemove={handleRemoveExercise}
               canCreateExercise={canCreateExercise}
+              changedSets={changedSets}
+              isNewExercise={newExerciseEntryIdSet.has(entry.id)}
             />
           ))}
         </div>

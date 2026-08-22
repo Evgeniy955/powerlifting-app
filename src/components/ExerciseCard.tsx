@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react'
 import { Ban, Check, Pencil, Plus, Trash2, X } from 'lucide-react'
-import { SetRow, type SetValue } from './SetRow'
+import { SetRow, type SetChange, type SetValue } from './SetRow'
 import { MetricsBadge } from './MetricsBadge'
 import { ExerciseAutocomplete, type ExerciseOption } from './ExerciseAutocomplete'
 import { Card, Input } from '@/components/ui'
@@ -44,6 +44,14 @@ type Props = {
   // Coach-only: lets the edit-exercise autocomplete create a brand-new
   // ExerciseCatalog row when the search comes up empty.
   canCreateExercise?: boolean
+  // Coach-only "athlete changed this since you last looked" signal, sourced
+  // from ChangeLog by the workout page and cleared (seenByCoach) the moment
+  // it's fetched — so this highlight is a one-time "here's what's new" cue,
+  // not a persistent state. Keyed by SetEntry id.
+  changedSets?: Record<string, SetChange>
+  // This exercise itself is what the athlete added (ad-hoc, not planned by
+  // the coach) since the coach last looked.
+  isNewExercise?: boolean
 }
 
 // One exercise block in the day view: dynamic set list ("+ Добавить подход"),
@@ -55,6 +63,8 @@ export function ExerciseCard({
   position,
   onRemove,
   canCreateExercise = false,
+  changedSets,
+  isNewExercise = false,
 }: Props) {
   const [sets, setSets] = useState<SetValue[]>(entry.sets)
   const [skipped, setSkipped] = useState(entry.skipped)
@@ -162,7 +172,11 @@ export function ExerciseCard({
   }
 
   return (
-    <Card className={`space-y-3 animate-slide-up ${skipped ? 'opacity-60' : ''}`}>
+    <Card
+      className={`space-y-3 animate-slide-up ${skipped ? 'opacity-60' : ''} ${
+        isNewExercise ? 'border-l-4 border-l-zone-moderate' : ''
+      }`}
+    >
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-start gap-2">
           <button
@@ -186,6 +200,11 @@ export function ExerciseCard({
           </h3>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          {isNewExercise && (
+            <span className="rounded-full bg-zone-moderate/20 px-2 py-0.5 text-xs font-medium text-zone-moderate">
+              добавлено атлетом
+            </span>
+          )}
           {entry.oneRepMax === null && !skipped && (
             <span className="text-xs text-zone-moderate">1ПМ не задан</span>
           )}
@@ -259,6 +278,7 @@ export function ExerciseCard({
             set={set}
             percentOf1rm={entry.oneRepMax ? set.weight / entry.oneRepMax : null}
             rpe={perSetRpe.get(set.id) ?? null}
+            changed={changedSets?.[set.id]}
             onChange={updateSetLocally}
             onRemove={removeSet}
           />

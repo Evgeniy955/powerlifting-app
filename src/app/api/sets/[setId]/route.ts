@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { requireUser, statusForAuthError } from '@/lib/session'
 import { assertCanAccessSet } from '@/lib/authorization'
 import { coachEmailToNotify, queueChangeNotification } from '@/lib/email'
+import { recordChangeLog } from '@/lib/changeLog'
 
 // PATCH /api/sets/:setId { weight?, reps?, rpe?, completed? } — live edit as the
 // user types (weight/reps/rpe) or toggles the "done" checkbox (completed).
@@ -35,9 +36,30 @@ export async function PATCH(req: NextRequest, { params }: { params: { setId: str
         setNumber: chain.set.setNumber,
         at: new Date(),
       } as const
+      const logBase = {
+        athleteId: chain.athlete.id,
+        workoutId: chain.workout.id,
+        workoutDate: chain.workout.scheduledDate,
+        weekNumber: chain.microcycle.weekNumber,
+        dayNumber: chain.workout.dayNumber,
+        exerciseEntryId: chain.exerciseEntry.id,
+        exerciseName: chain.exerciseEntry.exercise.name,
+        setEntryId: params.setId,
+        setNumber: chain.set.setNumber,
+        actorId: user.id,
+        actorRole: user.role,
+      } as const
+
       if (body.weight !== undefined && body.weight !== chain.set.weight) {
         queueChangeNotification({
           ...base,
+          kind: 'set-updated',
+          field: 'weight',
+          before: chain.set.weight,
+          after: body.weight,
+        })
+        void recordChangeLog({
+          ...logBase,
           kind: 'set-updated',
           field: 'weight',
           before: chain.set.weight,
@@ -47,6 +69,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { setId: str
       if (body.reps !== undefined && body.reps !== chain.set.reps) {
         queueChangeNotification({
           ...base,
+          kind: 'set-updated',
+          field: 'reps',
+          before: chain.set.reps,
+          after: body.reps,
+        })
+        void recordChangeLog({
+          ...logBase,
           kind: 'set-updated',
           field: 'reps',
           before: chain.set.reps,
@@ -81,6 +110,20 @@ export async function DELETE(_req: NextRequest, { params }: { params: { setId: s
         kind: 'set-removed',
         setNumber: chain.set.setNumber,
         at: new Date(),
+      })
+      void recordChangeLog({
+        athleteId: chain.athlete.id,
+        workoutId: chain.workout.id,
+        workoutDate: chain.workout.scheduledDate,
+        weekNumber: chain.microcycle.weekNumber,
+        dayNumber: chain.workout.dayNumber,
+        exerciseEntryId: chain.exerciseEntry.id,
+        exerciseName: chain.exerciseEntry.exercise.name,
+        kind: 'set-removed',
+        setEntryId: params.setId,
+        setNumber: chain.set.setNumber,
+        actorId: user.id,
+        actorRole: user.role,
       })
     }
 
