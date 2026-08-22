@@ -66,6 +66,7 @@ export default async function MicrocyclePage({
   return (
     <main className="min-h-[calc(100vh-3.5rem)] bg-bg text-text-primary py-6">
       <MicrocycleWeekView
+        microcycleId={microcycle.id}
         cycleId={microcycle.cycleId}
         cycleName={microcycle.cycleName}
         weekNumber={microcycle.weekNumber}

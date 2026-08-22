@@ -7,6 +7,7 @@ import { buttonVariants } from '@/components/ui'
 import { MetricsBadge } from './MetricsBadge'
 import { TrainingGroupLegend } from './TrainingGroupLegend'
 import { WeekDayTable, type WeekWorkoutData } from './WeekDayTable'
+import { AddWorkoutDayButton } from './AddWorkoutDayButton'
 import type { RpePoint } from '@/lib/rpe'
 
 type AdjacentWeek = { id: string; weekNumber: number }
@@ -21,6 +22,7 @@ type WeekTotals = {
 }
 
 type Props = {
+  microcycleId: string
   cycleId: string
   cycleName: string
   weekNumber: number
@@ -45,6 +47,7 @@ type Props = {
 // and the button (near the title) and the day cards (further down) are both
 // needed to share one source of truth for "is this day locked".
 export function MicrocycleWeekView({
+  microcycleId,
   cycleId,
   cycleName,
   weekNumber,
@@ -125,22 +128,31 @@ export function MicrocycleWeekView({
             )}
           </div>
 
-          {/* Coach-only: unlocks/locks every day card on this page at once,
-              instead of tapping each day's own padlock individually — handy
-              when sitting down to program a whole week at a time. */}
-          {role === 'COACH' && workouts.length > 0 && (
-            <button
-              type="button"
-              onClick={toggleWeek}
-              className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-border bg-surface-2 px-3 py-1 text-xs font-medium text-text-secondary transition-colors hover:border-accent hover:text-accent"
-            >
-              {allUnlocked ? (
-                <Lock className="h-3.5 w-3.5" />
-              ) : (
-                <LockOpen className="h-3.5 w-3.5" />
+          {role === 'COACH' && (
+            <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+              {/* Unlocks/locks every day card on this page at once, instead
+                  of tapping each day's own padlock individually — handy when
+                  sitting down to program a whole week at a time. Only makes
+                  sense once there's at least one day to lock/unlock. */}
+              {workouts.length > 0 && (
+                <button
+                  type="button"
+                  onClick={toggleWeek}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface-2 px-3 py-1 text-xs font-medium text-text-secondary transition-colors hover:border-accent hover:text-accent"
+                >
+                  {allUnlocked ? (
+                    <Lock className="h-3.5 w-3.5" />
+                  ) : (
+                    <LockOpen className="h-3.5 w-3.5" />
+                  )}
+                  {allUnlocked ? 'Заблокировать неделю' : 'Редактировать неделю'}
+                </button>
               )}
-              {allUnlocked ? 'Заблокировать неделю' : 'Редактировать неделю'}
-            </button>
+              {/* A manually-added microcycle (AddMicrocycleButton) starts
+                  with zero days and, without this, had no way to ever get
+                  any — this is that missing add-day affordance. */}
+              <AddWorkoutDayButton microcycleId={microcycleId} />
+            </div>
           )}
         </div>
 
