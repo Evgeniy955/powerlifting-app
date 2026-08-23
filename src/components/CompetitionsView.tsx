@@ -440,7 +440,7 @@ export function CompetitionsView({ athleteId, initialCompetitions, canManage }: 
         <ul className="space-y-2 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0 xl:grid-cols-3">
           {sorted.map((c) => (
             <li key={c.id}>
-              <Card padding="sm" className="space-y-2">
+              <Card padding="md" className="space-y-2">
                 {editingId === c.id ? (
                   <div className="space-y-2">
                     <DraftFields draft={editDraft} setDraft={setEditDraft} />
@@ -468,11 +468,13 @@ export function CompetitionsView({ athleteId, initialCompetitions, canManage }: 
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="truncate font-medium">{c.name}</p>
-                        <p className="mt-0.5 text-xs text-text-secondary">
-                          {formatDate(c.date)}
-                          {c.weightClass && ` · ${c.weightClass}`}
-                          {c.bodyweight !== null && ` · ${c.bodyweight} кг`}
-                        </p>
+                        <p className="mt-1 text-xs text-text-secondary">{formatDate(c.date)}</p>
+                        {c.weightClass && (
+                          <p className="text-xs text-text-secondary">Категория - {c.weightClass}</p>
+                        )}
+                        {c.bodyweight !== null && (
+                          <p className="text-xs text-text-secondary">Собств. вес - {c.bodyweight} кг</p>
+                        )}
                       </div>
                       <div className="flex shrink-0 items-center gap-2">
                         {c.place !== null && <Badge tone={c.place === 1 ? 'low' : 'neutral'}>{c.place} место</Badge>}
