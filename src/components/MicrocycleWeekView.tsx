@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, ArrowRight, BarChart3, Lock, LockOpen } from 'lucide-react'
 import { buttonVariants } from '@/components/ui'
@@ -12,6 +12,12 @@ import { ToggleFourthDayButton } from './ToggleFourthDayButton'
 import type { RpePoint } from '@/lib/rpe'
 
 type AdjacentWeek = { id: string; weekNumber: number }
+
+// Same key read back by the checkbox's own effect below — persisted so the
+// preference survives navigating prev/next week (each microcycle is its own
+// page, so this component's state resets on every navigation; localStorage
+// is what makes "on for every microcycle" actually true across that).
+const SIMPLIFIED_VIEW_KEY = 'microcycleSimplifiedView'
 
 type WeekTotals = {
   tonnage: number
@@ -65,6 +71,30 @@ export function MicrocycleWeekView({
   const [lockedMap, setLockedMap] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(workouts.map((w) => [w.id, true]))
   )
+
+  // Defaults to false on first render (including on the server, where
+  // localStorage doesn't exist) and is synced from storage right after
+  // mount — same read-on-mount shape as ThemeToggle, just without that
+  // component's pre-hydration inline script, since there's no flash-of-
+  // wrong-theme equivalent here worth guarding against for a table layout.
+  const [simplified, setSimplified] = useState(false)
+
+  useEffect(() => {
+    try {
+      setSimplified(localStorage.getItem(SIMPLIFIED_VIEW_KEY) === 'true')
+    } catch {
+      // ignore (e.g. privacy mode)
+    }
+  }, [])
+
+  function applySimplified(next: boolean) {
+    setSimplified(next)
+    try {
+      localStorage.setItem(SIMPLIFIED_VIEW_KEY, String(next))
+    } catch {
+      // ignore (e.g. privacy mode)
+    }
+  }
 
   function toggleDay(id: string) {
     setLockedMap((prev) => ({ ...prev, [id]: !prev[id] }))
@@ -158,6 +188,21 @@ export function MicrocycleWeekView({
               <ToggleFourthDayButton microcycleId={microcycleId} workouts={workouts} />
             </div>
           )}
+
+          {/* Available to both roles — a display preference, not a data
+              mutation, so it isn't gated behind role === 'COACH' the way
+              the editing controls above are. Persisted (see applySimplified
+              above), so it stays on across every microcycle, not just this
+              one page load. */}
+          <label className="mt-2 inline-flex items-center gap-1.5 text-xs text-text-secondary">
+            <input
+              type="checkbox"
+              checked={simplified}
+              onChange={(e) => applySimplified(e.target.checked)}
+              className="h-3.5 w-3.5 accent-accent"
+            />
+            Упрощённый режим
+          </label>
         </div>
 
         {weekTotals && (
@@ -190,6 +235,7 @@ export function MicrocycleWeekView({
               canCreateExercise={canCreateExercise}
               locked={lockedMap[workout.id] ?? true}
               onToggleLocked={() => toggleDay(workout.id)}
+              simplified={simplified}
             />
           ))}
         </div>
