@@ -167,6 +167,11 @@ function draftFromEntry(c: CompetitionEntry): Draft {
 }
 
 function DraftFields({ draft, setDraft }: { draft: Draft; setDraft: (d: Draft) => void }) {
+  const squat = toNumberOrNull(draft.squat)
+  const bench = toNumberOrNull(draft.bench)
+  const deadlift = toNumberOrNull(draft.deadlift)
+  const draftTotal = squat !== null && bench !== null && deadlift !== null ? squat + bench + deadlift : null
+
   return (
     <div className="space-y-2">
       <Input
@@ -210,7 +215,7 @@ function DraftFields({ draft, setDraft }: { draft: Draft; setDraft: (d: Draft) =
           />
         </label>
       </div>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-4 gap-3">
         <NumberField
           label="Присед, кг"
           value={draft.squat}
@@ -226,6 +231,22 @@ function DraftFields({ draft, setDraft }: { draft: Draft; setDraft: (d: Draft) =
           value={draft.deadlift}
           onChange={(v) => setDraft({ ...draft, deadlift: v })}
         />
+        <label className="block text-xs text-text-secondary">
+          Сумма, кг
+          {/* Read-only — mirrors the same "only when all three are filled in"
+              rule as the saved-entry total() below, so this live preview
+              never disagrees with what the card shows once saved. Not part
+              of draftToBody: the sum is never sent to the API, same as the
+              stored Competition row never has a sum column — it's always
+              derived from squat+bench+deadlift, here included. */}
+          <Input
+            type="number"
+            value={draftTotal === null ? '' : String(draftTotal)}
+            disabled
+            fieldSize="sm"
+            className="mt-1 w-full disabled:opacity-70"
+          />
+        </label>
       </div>
       <Input
         value={draft.notes}
