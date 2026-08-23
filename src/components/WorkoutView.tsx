@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
 import {
@@ -20,11 +20,6 @@ import { Card } from '@/components/ui'
 import type { RpePoint } from '@/lib/rpe'
 
 type AdjacentDay = { id: string; dayNumber: number }
-
-// Same key/flag as MicrocycleWeekView's "Упрощённый режим" checkbox — shared
-// so toggling it in either view carries over to the other, since both are
-// just different zoom levels on the same plan.
-const SIMPLIFIED_VIEW_KEY = 'microcycleSimplifiedView'
 
 type Props = {
   workoutId: string
@@ -49,6 +44,14 @@ type Props = {
   // this is a one-time highlight, not a persistent state.
   changedSets?: Record<string, SetChange>
   newExerciseEntryIds?: string[]
+  // "Упрощённый режим" — same shared User.simplifiedView preference as
+  // MicrocycleWeekView, read server-side so it's already correct on first
+  // paint. Toggling the checkbox below writes straight through via PATCH
+  // /api/user/simplified-view, so it follows the account across an app
+  // reload or a different browser/device — and toggling it here or in the
+  // week view carries over to the other, since both read/write the same
+  // field.
+  initialSimplified: boolean
 }
 
 // Orchestrates the day header (title + prev/next + lock toggle) and the
@@ -66,6 +69,7 @@ export function WorkoutView({
   nextDay,
   changedSets,
   newExerciseEntryIds,
+  initialSimplified,
 }: Props) {
   const [entries, setEntries] = useState<ExerciseEntryData[]>(initialEntries)
   const newExerciseEntryIdSet = new Set(newExerciseEntryIds ?? [])
@@ -73,26 +77,17 @@ export function WorkoutView({
   // exercise — has to be explicitly unlocked via the padlock first.
   const [locked, setLocked] = useState(true)
 
-  // Same read-on-mount + write-through localStorage pattern as
-  // MicrocycleWeekView — defaults to false (including on the server) and
-  // syncs from storage right after mount.
-  const [simplified, setSimplified] = useState(false)
+  const [simplified, setSimplified] = useState(initialSimplified)
 
-  useEffect(() => {
-    try {
-      setSimplified(localStorage.getItem(SIMPLIFIED_VIEW_KEY) === 'true')
-    } catch {
-      // ignore (e.g. privacy mode)
-    }
-  }, [])
-
+  // Optimistic, same as MicrocycleWeekView's applySimplified — flips the
+  // checkbox immediately, persists to the account in the background.
   function applySimplified(next: boolean) {
     setSimplified(next)
-    try {
-      localStorage.setItem(SIMPLIFIED_VIEW_KEY, String(next))
-    } catch {
-      // ignore (e.g. privacy mode)
-    }
+    fetch('/api/user/simplified-view', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ simplified: next }),
+    })
   }
 
   async function handleAddExercise(exercise: ExerciseOption) {

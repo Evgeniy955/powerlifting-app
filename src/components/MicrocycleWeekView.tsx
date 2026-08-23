@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, ArrowRight, BarChart3, Lock, LockOpen } from 'lucide-react'
 import { buttonVariants } from '@/components/ui'
@@ -12,12 +12,6 @@ import { ToggleFourthDayButton } from './ToggleFourthDayButton'
 import type { RpePoint } from '@/lib/rpe'
 
 type AdjacentWeek = { id: string; weekNumber: number }
-
-// Same key read back by the checkbox's own effect below — persisted so the
-// preference survives navigating prev/next week (each microcycle is its own
-// page, so this component's state resets on every navigation; localStorage
-// is what makes "on for every microcycle" actually true across that).
-const SIMPLIFIED_VIEW_KEY = 'microcycleSimplifiedView'
 
 type WeekTotals = {
   tonnage: number
@@ -44,6 +38,12 @@ type Props = {
   // null when there's nothing to summarize yet (mirrors the old
   // allEntryMetrics.length > 0 guard around MetricsBadge).
   weekTotals: WeekTotals | null
+  // "Упрощённый режим" — the signed-in user's saved preference (User.
+  // simplifiedView), read server-side so it's already correct on first
+  // paint. Toggling the checkbox below writes straight through to the same
+  // field via PATCH /api/user/simplified-view, so it follows the account
+  // across an app reload or a different browser/device.
+  initialSimplified: boolean
 }
 
 // Week view: the title/nav chrome around a microcycle's WeekDayTable cards,
@@ -67,33 +67,25 @@ export function MicrocycleWeekView({
   workouts,
   rpeTable,
   weekTotals,
+  initialSimplified,
 }: Props) {
   const [lockedMap, setLockedMap] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(workouts.map((w) => [w.id, true]))
   )
 
-  // Defaults to false on first render (including on the server, where
-  // localStorage doesn't exist) and is synced from storage right after
-  // mount — same read-on-mount shape as ThemeToggle, just without that
-  // component's pre-hydration inline script, since there's no flash-of-
-  // wrong-theme equivalent here worth guarding against for a table layout.
-  const [simplified, setSimplified] = useState(false)
+  const [simplified, setSimplified] = useState(initialSimplified)
 
-  useEffect(() => {
-    try {
-      setSimplified(localStorage.getItem(SIMPLIFIED_VIEW_KEY) === 'true')
-    } catch {
-      // ignore (e.g. privacy mode)
-    }
-  }, [])
-
+  // Optimistic: flips the checkbox immediately, then persists to the
+  // account. A failed request leaves the UI on the new value rather than
+  // rolling back — worst case a stale read on the next page load, not worth
+  // the extra state for a low-stakes display preference.
   function applySimplified(next: boolean) {
     setSimplified(next)
-    try {
-      localStorage.setItem(SIMPLIFIED_VIEW_KEY, String(next))
-    } catch {
-      // ignore (e.g. privacy mode)
-    }
+    fetch('/api/user/simplified-view', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ simplified: next }),
+    })
   }
 
   function toggleDay(id: string) {

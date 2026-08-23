@@ -7,6 +7,9 @@ export type SessionUser = {
   email?: string | null
   name?: string | null
   image?: string | null
+  // "Упрощённый режим" preference — stored on the User row so it follows the
+  // account across devices/browsers instead of living in localStorage.
+  simplifiedView: boolean
 }
 
 export class UnauthorizedError extends Error {}
@@ -31,6 +34,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     email: dbUser.email,
     name: dbUser.name,
     image: dbUser.image,
+    simplifiedView: dbUser.simplifiedView,
   }
 }
 

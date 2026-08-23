@@ -103,6 +103,7 @@ export default async function WorkoutPage({ params }: { params: { workoutId: str
         nextDay={workout.nextDay}
         changedSets={changedSets}
         newExerciseEntryIds={newExerciseEntryIds}
+        initialSimplified={user.simplifiedView}
       />
     </main>
   )
