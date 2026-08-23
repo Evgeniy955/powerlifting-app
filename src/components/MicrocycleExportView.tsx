@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { ArrowLeft, Download, Loader2 } from 'lucide-react'
 import { computeExerciseMetrics, aggregateMetrics, type ExerciseMetrics } from '@/lib/metrics'
 import { isTrainingGroup, trainingGroupColor } from '@/lib/trainingGroups'
+import { groupSets } from '@/lib/setGrouping'
 import type { RpePoint } from '@/lib/rpe'
 import type { WeekWorkoutData } from './WeekDayTable'
 
@@ -41,6 +42,13 @@ type Props = {
   athleteName: string | null
   workouts: WeekWorkoutData[]
   rpeTable: RpePoint[]
+  // Seed the two toggles below from the account's saved preferences (same
+  // fields MicrocycleWeekView/WorkoutView read) so the export defaults to
+  // whatever the coach/athlete is already used to seeing — flipping them
+  // here is export-only, though, it doesn't write back through PATCH
+  // /api/user/simplified-view or /compact-view the way the live pages do.
+  initialSimplified: boolean
+  initialCompact: boolean
 }
 
 type Theme = 'dark' | 'light'
@@ -58,6 +66,8 @@ export function MicrocycleExportView({
   athleteName,
   workouts,
   rpeTable,
+  initialSimplified,
+  initialCompact,
 }: Props) {
   // Defaults to dark — the app's own default theme — so a coach exporting
   // straight from the dark UI gets a matching PDF unless they deliberately
@@ -65,6 +75,14 @@ export function MicrocycleExportView({
   const [theme, setTheme] = useState<Theme>('dark')
   const isLight = theme === 'light'
   const [generating, setGenerating] = useState(false)
+
+  const [simplified, setSimplified] = useState(initialSimplified)
+  const [compact, setCompact] = useState(initialCompact)
+  // Matches ExerciseCard/WorkoutView's own rule: the grouped-sets "compact"
+  // card grid only replaces the per-exercise table once simplified is also
+  // on — compact-alone or simplified-alone still fall through to the
+  // detailed 2-column table below, just as today.
+  const compactSimplified = simplified && compact
 
   // One ref for the title/summary block, one per day card — html2canvas
   // renders each of these separately so every section lands on its own PDF
@@ -195,25 +213,10 @@ export function MicrocycleExportView({
             </p>
           </div>
 
-          <div className="flex items-center gap-4">
-            <label className="flex items-center gap-2 text-sm text-text-secondary">
-              Светлая тема
-              <button
-                type="button"
-                role="switch"
-                aria-checked={isLight}
-                onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
-                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-border transition-colors ${
-                  isLight ? 'bg-accent' : 'bg-surface-3'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-surface shadow-card transition-transform ${
-                    isLight ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-            </label>
+          <div className="flex flex-wrap items-center gap-4">
+            <ToggleSwitch label="Упрощённый режим" checked={simplified} onChange={setSimplified} />
+            <ToggleSwitch label="Компактный режим" checked={compact} onChange={setCompact} />
+            <ToggleSwitch label="Светлая тема" checked={isLight} onChange={(v) => setTheme(v ? 'light' : 'dark')} />
 
             <button
               type="button"
@@ -242,7 +245,7 @@ export function MicrocycleExportView({
             {athleteName && <p className="text-sm text-text-secondary">{athleteName}</p>}
           </header>
 
-          {weekTotals && (
+          {weekTotals && !simplified && (
             <div className="grid grid-cols-3 gap-x-4 gap-y-1 rounded-lg border border-border bg-surface-2 px-4 py-3 text-sm sm:grid-cols-6">
               <Metric label="Тоннаж" value={`${weekTotals.tonnage} кг`} />
               <Metric label="КПШ" value={String(weekTotals.kpsh)} />
@@ -281,6 +284,8 @@ export function MicrocycleExportView({
                 <p className="px-3 py-4 text-center text-sm text-text-secondary">
                   Нет упражнений
                 </p>
+              ) : compactSimplified ? (
+                <CompactExerciseGrid entries={workout.exerciseEntries} />
               ) : (
                 <div className="grid grid-cols-1 divide-y divide-border md:grid-cols-2 md:divide-x md:divide-y-0">
                   {columns.map((column, colIndex) => (
@@ -294,28 +299,106 @@ export function MicrocycleExportView({
                 </div>
               )}
 
-              <div className="flex flex-wrap items-center justify-end gap-x-5 gap-y-1 rounded-b-xl border-t border-border bg-surface-2 px-3 py-1.5 text-xs font-medium">
-                <span className="mr-auto text-text-secondary">Итого за день</span>
-                <span>
-                  Тонн: <span className="text-text-primary">{dayTotals.tonnage}</span>
-                </span>
-                <span>
-                  Срвес: <span className="text-text-primary">{dayTotals.avgWeight}</span>
-                </span>
-                <span className={zoneClass(dayTotals.relativeIntensity)}>
-                  Инт%: {Math.round(dayTotals.relativeIntensity * 100)}%
-                </span>
-                <span>
-                  КПШ: <span className="text-text-primary">{dayTotals.kpsh}</span>
-                </span>
-                <span>
-                  КО: <span className="text-text-primary">{dayTotals.loadCoefficient}</span>
-                </span>
-              </div>
+              {!simplified && (
+                <div className="flex flex-wrap items-center justify-end gap-x-5 gap-y-1 rounded-b-xl border-t border-border bg-surface-2 px-3 py-1.5 text-xs font-medium">
+                  <span className="mr-auto text-text-secondary">Итого за день</span>
+                  <span>
+                    Тонн: <span className="text-text-primary">{dayTotals.tonnage}</span>
+                  </span>
+                  <span>
+                    Срвес: <span className="text-text-primary">{dayTotals.avgWeight}</span>
+                  </span>
+                  <span className={zoneClass(dayTotals.relativeIntensity)}>
+                    Инт%: {Math.round(dayTotals.relativeIntensity * 100)}%
+                  </span>
+                  <span>
+                    КПШ: <span className="text-text-primary">{dayTotals.kpsh}</span>
+                  </span>
+                  <span>
+                    КО: <span className="text-text-primary">{dayTotals.loadCoefficient}</span>
+                  </span>
+                </div>
+              )}
             </section>
           )
         })}
       </div>
+    </div>
+  )
+}
+
+function ToggleSwitch({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string
+  checked: boolean
+  onChange: (next: boolean) => void
+}) {
+  return (
+    <label className="flex items-center gap-2 text-sm text-text-secondary">
+      {label}
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-border transition-colors ${
+          checked ? 'bg-accent' : 'bg-surface-3'
+        }`}
+      >
+        <span
+          className={`inline-block h-4 w-4 transform rounded-full bg-surface shadow-card transition-transform ${
+            checked ? 'translate-x-6' : 'translate-x-1'
+          }`}
+        />
+      </button>
+    </label>
+  )
+}
+
+// Mirrors ExerciseCard's own compact+simplified rendering (name + groupSets
+// rows, no icons/badges/MetricsBadge) in a 3-across grid, same as the
+// desktop Workout-view card layout (WorkoutView's lg:grid-cols-2
+// xl:grid-cols-3) — this is the layout the coach/athlete already recognizes
+// from that screen, just reproduced read-only for the PDF.
+function CompactExerciseGrid({ entries }: { entries: WeekWorkoutData['exerciseEntries'] }) {
+  return (
+    <div className="grid grid-cols-3 gap-3 p-3">
+      {entries.map((entry, i) => {
+        const groups = groupSets(entry.sets, entry.oneRepMax)
+        return (
+          <div
+            key={entry.id}
+            className={`space-y-2 rounded-xl border border-border bg-surface p-3 ${entry.skipped ? 'opacity-60' : ''}`}
+          >
+            <h3
+              className={`break-words font-display text-base uppercase tracking-wide ${entry.skipped ? 'line-through' : ''}`}
+            >
+              <span className="mr-1.5 text-text-secondary">{i + 1}.</span>
+              {entry.exercise.name}
+            </h3>
+            <div className="space-y-1 text-sm">
+              {groups.length === 0 ? (
+                <p className="text-text-secondary">Нет подходов</p>
+              ) : (
+                groups.map((g, gi) => (
+                  <div key={gi} className="flex items-center gap-3">
+                    <span className="w-16 text-right font-bold text-accent">{g.weight}кг</span>
+                    <span className="w-12 text-text-secondary">
+                      {g.count}×{g.reps}
+                    </span>
+                    <span className="w-12 text-right text-text-secondary">
+                      {g.percentOf1rm !== null ? `${Math.round(g.percentOf1rm * 100)}%` : '—'}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
