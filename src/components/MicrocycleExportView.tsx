@@ -369,13 +369,14 @@ function ToggleSwitch({
 }
 
 // Mirrors ExerciseCard's own compact+simplified rendering (name + groupSets
-// rows, no icons/badges/MetricsBadge) in a 3-across grid, same as the
-// desktop Workout-view card layout (WorkoutView's lg:grid-cols-2
-// xl:grid-cols-3) — this is the layout the coach/athlete already recognizes
-// from that screen, just reproduced read-only for the PDF.
+// rows, no icons/badges/MetricsBadge). 2-across on narrow viewports — 3
+// squeezed exercise names and %1RM figures onto a card too narrow to hold
+// them, wrapping/clipping badly on a phone — widening to 3-across only once
+// there's room (lg+), similar in spirit to WorkoutView's own
+// lg:grid-cols-2 xl:grid-cols-3 desktop card layout.
 function CompactExerciseGrid({ entries }: { entries: WeekWorkoutData['exerciseEntries'] }) {
   return (
-    <div className="grid grid-cols-3 gap-3 p-3">
+    <div className="grid grid-cols-2 gap-3 p-3 lg:grid-cols-3">
       {entries.map((entry, i) => {
         const groups = groupSets(entry.sets, entry.oneRepMax)
         return (
