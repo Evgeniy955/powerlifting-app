@@ -197,7 +197,7 @@ export function MicrocycleWeekView({
           </label>
         </div>
 
-        {weekTotals && (
+        {weekTotals && !simplified && (
           <MetricsBadge
             tonnage={weekTotals.tonnage}
             avgWeight={weekTotals.avgWeight}
