@@ -10,6 +10,22 @@ import { Card, buttonVariants } from '@/components/ui'
 import { BarChart3, History } from 'lucide-react'
 import { isMicrocycleVisibleToAthlete } from '@/lib/weekAccess'
 
+// Same getUTCDay()-indexed convention as WeekDayTable/excelExport — kept
+// local rather than imported since this page only needs the label, not any
+// of the date-shifting logic those modules also carry.
+const WEEKDAY_SHORT = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']
+
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000
+
+// Which weekNumber "today" falls into, on the same cycleStartDate + (N-1)
+// weeks grid every other week-numbering call site already uses (weekAccess.ts,
+// duplicate-last-two-weeks/route.ts). Can land before week 1 (plan hasn't
+// started yet) or past the last microcycle (plan's run its course) — callers
+// check the result actually matches an existing microcycle before using it.
+function currentWeekNumber(cycleStartDate: Date, now: Date = new Date()): number {
+  return Math.floor((now.getTime() - cycleStartDate.getTime()) / WEEK_MS) + 1
+}
+
 // Cycle overview: list of microcycles (weeks) -> workouts (days), plus the
 // coach-only "Копировать последние 2 недели" action. Access is checked against
 // the signed-in user: coach must own the athlete, athlete must own the cycle.
@@ -42,6 +58,18 @@ export default async function CyclePage({ params }: { params: { cycleId: string 
       : cycle.microcycles.filter((mc) =>
           isMicrocycleVisibleToAthlete(cycle.startDate, mc.weekNumber)
         )
+
+  // Pulled out of the grid and shown on its own, highlighted, above it — the
+  // microcycle whose 7-day slot "today" actually falls into. Not just "the
+  // first visible one": an athlete's plan can start weeks in the future or
+  // have already finished, in which case there's no current week to call out
+  // and the grid below is all there is.
+  const thisWeekNumber = currentWeekNumber(cycle.startDate)
+  const currentMicrocycle =
+    visibleMicrocycles.find((mc) => mc.weekNumber === thisWeekNumber) ?? null
+  const otherMicrocycles = currentMicrocycle
+    ? visibleMicrocycles.filter((mc) => mc.id !== currentMicrocycle.id)
+    : visibleMicrocycles
 
   // Which days (workouts) in this cycle have athlete edits the coach hasn't
   // seen yet — drives the colored dot on "День N" below. Coach-only, same
@@ -109,8 +137,43 @@ export default async function CyclePage({ params }: { params: { cycleId: string 
         {user.role === 'COACH' && <AddMicrocycleButton cycleId={cycle.id} />}
       </div>
 
+      {/* Pulled out above the grid and visually called out (accent border/
+          tint + a "Текущий микроцикл" pill instead of just plain text) so
+          the week actually in progress is unmistakable at a glance, instead
+          of being just another card in the list the coach/athlete has to
+          find by date. Centered rather than stretched full-width — it's a
+          callout, not a section that needs to fill the row. */}
+      {currentMicrocycle && (
+        <div className="flex justify-center">
+          <Card
+            padding="sm"
+            className="w-full border-2 border-accent bg-accent/10 shadow-elevated lg:max-w-lg"
+          >
+            <div className="mb-2 flex items-start justify-between gap-2">
+              <Link href={`/microcycle/${currentMicrocycle.id}`} className="min-w-0 space-y-1">
+                <span className="inline-block rounded-full bg-accent px-2.5 py-0.5 text-xs font-bold uppercase tracking-wide text-on-accent">
+                  Текущий микроцикл
+                </span>
+                <p className="text-sm text-text-secondary transition-colors duration-150 hover:text-accent">
+                  Микроцикл {currentMicrocycle.weekNumber}
+                  {currentMicrocycle.workouts[0] &&
+                    ` · ${currentMicrocycle.workouts[0].scheduledDate.toISOString().slice(0, 10)}`}
+                </p>
+              </Link>
+              {user.role === 'COACH' && (
+                <DeleteMicrocycleButton
+                  microcycleId={currentMicrocycle.id}
+                  weekNumber={currentMicrocycle.weekNumber}
+                />
+              )}
+            </div>
+            <WeekdayDayLinks workouts={currentMicrocycle.workouts} daysWithUnseenChanges={daysWithUnseenChanges} />
+          </Card>
+        </div>
+      )}
+
       <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">
-        {visibleMicrocycles.map((mc) => (
+        {otherMicrocycles.map((mc) => (
           <Card key={mc.id} padding="sm">
             <div className="mb-2 flex items-center justify-between gap-2">
               <Link
@@ -124,26 +187,43 @@ export default async function CyclePage({ params }: { params: { cycleId: string 
                 <DeleteMicrocycleButton microcycleId={mc.id} weekNumber={mc.weekNumber} />
               )}
             </div>
-            <div className="flex flex-wrap gap-2">
-              {mc.workouts.map((w) => (
-                <Link
-                  key={w.id}
-                  href={`/workout/${w.id}`}
-                  className="relative rounded-lg bg-surface-2 px-3 py-1 text-sm transition-colors duration-150 hover:bg-accent hover:text-on-accent"
-                >
-                  День {w.dayNumber}
-                  {daysWithUnseenChanges.has(w.id) && (
-                    <span
-                      title="Есть непросмотренные изменения от атлета"
-                      className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-danger"
-                    />
-                  )}
-                </Link>
-              ))}
-            </div>
+            <WeekdayDayLinks workouts={mc.workouts} daysWithUnseenChanges={daysWithUnseenChanges} />
           </Card>
         ))}
       </div>
     </main>
+  )
+}
+
+// Day buttons for one microcycle card — labeled by weekday (Пн/Вт/...,
+// derived from each workout's own scheduledDate) instead of "День N", since
+// the day number alone didn't say which actual day of the week a session
+// falls on. Shared between the highlighted current-microcycle callout above
+// and the regular grid below so the two can't drift out of sync.
+function WeekdayDayLinks({
+  workouts,
+  daysWithUnseenChanges,
+}: {
+  workouts: { id: string; scheduledDate: Date }[]
+  daysWithUnseenChanges: Set<string | null>
+}) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {workouts.map((w) => (
+        <Link
+          key={w.id}
+          href={`/workout/${w.id}`}
+          className="relative rounded-lg bg-surface-2 px-3 py-1 text-sm transition-colors duration-150 hover:bg-accent hover:text-on-accent"
+        >
+          {WEEKDAY_SHORT[w.scheduledDate.getUTCDay()]}
+          {daysWithUnseenChanges.has(w.id) && (
+            <span
+              title="Есть непросмотренные изменения от атлета"
+              className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-danger"
+            />
+          )}
+        </Link>
+      ))}
+    </div>
   )
 }
