@@ -136,3 +136,28 @@ input[type='number'] {
 .theme-cyberpunk .text-sm {
   font-size: 1rem;
 }
+
+/* Microcycle PDF export (src/components/MicrocycleExportView.tsx). The page
+   itself is normal on-screen HTML — the "PDF" is just whatever the browser's
+   own Print > Save as PDF produces from it — so these rules only need to (1)
+   strip the on-screen-only toolbar and (2) stop the browser's print engine
+   from silently dropping the theme's background colors, which it does by
+   default unless told otherwise. */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  /* Landscape: each day's two exercise columns need the extra width more
+     than they need portrait's extra height. */
+  @page {
+    size: A4 landscape;
+    margin: 12mm;
+  }
+}

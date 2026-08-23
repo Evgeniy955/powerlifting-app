@@ -7,7 +7,7 @@ import { DeleteMicrocycleButton } from '@/components/DeleteMicrocycleButton'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Card, buttonVariants } from '@/components/ui'
-import { BarChart3, History } from 'lucide-react'
+import { BarChart3, FileDown, History } from 'lucide-react'
 import { isMicrocycleVisibleToAthlete } from '@/lib/weekAccess'
 
 // Same getUTCDay()-indexed convention as WeekDayTable/excelExport — kept
@@ -179,12 +179,26 @@ export default async function CyclePage({ params }: { params: { cycleId: string 
                     ` · ${currentMicrocycle.workouts[0].scheduledDate.toISOString().slice(0, 10)}`}
                 </p>
               </Link>
-              {user.role === 'COACH' && (
-                <DeleteMicrocycleButton
-                  microcycleId={currentMicrocycle.id}
-                  weekNumber={currentMicrocycle.weekNumber}
-                />
-              )}
+              <div className="flex shrink-0 items-center gap-1">
+                <Link
+                  href={`/microcycle/${currentMicrocycle.id}/export`}
+                  aria-label={`Экспортировать микроцикл ${currentMicrocycle.weekNumber} в PDF`}
+                  title="Экспорт в PDF"
+                  className={buttonVariants({
+                    variant: 'ghost',
+                    size: 'sm',
+                    className: 'text-text-secondary hover:text-accent',
+                  })}
+                >
+                  <FileDown className="h-4 w-4" />
+                </Link>
+                {user.role === 'COACH' && (
+                  <DeleteMicrocycleButton
+                    microcycleId={currentMicrocycle.id}
+                    weekNumber={currentMicrocycle.weekNumber}
+                  />
+                )}
+              </div>
             </div>
             <WeekdayDayLinks
               workouts={currentMicrocycle.workouts}
