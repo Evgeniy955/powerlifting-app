@@ -42,13 +42,6 @@ type Props = {
   athleteName: string | null
   workouts: WeekWorkoutData[]
   rpeTable: RpePoint[]
-  // Seed the two toggles below from the account's saved preferences (same
-  // fields MicrocycleWeekView/WorkoutView read) so the export defaults to
-  // whatever the coach/athlete is already used to seeing — flipping them
-  // here is export-only, though, it doesn't write back through PATCH
-  // /api/user/simplified-view or /compact-view the way the live pages do.
-  initialSimplified: boolean
-  initialCompact: boolean
 }
 
 type Theme = 'dark' | 'light'
@@ -66,8 +59,6 @@ export function MicrocycleExportView({
   athleteName,
   workouts,
   rpeTable,
-  initialSimplified,
-  initialCompact,
 }: Props) {
   // Defaults to dark — the app's own default theme — so a coach exporting
   // straight from the dark UI gets a matching PDF unless they deliberately
@@ -76,8 +67,11 @@ export function MicrocycleExportView({
   const isLight = theme === 'light'
   const [generating, setGenerating] = useState(false)
 
-  const [simplified, setSimplified] = useState(initialSimplified)
-  const [compact, setCompact] = useState(initialCompact)
+  // Default both on regardless of the account's own saved preference — the
+  // compact card-grid PDF is what most people want to hand an athlete or
+  // print out; either toggle can still be flipped off before downloading.
+  const [simplified, setSimplified] = useState(true)
+  const [compact, setCompact] = useState(true)
   // Matches ExerciseCard/WorkoutView's own rule: the grouped-sets "compact"
   // card grid only replaces the per-exercise table once simplified is also
   // on — compact-alone or simplified-alone still fall through to the

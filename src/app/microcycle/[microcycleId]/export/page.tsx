@@ -48,8 +48,6 @@ export default async function MicrocycleExportPage({
       athleteName={athleteName}
       workouts={microcycle.workouts}
       rpeTable={rpeTable}
-      initialSimplified={user.simplifiedView}
-      initialCompact={user.compactView}
     />
   )
 }
