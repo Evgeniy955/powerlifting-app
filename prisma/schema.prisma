@@ -27,6 +27,10 @@ model User {
   role          String    @default("ATHLETE")
   googleId      String?   @unique
   createdAt     DateTime  @default(now())
+  // "Упрощённый режим" checkbox (Микроцикл week view + single-day Workout
+  // view) — stored per-user rather than in localStorage so it survives an
+  // app reload or signing in from a different browser/device.
+  simplifiedView Boolean  @default(false)
 
   // If this user is an athlete, they have exactly one profile
   athleteProfile AthleteProfile?

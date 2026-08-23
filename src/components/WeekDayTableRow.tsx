@@ -28,6 +28,11 @@ type Props = {
   // Drag-to-reorder is only meaningful (and only rendered) once the day is
   // unlocked — same gate as every other edit on this row.
   locked: boolean
+  // Mirrors WeekDayTable's own `simplified` prop — hides the drag/skip/edit/
+  // delete icon row, the per-set remove button, the add-set cell, and all six
+  // metric cells (Тонн/Срвес/Инт%/ПМ/КПШ/КО). What's left: the exercise name
+  // (with its group dot/index/multiplier) and each set's weight, reps, %1RM.
+  simplified: boolean
   isEditing: boolean
   draftExercise: ExerciseOption | null
   draftMultiplier: number
@@ -63,6 +68,7 @@ export function WeekDayTableRow({
   canEditOneRepMax,
   canCreateExercise,
   locked,
+  simplified,
   isEditing,
   draftExercise,
   draftMultiplier,
@@ -96,56 +102,58 @@ export function WeekDayTableRow({
     >
       <td className="sticky left-0 z-10 w-40 max-w-[10rem] bg-surface px-2 py-1 font-medium align-top">
         <div className="flex w-full flex-col items-start gap-0.5">
-          <div className="flex items-center gap-1">
-            {/* touch-action:none is required by dnd-kit's pointer sensor —
-                without it, a touch-drag on this handle gets eaten by the
-                browser's own scroll gesture instead. */}
-            <button
-              type="button"
-              {...attributes}
-              {...listeners}
-              disabled={locked}
-              aria-label="Перетащить, чтобы изменить порядок"
-              title="Перетащить, чтобы изменить порядок"
-              style={{ touchAction: 'none' }}
-              className={`flex h-4 w-4 shrink-0 items-center justify-center text-text-secondary transition-colors ${
-                locked ? 'cursor-not-allowed opacity-40' : 'cursor-grab hover:text-accent active:cursor-grabbing'
-              }`}
-            >
-              <GripVertical className="h-3 w-3" />
-            </button>
-            <button
-              type="button"
-              onClick={() => onToggleSkipped(entry.id, !entry.skipped)}
-              aria-pressed={entry.skipped}
-              title={entry.skipped ? 'Отметить как выполненное' : 'Отметить как пропущенное'}
-              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors ${
-                entry.skipped
-                  ? 'border-danger bg-danger text-on-danger'
-                  : 'border-border bg-surface-2 text-text-secondary hover:border-danger hover:text-danger'
-              }`}
-            >
-              <Ban className="h-2.5 w-2.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => onStartEdit(entry)}
-              aria-label="Редактировать упражнение"
-              title="Редактировать упражнение"
-              className="flex h-4 w-4 shrink-0 items-center justify-center text-text-secondary transition-colors hover:text-accent"
-            >
-              <Pencil className="h-3 w-3" />
-            </button>
-            <button
-              type="button"
-              onClick={() => onRemoveExercise(entry.id, entry.exercise.name)}
-              aria-label="Убрать упражнение из плана"
-              title="Убрать упражнение из плана"
-              className="flex h-4 w-4 shrink-0 items-center justify-center text-text-secondary transition-colors hover:text-danger"
-            >
-              <Trash2 className="h-3 w-3" />
-            </button>
-          </div>
+          {!simplified && (
+            <div className="flex items-center gap-1">
+              {/* touch-action:none is required by dnd-kit's pointer sensor —
+                  without it, a touch-drag on this handle gets eaten by the
+                  browser's own scroll gesture instead. */}
+              <button
+                type="button"
+                {...attributes}
+                {...listeners}
+                disabled={locked}
+                aria-label="Перетащить, чтобы изменить порядок"
+                title="Перетащить, чтобы изменить порядок"
+                style={{ touchAction: 'none' }}
+                className={`flex h-4 w-4 shrink-0 items-center justify-center text-text-secondary transition-colors ${
+                  locked ? 'cursor-not-allowed opacity-40' : 'cursor-grab hover:text-accent active:cursor-grabbing'
+                }`}
+              >
+                <GripVertical className="h-3 w-3" />
+              </button>
+              <button
+                type="button"
+                onClick={() => onToggleSkipped(entry.id, !entry.skipped)}
+                aria-pressed={entry.skipped}
+                title={entry.skipped ? 'Отметить как выполненное' : 'Отметить как пропущенное'}
+                className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors ${
+                  entry.skipped
+                    ? 'border-danger bg-danger text-on-danger'
+                    : 'border-border bg-surface-2 text-text-secondary hover:border-danger hover:text-danger'
+                }`}
+              >
+                <Ban className="h-2.5 w-2.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => onStartEdit(entry)}
+                aria-label="Редактировать упражнение"
+                title="Редактировать упражнение"
+                className="flex h-4 w-4 shrink-0 items-center justify-center text-text-secondary transition-colors hover:text-accent"
+              >
+                <Pencil className="h-3 w-3" />
+              </button>
+              <button
+                type="button"
+                onClick={() => onRemoveExercise(entry.id, entry.exercise.name)}
+                aria-label="Убрать упражнение из плана"
+                title="Убрать упражнение из плана"
+                className="flex h-4 w-4 shrink-0 items-center justify-center text-text-secondary transition-colors hover:text-danger"
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
+            </div>
+          )}
           {isEditing ? (
             <div className="flex w-full flex-col gap-1 rounded border border-border bg-surface-2 p-1">
               <ExerciseAutocomplete
@@ -212,13 +220,15 @@ export function WeekDayTableRow({
         const pct = entry.oneRepMax ? set.weight / entry.oneRepMax : null
         return (
           <td key={i} className="group relative px-0.5 py-0.5 align-top">
-            <button
-              onClick={() => onRemoveSet(entry.id, set.id)}
-              aria-label="Удалить подход"
-              className="absolute right-0 top-0 hidden text-text-secondary hover:text-danger group-hover:block"
-            >
-              <X className="h-3 w-3" />
-            </button>
+            {!simplified && (
+              <button
+                onClick={() => onRemoveSet(entry.id, set.id)}
+                aria-label="Удалить подход"
+                className="absolute right-0 top-0 hidden text-text-secondary hover:text-danger group-hover:block"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
             <div className="flex flex-col items-center gap-0.5">
               {/* Set-number pill doubles as the "done" toggle (swaps to a
                   checkmark when tapped) — sits in normal flow above the
@@ -270,40 +280,44 @@ export function WeekDayTableRow({
           </td>
         )
       })}
-      <td className="px-0.5 py-0.5 align-top">
-        <button
-          onClick={() => onAddSet(entry.id)}
-          aria-label="Добавить подход"
-          title="Добавить подход с теми же весом/повторами, что и последний"
-          className="mt-1 text-text-secondary transition-colors hover:text-accent"
-        >
-          <Plus className="h-3.5 w-3.5" />
-        </button>
-      </td>
-      <td className="px-1.5 py-1 text-right align-top">{m.tonnage}</td>
-      <td className="px-1.5 py-1 text-right align-top">{m.avgWeight}</td>
-      <td className={`px-1.5 py-1 text-right align-top ${zoneClass(m.relativeIntensity)}`}>
-        {Math.round(m.relativeIntensity * 100)}%
-      </td>
-      <td className="px-1.5 py-1 text-right align-top">
-        {canEditOneRepMax ? (
-          <input
-            type="number"
-            inputMode="decimal"
-            value={entry.oneRepMax || ''}
-            onChange={(e) =>
-              onUpdateOneRepMax(entry.id, entry.exercise.id, parseFloat(e.target.value) || 0)
-            }
-            className="w-14 min-w-0 rounded border-none bg-accent-2 px-1 py-0.5 text-center text-sm font-bold text-on-accent-2 outline-none focus:ring-1 focus:ring-accent"
-          />
-        ) : (
-          <span className="rounded bg-accent-2 px-1.5 py-0.5 font-bold text-on-accent-2">
-            {entry.oneRepMax ?? '—'}
-          </span>
-        )}
-      </td>
-      <td className="px-1.5 py-1 text-right align-top">{m.kpsh}</td>
-      <td className="px-1.5 py-1 text-right align-top">{m.loadCoefficient}</td>
+      {!simplified && (
+        <>
+          <td className="px-0.5 py-0.5 align-top">
+            <button
+              onClick={() => onAddSet(entry.id)}
+              aria-label="Добавить подход"
+              title="Добавить подход с теми же весом/повторами, что и последний"
+              className="mt-1 text-text-secondary transition-colors hover:text-accent"
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+          </td>
+          <td className="px-1.5 py-1 text-right align-top">{m.tonnage}</td>
+          <td className="px-1.5 py-1 text-right align-top">{m.avgWeight}</td>
+          <td className={`px-1.5 py-1 text-right align-top ${zoneClass(m.relativeIntensity)}`}>
+            {Math.round(m.relativeIntensity * 100)}%
+          </td>
+          <td className="px-1.5 py-1 text-right align-top">
+            {canEditOneRepMax ? (
+              <input
+                type="number"
+                inputMode="decimal"
+                value={entry.oneRepMax || ''}
+                onChange={(e) =>
+                  onUpdateOneRepMax(entry.id, entry.exercise.id, parseFloat(e.target.value) || 0)
+                }
+                className="w-14 min-w-0 rounded border-none bg-accent-2 px-1 py-0.5 text-center text-sm font-bold text-on-accent-2 outline-none focus:ring-1 focus:ring-accent"
+              />
+            ) : (
+              <span className="rounded bg-accent-2 px-1.5 py-0.5 font-bold text-on-accent-2">
+                {entry.oneRepMax ?? '—'}
+              </span>
+            )}
+          </td>
+          <td className="px-1.5 py-1 text-right align-top">{m.kpsh}</td>
+          <td className="px-1.5 py-1 text-right align-top">{m.loadCoefficient}</td>
+        </>
+      )}
     </tr>
   )
 }

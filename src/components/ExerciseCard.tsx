@@ -54,6 +54,13 @@ type Props = {
   // This exercise itself is what the athlete added (ad-hoc, not planned by
   // the coach) since the coach last looked.
   isNewExercise?: boolean
+  // "Упрощённый режим" — same shared flag as WeekDayTable/WeekDayTableRow's
+  // `simplified` prop. Drops the drag/skip/edit/delete icon row, the
+  // "1ПМ не задан"/"Пропущено"/"добавлено атлетом" badges, the add-set
+  // button, and the MetricsBadge summary. Left in place: exercise name,
+  // position number, and each set's weight/reps/%1RM (see SetRow's own
+  // `simplified` prop).
+  simplified?: boolean
 }
 
 // One exercise block in the day view: dynamic set list ("+ Добавить подход",
@@ -69,6 +76,7 @@ export function ExerciseCard({
   canCreateExercise = false,
   changedSets,
   isNewExercise = false,
+  simplified = false,
 }: Props) {
   const [sets, setSets] = useState<SetValue[]>(entry.sets)
   const [skipped, setSkipped] = useState(entry.skipped)
@@ -200,33 +208,37 @@ export function ExerciseCard({
       >
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-start gap-2">
-          {/* touch-action:none is required by dnd-kit's pointer sensor —
-              without it, a touch-drag on this handle gets eaten by the
-              browser's own scroll gesture instead. */}
-          <button
-            type="button"
-            {...attributes}
-            {...listeners}
-            aria-label="Перетащить, чтобы изменить порядок"
-            title="Перетащить, чтобы изменить порядок"
-            style={{ touchAction: 'none' }}
-            className="mt-0.5 flex h-6 w-6 shrink-0 cursor-grab items-center justify-center text-text-secondary transition-colors hover:text-accent active:cursor-grabbing"
-          >
-            <GripVertical className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={toggleSkipped}
-            aria-pressed={skipped}
-            title={skipped ? 'Отметить как выполненное' : 'Отметить как пропущенное'}
-            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors ${
-              skipped
-                ? 'border-danger bg-danger text-on-danger'
-                : 'border-border bg-surface-2 text-text-secondary hover:border-danger hover:text-danger'
-            }`}
-          >
-            <Ban className="h-3.5 w-3.5" />
-          </button>
+          {!simplified && (
+            <>
+              {/* touch-action:none is required by dnd-kit's pointer sensor —
+                  without it, a touch-drag on this handle gets eaten by the
+                  browser's own scroll gesture instead. */}
+              <button
+                type="button"
+                {...attributes}
+                {...listeners}
+                aria-label="Перетащить, чтобы изменить порядок"
+                title="Перетащить, чтобы изменить порядок"
+                style={{ touchAction: 'none' }}
+                className="mt-0.5 flex h-6 w-6 shrink-0 cursor-grab items-center justify-center text-text-secondary transition-colors hover:text-accent active:cursor-grabbing"
+              >
+                <GripVertical className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={toggleSkipped}
+                aria-pressed={skipped}
+                title={skipped ? 'Отметить как выполненное' : 'Отметить как пропущенное'}
+                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors ${
+                  skipped
+                    ? 'border-danger bg-danger text-on-danger'
+                    : 'border-border bg-surface-2 text-text-secondary hover:border-danger hover:text-danger'
+                }`}
+              >
+                <Ban className="h-3.5 w-3.5" />
+              </button>
+            </>
+          )}
           <h3
             className={`min-w-0 break-words font-display text-base uppercase tracking-wide ${skipped ? 'line-through' : ''}`}
           >
@@ -234,38 +246,40 @@ export function ExerciseCard({
             {exercise.name}
           </h3>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {isNewExercise && (
-            <span className="rounded-full bg-zone-moderate/20 px-2 py-0.5 text-xs font-medium text-zone-moderate">
-              добавлено атлетом
-            </span>
-          )}
-          {entry.oneRepMax === null && !skipped && (
-            <span className="text-xs text-zone-moderate">1ПМ не задан</span>
-          )}
-          {skipped && <span className="text-xs text-danger">Пропущено</span>}
-          <button
-            type="button"
-            onClick={startEditing}
-            aria-label="Редактировать упражнение"
-            title="Редактировать упражнение"
-            className="text-text-secondary transition-colors hover:text-accent"
-          >
-            <Pencil className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={handleRemove}
-            aria-label="Убрать упражнение из плана"
-            title="Убрать упражнение из плана"
-            className="text-text-secondary transition-colors hover:text-danger"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-        </div>
+        {!simplified && (
+          <div className="flex shrink-0 items-center gap-2">
+            {isNewExercise && (
+              <span className="rounded-full bg-zone-moderate/20 px-2 py-0.5 text-xs font-medium text-zone-moderate">
+                добавлено атлетом
+              </span>
+            )}
+            {entry.oneRepMax === null && !skipped && (
+              <span className="text-xs text-zone-moderate">1ПМ не задан</span>
+            )}
+            {skipped && <span className="text-xs text-danger">Пропущено</span>}
+            <button
+              type="button"
+              onClick={startEditing}
+              aria-label="Редактировать упражнение"
+              title="Редактировать упражнение"
+              className="text-text-secondary transition-colors hover:text-accent"
+            >
+              <Pencil className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={handleRemove}
+              aria-label="Убрать упражнение из плана"
+              title="Убрать упражнение из плана"
+              className="text-text-secondary transition-colors hover:text-danger"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        )}
       </div>
 
-      {editing && (
+      {!simplified && editing && (
         <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface-2 p-2">
           <div className="min-w-[10rem] flex-1">
             <ExerciseAutocomplete
@@ -316,19 +330,24 @@ export function ExerciseCard({
             changed={changedSets?.[set.id]}
             onChange={updateSetLocally}
             onRemove={removeSet}
+            simplified={simplified}
           />
         ))}
       </div>
 
-      <button
-        onClick={addSet}
-        title="Добавить подход с теми же весом/повторами, что и последний"
-        className="inline-flex items-center gap-1 text-sm text-accent transition-colors hover:underline"
-      >
-        <Plus className="h-3.5 w-3.5" /> Добавить подход
-      </button>
+      {!simplified && (
+        <>
+          <button
+            onClick={addSet}
+            title="Добавить подход с теми же весом/повторами, что и последний"
+            className="inline-flex items-center gap-1 text-sm text-accent transition-colors hover:underline"
+          >
+            <Plus className="h-3.5 w-3.5" /> Добавить подход
+          </button>
 
-      <MetricsBadge {...metrics} />
+          <MetricsBadge {...metrics} />
+        </>
+      )}
       </Card>
     </div>
   )

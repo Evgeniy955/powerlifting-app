@@ -56,6 +56,12 @@ type Props = {
   // unlock/lock every day's card at once, not just this one.
   locked: boolean
   onToggleLocked: () => void
+  // "Упрощённый режим" — same controlled-from-parent shape as `locked`,
+  // toggled once in MicrocycleWeekView and threaded down here and into
+  // WeekDayTableRow. Drops everything but the exercise name and each set's
+  // weight/reps/%1RM: the Тонн/Срвес/Инт%/ПМ/КПШ/КО columns, the add-set and
+  // add-exercise controls, and the row's edit/drag/delete icons.
+  simplified: boolean
 }
 
 // Spreadsheet-dense day view — one compact table per day instead of a stack of
@@ -75,6 +81,7 @@ export function WeekDayTable({
   canCreateExercise,
   locked,
   onToggleLocked,
+  simplified,
 }: Props) {
   const [entries, setEntries] = useState<ExerciseEntryData[]>(workout.exerciseEntries)
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
@@ -280,7 +287,8 @@ export function WeekDayTable({
     ])
   }
 
-  const totalCols = maxSets + 8 // name + N sets + add-set + 6 metric columns
+  // name + N sets [+ add-set + 6 metric columns, dropped in simplified mode]
+  const totalCols = simplified ? maxSets + 1 : maxSets + 8
 
   return (
     // NOTE: overflow-hidden lives on the inner wrapper below (header + scrolling
@@ -328,13 +336,17 @@ export function WeekDayTable({
                   Подходы
                 </th>
               )}
-              <th className="px-1 py-1" />
-              <th className="px-1.5 py-1 text-right font-bold">Тонн</th>
-              <th className="px-1.5 py-1 text-right font-bold">Срвес</th>
-              <th className="px-1.5 py-1 text-right font-bold">Инт%</th>
-              <th className="px-1.5 py-1 text-right font-bold">ПМ</th>
-              <th className="px-1.5 py-1 text-right font-bold">КПШ</th>
-              <th className="px-1.5 py-1 text-right font-bold">КО</th>
+              {!simplified && (
+                <>
+                  <th className="px-1 py-1" />
+                  <th className="px-1.5 py-1 text-right font-bold">Тонн</th>
+                  <th className="px-1.5 py-1 text-right font-bold">Срвес</th>
+                  <th className="px-1.5 py-1 text-right font-bold">Инт%</th>
+                  <th className="px-1.5 py-1 text-right font-bold">ПМ</th>
+                  <th className="px-1.5 py-1 text-right font-bold">КПШ</th>
+                  <th className="px-1.5 py-1 text-right font-bold">КО</th>
+                </>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -358,6 +370,7 @@ export function WeekDayTable({
                       canEditOneRepMax={canEditOneRepMax}
                       canCreateExercise={canCreateExercise}
                       locked={locked}
+                      simplified={simplified}
                       isEditing={editingEntryId === entry.id}
                       draftExercise={draftExercise}
                       draftMultiplier={draftMultiplier}
@@ -385,34 +398,38 @@ export function WeekDayTable({
               </tr>
             )}
 
-            <tr className="bg-surface-2 font-medium">
-              <td className="sticky left-0 z-10 bg-surface-2 px-2 py-1" colSpan={maxSets + 2}>
-                Итого
-              </td>
-              <td className="px-1.5 py-1 text-right">{dayTotals.tonnage}</td>
-              <td className="px-1.5 py-1 text-right">{dayTotals.avgWeight}</td>
-              <td className={`px-1.5 py-1 text-right ${zoneClass(dayTotals.relativeIntensity)}`}>
-                {Math.round(dayTotals.relativeIntensity * 100)}%
-              </td>
-              <td className="px-1.5 py-1 text-right">—</td>
-              <td className="px-1.5 py-1 text-right">{dayTotals.kpsh}</td>
-              <td className="px-1.5 py-1 text-right">{dayTotals.loadCoefficient}</td>
-            </tr>
+            {!simplified && (
+              <tr className="bg-surface-2 font-medium">
+                <td className="sticky left-0 z-10 bg-surface-2 px-2 py-1" colSpan={maxSets + 2}>
+                  Итого
+                </td>
+                <td className="px-1.5 py-1 text-right">{dayTotals.tonnage}</td>
+                <td className="px-1.5 py-1 text-right">{dayTotals.avgWeight}</td>
+                <td className={`px-1.5 py-1 text-right ${zoneClass(dayTotals.relativeIntensity)}`}>
+                  {Math.round(dayTotals.relativeIntensity * 100)}%
+                </td>
+                <td className="px-1.5 py-1 text-right">—</td>
+                <td className="px-1.5 py-1 text-right">{dayTotals.kpsh}</td>
+                <td className="px-1.5 py-1 text-right">{dayTotals.loadCoefficient}</td>
+              </tr>
+            )}
           </tbody>
         </table>
         </div>
       </div>
 
-      <div
-        className={`border-t border-border p-2 ${locked ? 'pointer-events-none select-none opacity-70' : ''}`}
-      >
-        <ExerciseAutocomplete
-          onSelect={handleAddExercise}
-          placeholder="Добавить упражнение..."
-          canCreate={canCreateExercise}
-          clearOnSelect
-        />
-      </div>
+      {!simplified && (
+        <div
+          className={`border-t border-border p-2 ${locked ? 'pointer-events-none select-none opacity-70' : ''}`}
+        >
+          <ExerciseAutocomplete
+            onSelect={handleAddExercise}
+            placeholder="Добавить упражнение..."
+            canCreate={canCreateExercise}
+            clearOnSelect
+          />
+        </div>
+      )}
     </div>
   )
 }

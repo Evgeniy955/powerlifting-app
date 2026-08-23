@@ -38,6 +38,12 @@ type Props = {
   // null when there's nothing to summarize yet (mirrors the old
   // allEntryMetrics.length > 0 guard around MetricsBadge).
   weekTotals: WeekTotals | null
+  // "Упрощённый режим" — the signed-in user's saved preference (User.
+  // simplifiedView), read server-side so it's already correct on first
+  // paint. Toggling the checkbox below writes straight through to the same
+  // field via PATCH /api/user/simplified-view, so it follows the account
+  // across an app reload or a different browser/device.
+  initialSimplified: boolean
 }
 
 // Week view: the title/nav chrome around a microcycle's WeekDayTable cards,
@@ -61,10 +67,26 @@ export function MicrocycleWeekView({
   workouts,
   rpeTable,
   weekTotals,
+  initialSimplified,
 }: Props) {
   const [lockedMap, setLockedMap] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(workouts.map((w) => [w.id, true]))
   )
+
+  const [simplified, setSimplified] = useState(initialSimplified)
+
+  // Optimistic: flips the checkbox immediately, then persists to the
+  // account. A failed request leaves the UI on the new value rather than
+  // rolling back — worst case a stale read on the next page load, not worth
+  // the extra state for a low-stakes display preference.
+  function applySimplified(next: boolean) {
+    setSimplified(next)
+    fetch('/api/user/simplified-view', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ simplified: next }),
+    })
+  }
 
   function toggleDay(id: string) {
     setLockedMap((prev) => ({ ...prev, [id]: !prev[id] }))
@@ -158,6 +180,21 @@ export function MicrocycleWeekView({
               <ToggleFourthDayButton microcycleId={microcycleId} workouts={workouts} />
             </div>
           )}
+
+          {/* Available to both roles — a display preference, not a data
+              mutation, so it isn't gated behind role === 'COACH' the way
+              the editing controls above are. Persisted (see applySimplified
+              above), so it stays on across every microcycle, not just this
+              one page load. */}
+          <label className="mt-2 inline-flex items-center gap-1.5 text-xs text-text-secondary">
+            <input
+              type="checkbox"
+              checked={simplified}
+              onChange={(e) => applySimplified(e.target.checked)}
+              className="h-3.5 w-3.5 accent-accent"
+            />
+            Упрощённый режим
+          </label>
         </div>
 
         {weekTotals && (
@@ -190,6 +227,7 @@ export function MicrocycleWeekView({
               canCreateExercise={canCreateExercise}
               locked={lockedMap[workout.id] ?? true}
               onToggleLocked={() => toggleDay(workout.id)}
+              simplified={simplified}
             />
           ))}
         </div>

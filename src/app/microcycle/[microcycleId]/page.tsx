@@ -79,6 +79,7 @@ export default async function MicrocyclePage({
         workouts={microcycle.workouts}
         rpeTable={rpeTable}
         weekTotals={allEntryMetrics.length > 0 ? weekTotals : null}
+        initialSimplified={user.simplifiedView}
       />
     </main>
   )
