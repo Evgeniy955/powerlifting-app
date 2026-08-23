@@ -155,6 +155,7 @@ export function MicrocycleExportView({
       const pageWidth = pdf.internal.pageSize.getWidth()
       const pageHeight = pdf.internal.pageSize.getHeight()
       const margin = 10
+      const gap = 6
       const maxWidth = pageWidth - margin * 2
       const maxHeight = pageHeight - margin * 2
 
@@ -170,6 +171,14 @@ export function MicrocycleExportView({
         ? getComputedStyle(headerRef.current.parentElement ?? headerRef.current).backgroundColor
         : '#ffffff'
 
+      // Pack sections down the page instead of giving each one its own —
+      // a short day (one row of compact cards) is nowhere near a full A4
+      // page tall, so forcing a page break after every section left most of
+      // each page blank. Only start a new page once the next section
+      // genuinely doesn't fit under whatever's already been placed.
+      let cursorY = margin
+      let pageHasContent = false
+
       for (let i = 0; i < sections.length; i++) {
         const canvas = await html2canvas(sections[i], { scale: 2, backgroundColor: rootBg })
         const imgData = canvas.toDataURL('image/png')
@@ -181,8 +190,15 @@ export function MicrocycleExportView({
           renderWidth = (canvas.width * renderHeight) / canvas.height
         }
 
-        if (i > 0) pdf.addPage()
-        pdf.addImage(imgData, 'PNG', margin, margin, renderWidth, renderHeight)
+        if (pageHasContent && cursorY + renderHeight > margin + maxHeight) {
+          pdf.addPage()
+          cursorY = margin
+          pageHasContent = false
+        }
+
+        pdf.addImage(imgData, 'PNG', margin, cursorY, renderWidth, renderHeight)
+        cursorY += renderHeight + gap
+        pageHasContent = true
       }
 
       pdf.save(`Микроцикл ${weekNumber}.pdf`)
