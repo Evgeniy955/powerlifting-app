@@ -104,6 +104,7 @@ export default async function WorkoutPage({ params }: { params: { workoutId: str
         changedSets={changedSets}
         newExerciseEntryIds={newExerciseEntryIds}
         initialSimplified={user.simplifiedView}
+        initialCompact={user.compactView}
       />
     </main>
   )

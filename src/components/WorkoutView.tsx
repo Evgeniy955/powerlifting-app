@@ -52,6 +52,12 @@ type Props = {
   // week view carries over to the other, since both read/write the same
   // field.
   initialSimplified: boolean
+  // "Компактный режим" — same User.compactView preference, read server-side
+  // and written through via PATCH /api/user/compact-view. Groups consecutive
+  // same weight+reps sets into one "вес / countхповт / %1ПМ" line per
+  // exercise instead of a row per set — see ExerciseCard's own `compact`
+  // prop.
+  initialCompact: boolean
 }
 
 // Orchestrates the day header (title + prev/next + lock toggle) and the
@@ -70,6 +76,7 @@ export function WorkoutView({
   changedSets,
   newExerciseEntryIds,
   initialSimplified,
+  initialCompact,
 }: Props) {
   const [entries, setEntries] = useState<ExerciseEntryData[]>(initialEntries)
   const newExerciseEntryIdSet = new Set(newExerciseEntryIds ?? [])
@@ -87,6 +94,17 @@ export function WorkoutView({
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ simplified: next }),
+    })
+  }
+
+  const [compact, setCompact] = useState(initialCompact)
+
+  function applyCompact(next: boolean) {
+    setCompact(next)
+    fetch('/api/user/compact-view', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ compact: next }),
     })
   }
 
@@ -188,10 +206,14 @@ export function WorkoutView({
         )}
       </div>
 
-      {/* Same shared setting as MicrocycleWeekView's checkbox (see
-          SIMPLIFIED_VIEW_KEY above) — toggling it here also affects the week
-          view and vice versa. */}
-      <div className="mb-4 text-center">
+      {/* Both persisted on the User row (see PATCH /api/user/simplified-view
+          and /compact-view above). Simplified is also the shared setting
+          MicrocycleWeekView's own checkbox reads/writes — toggling it here
+          carries over to the week view and vice versa. Compact is
+          Workout-view-only: it only makes sense once sets are shown as a
+          per-set list (ExerciseCard), which the week table's per-set-column
+          layout doesn't have. */}
+      <div className="mb-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-center">
         <label className="inline-flex items-center gap-1.5 text-xs text-text-secondary">
           <input
             type="checkbox"
@@ -200,6 +222,15 @@ export function WorkoutView({
             className="h-3.5 w-3.5 accent-accent"
           />
           Упрощённый режим
+        </label>
+        <label className="inline-flex items-center gap-1.5 text-xs text-text-secondary">
+          <input
+            type="checkbox"
+            checked={compact}
+            onChange={(e) => applyCompact(e.target.checked)}
+            className="h-3.5 w-3.5 accent-accent"
+          />
+          Компактный режим
         </label>
       </div>
 
@@ -220,6 +251,7 @@ export function WorkoutView({
                   changedSets={changedSets}
                   isNewExercise={newExerciseEntryIdSet.has(entry.id)}
                   simplified={simplified}
+                  compact={compact}
                 />
               ))}
             </div>

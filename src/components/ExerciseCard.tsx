@@ -9,6 +9,7 @@ import { MetricsBadge } from './MetricsBadge'
 import { ExerciseAutocomplete, type ExerciseOption } from './ExerciseAutocomplete'
 import { Card, Input } from '@/components/ui'
 import { computeExerciseMetrics } from '@/lib/metrics'
+import { groupSets } from '@/lib/setGrouping'
 import type { RpePoint } from '@/lib/rpe'
 
 export type ExerciseEntryData = {
@@ -61,6 +62,12 @@ type Props = {
   // position number, and each set's weight/reps/%1RM (see SetRow's own
   // `simplified` prop).
   simplified?: boolean
+  // "Компактный режим" — replaces the per-set SetRow list with consecutive
+  // same weight+reps sets collapsed into one "вес / countхповт / %1ПМ" line
+  // (see groupSets). Independent of `simplified`: it only changes how the
+  // sets themselves render, not the header icons/add-set button/
+  // MetricsBadge, which stay governed by `simplified` as before.
+  compact?: boolean
 }
 
 // One exercise block in the day view: dynamic set list ("+ Добавить подход",
@@ -77,6 +84,7 @@ export function ExerciseCard({
   changedSets,
   isNewExercise = false,
   simplified = false,
+  compact = false,
 }: Props) {
   const [sets, setSets] = useState<SetValue[]>(entry.sets)
   const [skipped, setSkipped] = useState(entry.skipped)
@@ -154,6 +162,8 @@ export function ExerciseCard({
       ),
     [sets, entry.oneRepMax, exercise.impactCoefficient, multiplier, rpeTable]
   )
+
+  const compactGroups = useMemo(() => groupSets(sets, entry.oneRepMax), [sets, entry.oneRepMax])
 
   // Per-set ИУ (RPE), shown next to each set. Comes straight out of the same
   // computeExerciseMetrics call above (metrics.fatiguePerSet), so the value next
@@ -320,20 +330,39 @@ export function ExerciseCard({
         </div>
       )}
 
-      <div>
-        {sets.map((set) => (
-          <SetRow
-            key={set.id}
-            set={set}
-            percentOf1rm={entry.oneRepMax ? set.weight / entry.oneRepMax : null}
-            rpe={perSetRpe.get(set.id) ?? null}
-            changed={changedSets?.[set.id]}
-            onChange={updateSetLocally}
-            onRemove={removeSet}
-            simplified={simplified}
-          />
-        ))}
-      </div>
+      {compact ? (
+        // Read-only, column-aligned: вес / countхповт / %1ПМ, one line per
+        // group. No inputs here — editing a set means turning compact off,
+        // same as simplified hiding its own set of controls.
+        <div className="space-y-1 text-sm">
+          {compactGroups.map((g, i) => (
+            <div key={i} className="flex items-center gap-3">
+              <span className="w-16 text-right font-bold text-accent">{g.weight}кг</span>
+              <span className="w-12 text-text-secondary">
+                {g.count}×{g.reps}
+              </span>
+              <span className="w-12 text-right text-text-secondary">
+                {g.percentOf1rm !== null ? `${Math.round(g.percentOf1rm * 100)}%` : '—'}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div>
+          {sets.map((set) => (
+            <SetRow
+              key={set.id}
+              set={set}
+              percentOf1rm={entry.oneRepMax ? set.weight / entry.oneRepMax : null}
+              rpe={perSetRpe.get(set.id) ?? null}
+              changed={changedSets?.[set.id]}
+              onChange={updateSetLocally}
+              onRemove={removeSet}
+              simplified={simplified}
+            />
+          ))}
+        </div>
+      )}
 
       {!simplified && (
         <>

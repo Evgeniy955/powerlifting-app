@@ -31,6 +31,11 @@ model User {
   // view) — stored per-user rather than in localStorage so it survives an
   // app reload or signing in from a different browser/device.
   simplifiedView Boolean  @default(false)
+  // "Компактный режим" checkbox (single-day Workout view) — groups
+  // consecutive same weight+reps sets into one "вес / countхповт / %1ПМ"
+  // line instead of a row per set. Same per-user persistence reasoning as
+  // simplifiedView above.
+  compactView    Boolean  @default(false)
 
   // If this user is an athlete, they have exactly one profile
   athleteProfile AthleteProfile?
