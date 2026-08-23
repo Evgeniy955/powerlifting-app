@@ -5,12 +5,11 @@ import { notFound, redirect } from 'next/navigation'
 import { isMicrocycleVisibleToAthlete } from '@/lib/weekAccess'
 import { MicrocycleExportView } from '@/components/MicrocycleExportView'
 
-// Print/PDF export of a whole microcycle — a stripped-down, non-interactive
-// mirror of /microcycle/[microcycleId] meant to be turned into a PDF via the
-// browser's own "Print > Save as PDF", not a server-rendered file. Same
-// access rules as the live week page (ownership + athlete current/past-only
-// visibility) since it exposes the same underlying data, just laid out for
-// paper instead of editing.
+// PDF export of a whole microcycle — a stripped-down, non-interactive mirror
+// of /microcycle/[microcycleId] rendered client-side to a PDF (html2canvas +
+// jsPDF), not a server-rendered file. Same access rules as the live week
+// page (ownership + athlete current/past-only visibility) since it exposes
+// the same underlying data, just laid out for a document instead of editing.
 export default async function MicrocycleExportPage({
   params,
 }: {
@@ -49,6 +48,8 @@ export default async function MicrocycleExportPage({
       athleteName={athleteName}
       workouts={microcycle.workouts}
       rpeTable={rpeTable}
+      initialSimplified={user.simplifiedView}
+      initialCompact={user.compactView}
     />
   )
 }
