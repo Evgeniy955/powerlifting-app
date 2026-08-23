@@ -71,6 +71,25 @@ export default async function CyclePage({ params }: { params: { cycleId: string 
     ? visibleMicrocycles.filter((mc) => mc.id !== currentMicrocycle.id)
     : visibleMicrocycles
 
+  // Which single day button gets the "highlighted" look: today's own
+  // session if there is one, otherwise the soonest upcoming one — a rest
+  // day shouldn't leave nothing highlighted, it should point ahead to what's
+  // next. Scoped to visibleMicrocycles only (not the whole cycle) since
+  // that's exactly what's on screen — an athlete's next real session could
+  // technically sit in a not-yet-unlocked future week, in which case there's
+  // nothing visible to point at and none of the rendered days light up.
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const visibleWorkoutsByDate = visibleMicrocycles
+    .flatMap((mc) => mc.workouts)
+    .slice()
+    .sort((a, b) => a.scheduledDate.getTime() - b.scheduledDate.getTime())
+  const highlightWorkoutId =
+    visibleWorkoutsByDate.find((w) => w.scheduledDate.toISOString().slice(0, 10) === todayStr)
+      ?.id ??
+    visibleWorkoutsByDate.find((w) => w.scheduledDate.toISOString().slice(0, 10) > todayStr)
+      ?.id ??
+    null
+
   // Which days (workouts) in this cycle have athlete edits the coach hasn't
   // seen yet — drives the colored dot on "День N" below. Coach-only, same
   // ChangeLog signal as the "История" badge and the per-set highlight inside
@@ -167,7 +186,11 @@ export default async function CyclePage({ params }: { params: { cycleId: string 
                 />
               )}
             </div>
-            <WeekdayDayLinks workouts={currentMicrocycle.workouts} daysWithUnseenChanges={daysWithUnseenChanges} />
+            <WeekdayDayLinks
+              workouts={currentMicrocycle.workouts}
+              daysWithUnseenChanges={daysWithUnseenChanges}
+              highlightWorkoutId={highlightWorkoutId}
+            />
           </Card>
         </div>
       )}
@@ -187,7 +210,11 @@ export default async function CyclePage({ params }: { params: { cycleId: string 
                 <DeleteMicrocycleButton microcycleId={mc.id} weekNumber={mc.weekNumber} />
               )}
             </div>
-            <WeekdayDayLinks workouts={mc.workouts} daysWithUnseenChanges={daysWithUnseenChanges} />
+            <WeekdayDayLinks
+              workouts={mc.workouts}
+              daysWithUnseenChanges={daysWithUnseenChanges}
+              highlightWorkoutId={highlightWorkoutId}
+            />
           </Card>
         ))}
       </div>
@@ -203,9 +230,15 @@ export default async function CyclePage({ params }: { params: { cycleId: string 
 function WeekdayDayLinks({
   workouts,
   daysWithUnseenChanges,
+  highlightWorkoutId,
 }: {
   workouts: { id: string; scheduledDate: Date }[]
   daysWithUnseenChanges: Set<string | null>
+  // Today's own session, or — on a rest day — the soonest one still ahead.
+  // At most one day across the whole page carries this, computed once by
+  // the page and passed down rather than each card guessing from its own
+  // (possibly entirely past, or entirely future) slice of workouts.
+  highlightWorkoutId: string | null
 }) {
   return (
     <div className="flex flex-wrap gap-2">
@@ -213,7 +246,11 @@ function WeekdayDayLinks({
         <Link
           key={w.id}
           href={`/workout/${w.id}`}
-          className="relative rounded-lg bg-surface-2 px-3 py-1 text-sm transition-colors duration-150 hover:bg-accent hover:text-on-accent"
+          className={`relative rounded-lg px-3 py-1 text-sm transition-colors duration-150 hover:bg-accent hover:text-on-accent ${
+            w.id === highlightWorkoutId
+              ? 'bg-accent font-bold text-on-accent ring-2 ring-accent ring-offset-1 ring-offset-bg'
+              : 'bg-surface-2'
+          }`}
         >
           {WEEKDAY_SHORT[w.scheduledDate.getUTCDay()]}
           {daysWithUnseenChanges.has(w.id) && (
