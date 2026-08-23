@@ -1,8 +1,8 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Printer } from 'lucide-react'
+import { ArrowLeft, Download, Loader2 } from 'lucide-react'
 import { computeExerciseMetrics, aggregateMetrics, type ExerciseMetrics } from '@/lib/metrics'
 import { isTrainingGroup, trainingGroupColor } from '@/lib/trainingGroups'
 import type { RpePoint } from '@/lib/rpe'
@@ -45,14 +45,12 @@ type Props = {
 
 type Theme = 'dark' | 'light'
 
-// Read-only, print-oriented mirror of MicrocycleWeekView — same data, laid
-// out for paper instead of editing. No lock state, drag-to-reorder, inline
-// editors or autocompletes; every exercise entry is a plain row. Turned into
-// an actual PDF via the browser's own "Print > Save as PDF", triggered by
-// the "Печать / Сохранить PDF" button below, rather than a server-rendered
-// file — keeps the export pixel-identical to what's on screen without a
-// second rendering pipeline (headless Chrome, a PDF library, ...) to keep in
-// sync with the live week view.
+// Read-only mirror of MicrocycleWeekView — same data, laid out for a PDF
+// instead of editing. No lock state, drag-to-reorder, inline editors or
+// autocompletes; every exercise entry is a plain row. "Скачать PDF" renders
+// the header block and each day's card to a canvas (html2canvas) and drops
+// each one onto its own landscape A4 page of a jsPDF document, which is then
+// saved straight to disk — no print dialog, no intermediate "Print" step.
 export function MicrocycleExportView({
   cycleId,
   cycleName,
@@ -66,6 +64,14 @@ export function MicrocycleExportView({
   // flip the slider for a lighter, more ink-friendly printout.
   const [theme, setTheme] = useState<Theme>('dark')
   const isLight = theme === 'light'
+  const [generating, setGenerating] = useState(false)
+
+  // One ref for the title/summary block, one per day card — html2canvas
+  // renders each of these separately so every section lands on its own PDF
+  // page instead of one giant screenshot getting sliced at arbitrary
+  // pixel boundaries (which could cut a table row in half).
+  const headerRef = useRef<HTMLDivElement>(null)
+  const dayRefs = useRef<Map<string, HTMLElement>>(new Map())
 
   const perWorkout = useMemo(
     () =>
@@ -118,12 +124,60 @@ export function MicrocycleExportView({
     return all.length > 0 ? aggregateMetrics(all) : null
   }, [perWorkout])
 
+  async function downloadPdf() {
+    if (generating) return
+    setGenerating(true)
+    try {
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf'),
+      ])
+
+      const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
+      const pageWidth = pdf.internal.pageSize.getWidth()
+      const pageHeight = pdf.internal.pageSize.getHeight()
+      const margin = 10
+      const maxWidth = pageWidth - margin * 2
+      const maxHeight = pageHeight - margin * 2
+
+      const sections = [headerRef.current, ...workouts.map((w) => dayRefs.current.get(w.id) ?? null)].filter(
+        (el): el is HTMLElement => el !== null
+      )
+
+      // Same background for every capture — otherwise a section whose own
+      // wrapper has no explicit bg (just inherits the page's) renders onto
+      // html2canvas's default white canvas, which reads as a stray white
+      // block on a dark-theme PDF page.
+      const rootBg = headerRef.current
+        ? getComputedStyle(headerRef.current.parentElement ?? headerRef.current).backgroundColor
+        : '#ffffff'
+
+      for (let i = 0; i < sections.length; i++) {
+        const canvas = await html2canvas(sections[i], { scale: 2, backgroundColor: rootBg })
+        const imgData = canvas.toDataURL('image/png')
+
+        let renderWidth = maxWidth
+        let renderHeight = (canvas.height * renderWidth) / canvas.width
+        if (renderHeight > maxHeight) {
+          renderHeight = maxHeight
+          renderWidth = (canvas.width * renderHeight) / canvas.height
+        }
+
+        if (i > 0) pdf.addPage()
+        pdf.addImage(imgData, 'PNG', margin, margin, renderWidth, renderHeight)
+      }
+
+      pdf.save(`Микроцикл ${weekNumber}.pdf`)
+    } finally {
+      setGenerating(false)
+    }
+  }
+
   return (
     <div className={`min-h-screen bg-bg text-text-primary theme-${theme}`}>
-      {/* Everything in here is hidden in the print stylesheet (see
-          .no-print in globals.css) — controls for building the document,
-          not part of it. */}
-      <div className="no-print mx-auto max-w-5xl space-y-4 px-4 py-6">
+      {/* Controls for building the file — not part of the PDF itself, since
+          downloadPdf only ever captures headerRef/dayRefs below. */}
+      <div className="mx-auto max-w-5xl space-y-4 px-4 py-6">
         <Link
           href={`/cycles/${cycleId}`}
           className="inline-flex items-center gap-1.5 text-sm text-text-secondary hover:text-accent"
@@ -137,7 +191,7 @@ export function MicrocycleExportView({
               Экспорт: Микроцикл {weekNumber}
             </h1>
             <p className="text-sm text-text-secondary">
-              Откроется системный диалог печати — выберите «Сохранить как PDF».
+              Файл сохранится в папку загрузок вашего браузера.
             </p>
           </div>
 
@@ -163,39 +217,48 @@ export function MicrocycleExportView({
 
             <button
               type="button"
-              onClick={() => window.print()}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-display font-medium tracking-wide text-on-accent shadow-card transition hover:brightness-110"
+              onClick={downloadPdf}
+              disabled={generating}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-display font-medium tracking-wide text-on-accent shadow-card transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <Printer className="h-4 w-4" /> Печать / Сохранить PDF
+              {generating ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4" />
+              )}
+              {generating ? 'Готовим PDF...' : 'Скачать PDF'}
             </button>
           </div>
         </div>
       </div>
 
-      {/* Printable area. */}
+      {/* Exported area — only headerRef and each dayRefs entry are actually
+          captured into the PDF; the wrapping div itself is just layout. */}
       <div className="mx-auto max-w-6xl space-y-6 px-4 pb-10">
-        <header className="space-y-1 border-b border-border pb-3 text-center">
-          <p className="text-sm text-text-secondary">{cycleName}</p>
-          <h2 className="font-display text-2xl uppercase tracking-wide">Микроцикл {weekNumber}</h2>
-          {athleteName && <p className="text-sm text-text-secondary">{athleteName}</p>}
-        </header>
+        <div ref={headerRef} className="space-y-6 bg-bg p-1">
+          <header className="space-y-1 border-b border-border pb-3 text-center">
+            <p className="text-sm text-text-secondary">{cycleName}</p>
+            <h2 className="font-display text-2xl uppercase tracking-wide">Микроцикл {weekNumber}</h2>
+            {athleteName && <p className="text-sm text-text-secondary">{athleteName}</p>}
+          </header>
 
-        {weekTotals && (
-          <div className="grid grid-cols-3 gap-x-4 gap-y-1 rounded-lg border border-border bg-surface-2 px-4 py-3 text-sm sm:grid-cols-6">
-            <Metric label="Тоннаж" value={`${weekTotals.tonnage} кг`} />
-            <Metric label="КПШ" value={String(weekTotals.kpsh)} />
-            <Metric label="Сред.вес" value={`${weekTotals.avgWeight} кг`} />
-            <Metric
-              label="Интенсивность"
-              value={`${Math.round(weekTotals.relativeIntensity * 100)}%`}
-              valueClassName={zoneClass(weekTotals.relativeIntensity)}
-            />
-            <Metric label="КО" value={String(weekTotals.loadCoefficient)} />
-            <Metric label="Инд. усталости" value={weekTotals.fatigueIndex ?? '—'} />
-          </div>
-        )}
+          {weekTotals && (
+            <div className="grid grid-cols-3 gap-x-4 gap-y-1 rounded-lg border border-border bg-surface-2 px-4 py-3 text-sm sm:grid-cols-6">
+              <Metric label="Тоннаж" value={`${weekTotals.tonnage} кг`} />
+              <Metric label="КПШ" value={String(weekTotals.kpsh)} />
+              <Metric label="Сред.вес" value={`${weekTotals.avgWeight} кг`} />
+              <Metric
+                label="Интенсивность"
+                value={`${Math.round(weekTotals.relativeIntensity * 100)}%`}
+                valueClassName={zoneClass(weekTotals.relativeIntensity)}
+              />
+              <Metric label="КО" value={String(weekTotals.loadCoefficient)} />
+              <Metric label="Инд. усталости" value={weekTotals.fatigueIndex ?? '—'} />
+            </div>
+          )}
+        </div>
 
-        {perWorkout.map(({ workout, metricsByEntry, dayTotals, columns }, dayIndex) => {
+        {perWorkout.map(({ workout, metricsByEntry, dayTotals, columns }) => {
           const date = new Date(workout.scheduledDate)
           const weekday = WEEKDAY_FULL[date.getUTCDay()]
           const dateLabel = date.toISOString().slice(0, 10).split('-').reverse().join('.')
@@ -203,9 +266,11 @@ export function MicrocycleExportView({
           return (
             <section
               key={workout.id}
-              className={`export-day break-inside-avoid rounded-xl border border-border bg-surface ${
-                dayIndex > 0 ? 'break-before-page' : ''
-              }`}
+              ref={(el) => {
+                if (el) dayRefs.current.set(workout.id, el)
+                else dayRefs.current.delete(workout.id)
+              }}
+              className="rounded-xl border border-border bg-surface"
             >
               <div className="flex items-baseline gap-2 rounded-t-xl border-b border-border bg-accent px-3 py-1.5 text-on-accent">
                 <span className="font-display text-base uppercase tracking-wide">{weekday}</span>
