@@ -23,13 +23,16 @@ type Props = {
   changed?: SetChange
   onChange: (id: string, patch: Partial<Pick<SetValue, 'weight' | 'reps' | 'completed'>>) => void
   onRemove: (id: string) => void
+  // "Упрощённый режим" — hides the ИУ (RPE) column and the remove-set
+  // button. Weight, reps, %1RM, and the set-number/complete toggle stay.
+  simplified?: boolean
 }
 
 // A single set row. New sets are added pre-filled with the previous set's
 // weight/reps (see POST .../sets) so building e.g. 5x5 doesn't mean retyping
 // the same numbers each time; this component itself only reports changes
 // upward — the parent owns debounced saving.
-export function SetRow({ set, percentOf1rm, rpe, changed, onChange, onRemove }: Props) {
+export function SetRow({ set, percentOf1rm, rpe, changed, onChange, onRemove, simplified = false }: Props) {
   return (
     <div
       className={`flex items-center gap-2 py-1 ${
@@ -99,18 +102,22 @@ export function SetRow({ set, percentOf1rm, rpe, changed, onChange, onRemove }: 
           {percentOf1rm !== null ? `${Math.round(percentOf1rm * 100)}%` : '—'}
         </span>
 
-        <span className="w-10 text-sm text-accent" title="ИУ (RPE)">
-          {rpe !== null ? rpe : '—'}
-        </span>
+        {!simplified && (
+          <span className="w-10 text-sm text-accent" title="ИУ (RPE)">
+            {rpe !== null ? rpe : '—'}
+          </span>
+        )}
       </div>
 
-      <button
-        onClick={() => onRemove(set.id)}
-        aria-label="Удалить подход"
-        className="ml-auto text-text-secondary hover:text-danger px-2 transition-colors"
-      >
-        <X className="h-4 w-4" />
-      </button>
+      {!simplified && (
+        <button
+          onClick={() => onRemove(set.id)}
+          aria-label="Удалить подход"
+          className="ml-auto text-text-secondary hover:text-danger px-2 transition-colors"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      )}
     </div>
   )
 }

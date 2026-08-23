@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
 import {
@@ -20,6 +20,11 @@ import { Card } from '@/components/ui'
 import type { RpePoint } from '@/lib/rpe'
 
 type AdjacentDay = { id: string; dayNumber: number }
+
+// Same key/flag as MicrocycleWeekView's "Упрощённый режим" checkbox — shared
+// so toggling it in either view carries over to the other, since both are
+// just different zoom levels on the same plan.
+const SIMPLIFIED_VIEW_KEY = 'microcycleSimplifiedView'
 
 type Props = {
   workoutId: string
@@ -67,6 +72,28 @@ export function WorkoutView({
   // Defaults locked so a stray tap doesn't remove a set or delete an
   // exercise — has to be explicitly unlocked via the padlock first.
   const [locked, setLocked] = useState(true)
+
+  // Same read-on-mount + write-through localStorage pattern as
+  // MicrocycleWeekView — defaults to false (including on the server) and
+  // syncs from storage right after mount.
+  const [simplified, setSimplified] = useState(false)
+
+  useEffect(() => {
+    try {
+      setSimplified(localStorage.getItem(SIMPLIFIED_VIEW_KEY) === 'true')
+    } catch {
+      // ignore (e.g. privacy mode)
+    }
+  }, [])
+
+  function applySimplified(next: boolean) {
+    setSimplified(next)
+    try {
+      localStorage.setItem(SIMPLIFIED_VIEW_KEY, String(next))
+    } catch {
+      // ignore (e.g. privacy mode)
+    }
+  }
 
   async function handleAddExercise(exercise: ExerciseOption) {
     const res = await fetch('/api/exercise-entries', {
@@ -166,6 +193,21 @@ export function WorkoutView({
         )}
       </div>
 
+      {/* Same shared setting as MicrocycleWeekView's checkbox (see
+          SIMPLIFIED_VIEW_KEY above) — toggling it here also affects the week
+          view and vice versa. */}
+      <div className="mb-4 text-center">
+        <label className="inline-flex items-center gap-1.5 text-xs text-text-secondary">
+          <input
+            type="checkbox"
+            checked={simplified}
+            onChange={(e) => applySimplified(e.target.checked)}
+            className="h-3.5 w-3.5 accent-accent"
+          />
+          Упрощённый режим
+        </label>
+      </div>
+
       <div
         className={`space-y-4 lg:space-y-0 ${locked ? 'pointer-events-none select-none opacity-70' : ''}`}
       >
@@ -182,16 +224,19 @@ export function WorkoutView({
                   canCreateExercise={canCreateExercise}
                   changedSets={changedSets}
                   isNewExercise={newExerciseEntryIdSet.has(entry.id)}
+                  simplified={simplified}
                 />
               ))}
             </div>
           </SortableContext>
         </DndContext>
 
-        <Card className="lg:mt-4">
-          <p className="text-sm text-text-secondary mb-2">Добавить упражнение</p>
-          <ExerciseAutocomplete onSelect={handleAddExercise} canCreate={canCreateExercise} clearOnSelect />
-        </Card>
+        {!simplified && (
+          <Card className="lg:mt-4">
+            <p className="text-sm text-text-secondary mb-2">Добавить упражнение</p>
+            <ExerciseAutocomplete onSelect={handleAddExercise} canCreate={canCreateExercise} clearOnSelect />
+          </Card>
+        )}
       </div>
     </div>
   )
