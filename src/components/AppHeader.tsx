@@ -38,6 +38,7 @@ export async function AppHeader() {
         ? [
             { href: `/athletes/${athleteProfileId}/cycles`, label: 'Мои планы', emphasis: true },
             { href: `/athletes/${athleteProfileId}/supplements`, label: 'Спортпит' },
+            { href: `/athletes/${athleteProfileId}/competitions`, label: 'Соревнования' },
             { href: '/faq', label: 'Помощь' },
           ]
         : []
@@ -90,6 +91,12 @@ export async function AppHeader() {
                     className="hidden text-sm text-text-secondary transition-colors hover:text-accent hover:underline md:inline"
                   >
                     Спортпит
+                  </Link>
+                  <Link
+                    href={`/athletes/${athleteProfileId}/competitions`}
+                    className="hidden text-sm text-text-secondary transition-colors hover:text-accent hover:underline md:inline"
+                  >
+                    Соревнования
                   </Link>
                 </>
               )}
