@@ -1,5 +1,6 @@
 const KYIV_TZ = 'Europe/Kyiv'
 const UNLOCK_BEFORE_MS = 10 * 60 * 1000 // 10 minutes
+const DAY_MS = 24 * 60 * 60 * 1000
 
 // Converts a wall-clock date+time as if it were observed in `timeZone` into
 // the correct UTC instant, accounting for that zone's DST rules on that
@@ -34,6 +35,26 @@ function zonedWallTimeToUtc(y: number, m: number, d: number, hh: number, mm: num
   return new Date(utcGuess.getTime() - offset)
 }
 
+// The calendar date `date` falls on as observed on a Europe/Kyiv wall
+// clock, normalized to a UTC-midnight Date so two calls can be diffed with
+// plain millisecond subtraction to get a whole day count. Used to make sure
+// "which week does Kyiv 'today' belong to" (currentWeekNumber) reads off
+// the exact same calendar as "has this week's Kyiv midnight passed"
+// (isMicrocycleVisibleToAthlete) — the two used to disagree because
+// currentWeekNumber did raw UTC-millisecond math instead of going through
+// this timezone conversion.
+function kyivCalendarDate(date: Date, timeZone: string = KYIV_TZ): Date {
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+  const parts: Record<string, string> = {}
+  for (const p of fmt.formatToParts(date)) if (p.type !== 'literal') parts[p.type] = p.value
+  return new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day)))
+}
+
 // A microcycle's designated calendar date, derived the same way the rest of
 // the app shifts scheduled dates when copying weeks (see
 // duplicate-last-two-weeks/route.ts): the cycle's own start date plus
@@ -60,4 +81,23 @@ export function isMicrocycleVisibleToAthlete(
   const { y, m, d } = microcycleStartDateParts(cycleStartDate, weekNumber)
   const weekStartUtc = zonedWallTimeToUtc(y, m, d, 0, 0, KYIV_TZ)
   return now.getTime() >= weekStartUtc.getTime() - UNLOCK_BEFORE_MS
+}
+
+// Which weekNumber "today" (a Europe/Kyiv wall-clock calendar date) falls
+// into, on the same cycleStartDate + (N-1)*7-day grid every other
+// week-numbering call site uses (duplicate-last-two-weeks/route.ts,
+// isMicrocycleVisibleToAthlete above). Anchored to the same Kyiv calendar
+// as isMicrocycleVisibleToAthlete — the cycle page used to compute this
+// itself with raw UTC-millisecond math, which rolled over hours late
+// relative to Kyiv wall time (a 2-3hr gap depending on DST) and left the
+// "Текущий микроцикл" callout pointing at last week for that whole window,
+// even after the athlete's own view had already unlocked the new one.
+// Can land before week 1 (plan hasn't started yet) or past the last
+// microcycle (plan's run its course) — callers check the result actually
+// matches an existing microcycle before using it.
+export function currentWeekNumber(cycleStartDate: Date, now: Date = new Date()): number {
+  const startDay = kyivCalendarDate(cycleStartDate)
+  const nowDay = kyivCalendarDate(now)
+  const daysDiff = Math.round((nowDay.getTime() - startDay.getTime()) / DAY_MS)
+  return Math.floor(daysDiff / 7) + 1
 }
