@@ -8,23 +8,12 @@ import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Card, buttonVariants } from '@/components/ui'
 import { BarChart3, FileDown, History } from 'lucide-react'
-import { isMicrocycleVisibleToAthlete } from '@/lib/weekAccess'
+import { isMicrocycleVisibleToAthlete, currentWeekNumber } from '@/lib/weekAccess'
 
 // Same getUTCDay()-indexed convention as WeekDayTable/excelExport — kept
 // local rather than imported since this page only needs the label, not any
 // of the date-shifting logic those modules also carry.
 const WEEKDAY_SHORT = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']
-
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000
-
-// Which weekNumber "today" falls into, on the same cycleStartDate + (N-1)
-// weeks grid every other week-numbering call site already uses (weekAccess.ts,
-// duplicate-last-two-weeks/route.ts). Can land before week 1 (plan hasn't
-// started yet) or past the last microcycle (plan's run its course) — callers
-// check the result actually matches an existing microcycle before using it.
-function currentWeekNumber(cycleStartDate: Date, now: Date = new Date()): number {
-  return Math.floor((now.getTime() - cycleStartDate.getTime()) / WEEK_MS) + 1
-}
 
 // Cycle overview: list of microcycles (weeks) -> workouts (days), plus the
 // coach-only "Копировать последние 2 недели" action. Access is checked against
