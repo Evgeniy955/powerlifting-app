@@ -1,7 +1,7 @@
 import { randomBytes } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireCoach, statusForAuthError } from '@/lib/session'
+import { requireCoach, apiErrorResponse } from '@/lib/session'
 import { assertAthleteBelongsToCoach } from '@/lib/authorization'
 import { athleteDisplayName } from '@/lib/athlete'
 import { EmailNotConfiguredError, sendInviteEmail } from '@/lib/email'
@@ -42,6 +42,6 @@ export async function POST(_req: NextRequest, { params }: { params: { athleteId:
 
     return NextResponse.json({ invitedAt: updated.invitedAt })
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }

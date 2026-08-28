@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { NextResponse } from 'next/server'
 import { prisma } from './prisma'
 
 export type SessionUser = {
@@ -59,4 +60,21 @@ export function statusForAuthError(e: unknown): number {
   if (e instanceof ForbiddenError) return 403
   if (e instanceof NotFoundError) return 404
   return 500
+}
+
+/**
+ * Converts unexpected route errors into a safe API response. Authentication
+ * and ownership errors are intentionally client-readable; all other errors
+ * may contain database, provider, or stack details and are logged only on the
+ * server.
+ */
+export function apiErrorResponse(e: unknown) {
+  const status = statusForAuthError(e)
+  if (status === 500) {
+    console.error('API request failed', { errorType: e instanceof Error ? e.name : typeof e })
+    return NextResponse.json({ error: 'Внутренняя ошибка сервера' }, { status })
+  }
+
+  const message = e instanceof Error ? e.message : 'Не удалось выполнить запрос'
+  return NextResponse.json({ error: message }, { status })
 }

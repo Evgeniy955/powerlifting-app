@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireUser, statusForAuthError } from '@/lib/session'
+import { requireUser, apiErrorResponse } from '@/lib/session'
 import { assertCanAccessSet } from '@/lib/authorization'
 import { coachEmailToNotify, queueChangeNotification } from '@/lib/email'
 import { recordChangeLog } from '@/lib/changeLog'
@@ -97,7 +97,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { setId: str
 
     return NextResponse.json(set)
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }
 
@@ -141,6 +141,6 @@ export async function DELETE(_req: NextRequest, { params }: { params: { setId: s
 
     return NextResponse.json({ ok: true })
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }

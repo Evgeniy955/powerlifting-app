@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireCoach, statusForAuthError } from '@/lib/session'
+import { requireCoach, apiErrorResponse } from '@/lib/session'
 import { getAiInsights, AiNotConfiguredError } from '@/lib/aiInsights'
 
 // POST /api/athletes/:athleteId/ai-insights — coach-only (this drives coaching
@@ -23,8 +23,8 @@ export async function POST(_req: NextRequest, { params }: { params: { athleteId:
     return NextResponse.json({ text })
   } catch (e) {
     if (e instanceof AiNotConfiguredError) {
-      return NextResponse.json({ error: e.message }, { status: 501 })
+      return NextResponse.json({ error: 'AI-рекомендации не настроены' }, { status: 501 })
     }
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }

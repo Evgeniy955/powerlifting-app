@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireUser, statusForAuthError } from '@/lib/session'
+import { requireUser, apiErrorResponse } from '@/lib/session'
 import { assertAthleteAccessible, assertAthleteBelongsToCoach } from '@/lib/authorization'
 
 // GET /api/athletes/:athleteId/one-rep-max — list all tracked 1RMs for this athlete.
@@ -18,7 +18,7 @@ export async function GET(_req: NextRequest, { params }: { params: { athleteId: 
     })
     return NextResponse.json(oneRepMaxes)
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }
 
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest, { params }: { params: { athleteId: 
     await assertAthleteAccessible(params.athleteId, user)
 
     const { exerciseId, value } = (await req.json()) as { exerciseId: string; value: number }
-    if (!exerciseId || !(value > 0)) {
+    if (!exerciseId || !Number.isFinite(value) || !(value > 0)) {
       return NextResponse.json({ error: 'exerciseId и value > 0 обязательны' }, { status: 400 })
     }
 
@@ -44,6 +44,10 @@ export async function POST(req: NextRequest, { params }: { params: { athleteId: 
       }
     }
 
+    // This is deliberately an upsert rather than a "keep the highest value"
+    // operation: a coach may correct 1RM down as well as up. The unique pair
+    // makes the existence check and replacement atomic, avoiding a read/write
+    // race when this is the first value for an exercise.
     const record = await prisma.athlete1RM.upsert({
       where: { athleteId_exerciseId: { athleteId: params.athleteId, exerciseId } },
       update: { value },
@@ -52,6 +56,6 @@ export async function POST(req: NextRequest, { params }: { params: { athleteId: 
 
     return NextResponse.json(record, { status: 201 })
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }

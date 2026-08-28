@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireCoach, statusForAuthError } from '@/lib/session'
+import { requireCoach, apiErrorResponse } from '@/lib/session'
 
 type MainLift = 'squat' | 'bench' | 'deadlift'
 
@@ -112,7 +112,7 @@ export async function GET() {
 
     return NextResponse.json(withMainLifts)
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }
 
@@ -161,6 +161,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(created, { status: 201 })
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }

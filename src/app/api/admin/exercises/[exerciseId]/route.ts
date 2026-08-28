@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireCoach, statusForAuthError } from '@/lib/session'
+import { requireCoach, apiErrorResponse } from '@/lib/session'
 import { isTrainingGroup } from '@/lib/trainingGroups'
 
 // PATCH /api/admin/exercises/:exerciseId { name?, category?, impactCoefficient?, trainingGroup? }
@@ -79,7 +79,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { exerciseId
         { status: 400 }
       )
     }
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }
 
@@ -135,6 +135,6 @@ export async function DELETE(req: NextRequest, { params }: { params: { exerciseI
 
     return NextResponse.json({ ok: true })
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireCoach, requireUser, statusForAuthError } from '@/lib/session'
+import { requireCoach, requireUser, apiErrorResponse } from '@/lib/session'
 import { assertAthleteBelongsToCoach, assertCanAccessWorkout } from '@/lib/authorization'
 import { getWorkoutForDisplay, getRpeTable } from '@/lib/workout'
 
@@ -16,7 +16,7 @@ export async function GET(_req: NextRequest, { params }: { params: { workoutId: 
     if (!workout) return NextResponse.json({ error: 'Не найдено' }, { status: 404 })
     return NextResponse.json({ workout, rpeTable })
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }
 
@@ -61,7 +61,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { workoutId:
 
     return NextResponse.json({ ok: true })
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }
 
@@ -90,6 +90,6 @@ export async function DELETE(
 
     return NextResponse.json({ ok: true })
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }

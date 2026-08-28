@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireUser, statusForAuthError } from '@/lib/session'
+import { requireUser, apiErrorResponse } from '@/lib/session'
 import { getCycleAnalytics } from '@/lib/analytics'
 import { getRpeTable } from '@/lib/workout'
 
@@ -32,6 +32,6 @@ export async function GET(req: NextRequest, { params }: { params: { cycleId: str
 
     return NextResponse.json(analytics)
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }

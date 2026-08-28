@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireUser, statusForAuthError } from '@/lib/session'
+import { requireUser, apiErrorResponse } from '@/lib/session'
 
 // PATCH /api/user/simplified-view { simplified: boolean } — persists the
 // "Упрощённый режим" checkbox (Микроцикл week view + single-day Workout
@@ -23,6 +23,6 @@ export async function PATCH(req: NextRequest) {
 
     return NextResponse.json({ simplified })
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }

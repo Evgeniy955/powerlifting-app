@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireCoach, statusForAuthError } from '@/lib/session'
+import { requireCoach, apiErrorResponse } from '@/lib/session'
 
 // GET /api/athletes/archive — archived athletes for the signed-in coach
 // (see AthleteProfile.archivedAt). Kept as its own list, separate from the
@@ -25,6 +25,6 @@ export async function GET() {
 
     return NextResponse.json(withPlanCount)
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }

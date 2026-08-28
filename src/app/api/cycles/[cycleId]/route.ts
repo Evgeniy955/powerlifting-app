@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireCoach, statusForAuthError } from '@/lib/session'
+import { requireCoach, apiErrorResponse } from '@/lib/session'
 import { assertAthleteBelongsToCoach } from '@/lib/authorization'
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -65,7 +65,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { cycleId: s
     const updated = await prisma.cycle.update({ where: { id: params.cycleId }, data })
     return NextResponse.json(updated)
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }
 
@@ -86,6 +86,6 @@ export async function DELETE(_req: NextRequest, { params }: { params: { cycleId:
 
     return NextResponse.json({ ok: true })
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }

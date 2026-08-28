@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireUser, statusForAuthError } from '@/lib/session'
+import { requireUser, apiErrorResponse } from '@/lib/session'
 import { assertCanAccessSupplement } from '@/lib/authorization'
 
 // PATCH /api/athletes/:athleteId/supplements/:supplementId
@@ -70,7 +70,7 @@ export async function PATCH(
     })
     return NextResponse.json(updated)
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }
 
@@ -86,6 +86,6 @@ export async function DELETE(
     await prisma.supplement.delete({ where: { id: params.supplementId } })
     return NextResponse.json({ ok: true })
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }

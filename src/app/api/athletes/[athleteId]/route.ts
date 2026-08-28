@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireCoach, statusForAuthError } from '@/lib/session'
+import { requireCoach, apiErrorResponse } from '@/lib/session'
 import { assertAthleteBelongsToCoach } from '@/lib/authorization'
 
 // PATCH /api/athletes/:athleteId { inviteEmail?, displayName? } — lets the
@@ -43,7 +43,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { athleteId:
     if (typeof e === 'object' && e !== null && 'code' in e && e.code === 'P2002') {
       return NextResponse.json({ error: 'Этот email уже используется' }, { status: 400 })
     }
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }
 
@@ -83,6 +83,6 @@ export async function DELETE(_req: NextRequest, { params }: { params: { athleteI
 
     return NextResponse.json({ deleted: true })
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }

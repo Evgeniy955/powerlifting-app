@@ -1,7 +1,7 @@
 import { randomBytes } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireCoach, statusForAuthError } from '@/lib/session'
+import { requireCoach, apiErrorResponse } from '@/lib/session'
 import { athleteDisplayName } from '@/lib/athlete'
 import { EmailNotConfiguredError, sendInviteEmail } from '@/lib/email'
 
@@ -55,7 +55,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { athleteId:
     const updated = await prisma.athleteProfile.update({ where: { id: athlete.id }, data })
     return NextResponse.json(updated)
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }
 
@@ -94,7 +94,7 @@ export async function POST(_req: NextRequest, { params }: { params: { athleteId:
 
     return NextResponse.json({ invitedAt: updated.invitedAt })
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }
 
@@ -124,6 +124,6 @@ export async function DELETE(_req: NextRequest, { params }: { params: { athleteI
     await prisma.athleteProfile.delete({ where: { id: athlete.id } })
     return NextResponse.json({ deleted: true })
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }

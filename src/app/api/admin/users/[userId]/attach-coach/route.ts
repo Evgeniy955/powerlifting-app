@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireCoach, statusForAuthError } from '@/lib/session'
+import { requireCoach, apiErrorResponse } from '@/lib/session'
 
 // POST /api/admin/users/:userId/attach-coach — for an ATHLETE who already has
 // a real account (self-registered via Google, or matched by email in the old
@@ -37,6 +37,6 @@ export async function POST(_req: Request, { params }: { params: { userId: string
 
     return NextResponse.json(updated)
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireCoach, statusForAuthError } from '@/lib/session'
+import { requireCoach, apiErrorResponse } from '@/lib/session'
 import { assertAthleteBelongsToCoach } from '@/lib/authorization'
 
 // PATCH /api/periodization-microcycles/:id { microcycleType } — coach-only.
@@ -25,6 +25,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     })
     return NextResponse.json(updated)
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }

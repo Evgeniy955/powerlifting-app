@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireCoach, statusForAuthError } from '@/lib/session'
+import { requireCoach, apiErrorResponse } from '@/lib/session'
 import { assertAthleteBelongsToCoach } from '@/lib/authorization'
 import { addWeeks, dateRangesOverlap, rangeContains } from '@/lib/dateOverlap'
 
@@ -88,7 +88,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { stageId: s
     const updated = await prisma.stage.update({ where: { id: params.stageId }, data })
     return NextResponse.json(updated)
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }
 
@@ -110,6 +110,6 @@ export async function DELETE(_req: NextRequest, { params }: { params: { stageId:
     await prisma.stage.delete({ where: { id: params.stageId } })
     return NextResponse.json({ ok: true })
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }

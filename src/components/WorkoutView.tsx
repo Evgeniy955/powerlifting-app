@@ -129,7 +129,7 @@ export function WorkoutView({
           impactCoefficient: exercise.impactCoefficient,
           trainingGroup: exercise.trainingGroup,
         },
-        oneRepMax: null,
+        oneRepMax: created.oneRepMax ?? null,
         sets: [],
       },
     ])

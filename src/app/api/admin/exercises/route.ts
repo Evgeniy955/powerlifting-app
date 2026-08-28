@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireCoach, statusForAuthError } from '@/lib/session'
+import { requireCoach, apiErrorResponse } from '@/lib/session'
 
 // GET /api/admin/exercises — coach-only full catalog listing for the admin
 // management page. Unlike the public /api/exercises search (capped at 20,
@@ -17,6 +17,6 @@ export async function GET() {
     })
     return NextResponse.json(exercises)
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }

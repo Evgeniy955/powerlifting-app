@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireCoach, statusForAuthError } from '@/lib/session'
+import { requireCoach, apiErrorResponse } from '@/lib/session'
 import { assertAthleteBelongsToCoach } from '@/lib/authorization'
 
 // POST /api/cycles/:cycleId/microcycles — coach-only. Appends one empty
@@ -31,6 +31,6 @@ export async function POST(_req: NextRequest, { params }: { params: { cycleId: s
 
     return NextResponse.json(microcycle, { status: 201 })
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }

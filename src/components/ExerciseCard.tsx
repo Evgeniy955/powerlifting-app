@@ -93,6 +93,7 @@ export function ExerciseCard({
   // is only the initial value from the server.
   const [exercise, setExercise] = useState(entry.exercise)
   const [multiplier, setMultiplier] = useState(entry.multiplier)
+  const [oneRepMax, setOneRepMax] = useState(entry.oneRepMax)
   const [editing, setEditing] = useState(false)
   const [draftExercise, setDraftExercise] = useState<ExerciseOption | null>(null)
   const [draftMultiplier, setDraftMultiplier] = useState(entry.multiplier)
@@ -139,14 +140,21 @@ export function ExerciseCard({
   async function saveEdit() {
     const nextExercise = draftExercise ?? exercise
     const nextMultiplier = draftMultiplier
-    setExercise(nextExercise)
-    setMultiplier(nextMultiplier)
     setEditing(false)
-    await fetch(`/api/exercise-entries/${entry.id}`, {
+    const res = await fetch(`/api/exercise-entries/${entry.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ exerciseId: nextExercise.id, multiplier: nextMultiplier }),
     })
+    if (!res.ok) return
+    const updated = (await res.json()) as {
+      exercise: ExerciseOption
+      multiplier: number
+      oneRepMax: number | null
+    }
+    setExercise(updated.exercise)
+    setMultiplier(updated.multiplier)
+    setOneRepMax(updated.oneRepMax)
   }
 
   const metrics = useMemo(
@@ -154,16 +162,16 @@ export function ExerciseCard({
       computeExerciseMetrics(
         {
           sets: sets.map((s) => ({ weight: s.weight, reps: s.reps })),
-          oneRepMax: entry.oneRepMax ?? 0,
+          oneRepMax: oneRepMax ?? 0,
           impactCoefficient: exercise.impactCoefficient,
           multiplier,
         },
         rpeTable
       ),
-    [sets, entry.oneRepMax, exercise.impactCoefficient, multiplier, rpeTable]
+    [sets, oneRepMax, exercise.impactCoefficient, multiplier, rpeTable]
   )
 
-  const compactGroups = useMemo(() => groupSets(sets, entry.oneRepMax), [sets, entry.oneRepMax])
+  const compactGroups = useMemo(() => groupSets(sets, oneRepMax), [sets, oneRepMax])
 
   // Per-set ИУ (RPE), shown next to each set. Comes straight out of the same
   // computeExerciseMetrics call above (metrics.fatiguePerSet), so the value next
@@ -263,7 +271,7 @@ export function ExerciseCard({
                 добавлено атлетом
               </span>
             )}
-            {entry.oneRepMax === null && !skipped && (
+            {oneRepMax === null && !skipped && (
               <span className="text-xs text-zone-moderate">1ПМ не задан</span>
             )}
             {skipped && <span className="text-xs text-danger">Пропущено</span>}
@@ -353,7 +361,7 @@ export function ExerciseCard({
             <SetRow
               key={set.id}
               set={set}
-              percentOf1rm={entry.oneRepMax ? set.weight / entry.oneRepMax : null}
+              percentOf1rm={oneRepMax ? set.weight / oneRepMax : null}
               rpe={perSetRpe.get(set.id) ?? null}
               changed={changedSets?.[set.id]}
               onChange={updateSetLocally}

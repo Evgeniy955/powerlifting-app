@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireCoach, statusForAuthError } from '@/lib/session'
+import { requireCoach, apiErrorResponse } from '@/lib/session'
 import { assertAthleteBelongsToCoach } from '@/lib/authorization'
 import { addWeeks, rangeContains, rangesOverlap } from '@/lib/dateOverlap'
 
@@ -84,6 +84,6 @@ export async function POST(req: NextRequest, { params }: { params: { stageId: st
 
     return NextResponse.json(mesocycle, { status: 201 })
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }

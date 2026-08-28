@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireUser, statusForAuthError } from '@/lib/session'
+import { requireUser, apiErrorResponse } from '@/lib/session'
 import { buildCycleWorkbook } from '@/lib/excelExport'
 
 // GET /api/cycles/:cycleId/export — streams one plan as .xlsx, laid out to
@@ -37,6 +37,6 @@ export async function GET(_req: NextRequest, { params }: { params: { cycleId: st
       },
     })
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }

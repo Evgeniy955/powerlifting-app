@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireUser, statusForAuthError } from '@/lib/session'
+import { requireUser, apiErrorResponse } from '@/lib/session'
 import { assertCanAccessExerciseEntry } from '@/lib/authorization'
 
 // POST /api/exercise-entries/:entryId/sets — "+" next to the last set.
@@ -26,6 +26,6 @@ export async function POST(_req: NextRequest, { params }: { params: { entryId: s
     })
     return NextResponse.json(set, { status: 201 })
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }

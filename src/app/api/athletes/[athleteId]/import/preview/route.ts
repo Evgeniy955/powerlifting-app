@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireCoach, statusForAuthError } from '@/lib/session'
+import { requireCoach, apiErrorResponse } from '@/lib/session'
 import { parseWorkbookPreview } from '@/lib/excelImport'
 
 async function assertAthleteBelongsToCoach(athleteId: string, coachId: string) {
@@ -40,6 +40,6 @@ export async function POST(req: NextRequest, { params }: { params: { athleteId: 
 
     return NextResponse.json(preview)
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }

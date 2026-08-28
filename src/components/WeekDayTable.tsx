@@ -198,17 +198,30 @@ export function WeekDayTable({
   }
 
   function updateOneRepMaxLocally(entryId: string, exerciseId: string, value: number) {
-    setEntries((prev) => prev.map((e) => (e.id === entryId ? { ...e, oneRepMax: value } : e)))
+    // 1RM belongs to the athlete/exercise pair, so every occurrence of this
+    // exercise in the day must show the same pending value. Debouncing by
+    // exerciseId also prevents two copies of the exercise from racing and
+    // restoring an older value in the database.
+    setEntries((prev) =>
+      prev.map((e) => (e.exercise.id === exerciseId ? { ...e, oneRepMax: value } : e))
+    )
 
-    const key = `1rm-${entryId}`
+    const key = `1rm-${exerciseId}`
     if (saveTimers.current[key]) clearTimeout(saveTimers.current[key])
     if (value <= 0) return // API requires value > 0 — let the coach keep typing
-    saveTimers.current[key] = setTimeout(() => {
-      fetch(`/api/athletes/${athleteId}/one-rep-max`, {
+    saveTimers.current[key] = setTimeout(async () => {
+      const res = await fetch(`/api/athletes/${athleteId}/one-rep-max`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ exerciseId, value }),
       })
+      if (!res.ok) return
+      const saved = (await res.json()) as { value: number }
+      // The endpoint is an upsert: its returned value is the persisted source
+      // of truth, whether this is the first 1RM or a higher/lower replacement.
+      setEntries((prev) =>
+        prev.map((e) => (e.exercise.id === exerciseId ? { ...e, oneRepMax: saved.value } : e))
+      )
     }, 400)
   }
 
@@ -240,17 +253,30 @@ export function WeekDayTable({
     if (!current) return
     const nextExercise = draftExercise ?? current.exercise
     const nextMultiplier = draftMultiplier
-    setEntries((prev) =>
-      prev.map((e) =>
-        e.id === entryId ? { ...e, exercise: nextExercise, multiplier: nextMultiplier } : e
-      )
-    )
     setEditingEntryId(null)
-    await fetch(`/api/exercise-entries/${entryId}`, {
+    const res = await fetch(`/api/exercise-entries/${entryId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ exerciseId: nextExercise.id, multiplier: nextMultiplier }),
     })
+    if (!res.ok) return
+    const updated = (await res.json()) as {
+      exercise: ExerciseOption
+      multiplier: number
+      oneRepMax: number | null
+    }
+    setEntries((prev) =>
+      prev.map((e) =>
+        e.id === entryId
+          ? {
+              ...e,
+              exercise: updated.exercise,
+              multiplier: updated.multiplier,
+              oneRepMax: updated.oneRepMax,
+            }
+          : e
+      )
+    )
   }
 
   async function removeSet(entryId: string, setId: string) {
@@ -281,7 +307,7 @@ export function WeekDayTable({
           impactCoefficient: exercise.impactCoefficient,
           trainingGroup: exercise.trainingGroup,
         },
-        oneRepMax: null,
+        oneRepMax: created.oneRepMax ?? null,
         sets: [],
       },
     ])

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireUser, statusForAuthError } from '@/lib/session'
+import { requireUser, apiErrorResponse } from '@/lib/session'
 
 // PATCH /api/user/compact-view { compact: boolean } — persists the
 // "Компактный режим" checkbox (single-day Workout view) on the signed-in
@@ -20,6 +20,6 @@ export async function PATCH(req: NextRequest) {
 
     return NextResponse.json({ compact })
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }

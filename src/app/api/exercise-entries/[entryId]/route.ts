@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireUser, statusForAuthError } from '@/lib/session'
+import { requireUser, apiErrorResponse } from '@/lib/session'
 import { assertCanAccessExerciseEntry } from '@/lib/authorization'
 import { coachEmailToNotify, queueChangeNotification } from '@/lib/email'
 import { recordChangeLog } from '@/lib/changeLog'
@@ -12,7 +12,7 @@ import { recordChangeLog } from '@/lib/changeLog'
 export async function PATCH(req: NextRequest, { params }: { params: { entryId: string } }) {
   try {
     const user = await requireUser()
-    await assertCanAccessExerciseEntry(params.entryId, user)
+    const chain = await assertCanAccessExerciseEntry(params.entryId, user)
 
     const body = (await req.json()) as {
       skipped?: boolean
@@ -34,9 +34,21 @@ export async function PATCH(req: NextRequest, { params }: { params: { entryId: s
       include: { exercise: true },
     })
 
-    return NextResponse.json(entry)
+    // 1RM is scoped to athlete + exercise, not to ExerciseEntry. Resolving it
+    // after an exercise swap prevents the old exercise's 1RM from being shown
+    // (or later written back) for the newly selected exercise.
+    const oneRepMax = await prisma.athlete1RM.findUnique({
+      where: {
+        athleteId_exerciseId: {
+          athleteId: chain.athlete.id,
+          exerciseId: entry.exerciseId,
+        },
+      },
+    })
+
+    return NextResponse.json({ ...entry, oneRepMax: oneRepMax?.value ?? null })
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }
 
@@ -80,6 +92,6 @@ export async function DELETE(_req: NextRequest, { params }: { params: { entryId:
 
     return NextResponse.json({ ok: true })
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }

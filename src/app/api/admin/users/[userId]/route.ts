@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireCoach, statusForAuthError } from '@/lib/session'
+import { requireCoach, apiErrorResponse } from '@/lib/session'
 
 // PATCH /api/admin/users/:userId { role?, name?, email? } — role management plus
 // basic profile editing. There's no separate ADMIN tier in this app; COACH is
@@ -56,7 +56,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { userId: st
     if (typeof e === 'object' && e !== null && 'code' in e && e.code === 'P2002') {
       return NextResponse.json({ error: 'Этот email уже занят другим пользователем' }, { status: 400 })
     }
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }
 
@@ -95,6 +95,6 @@ export async function DELETE(_req: NextRequest, { params }: { params: { userId: 
     await prisma.user.delete({ where: { id: params.userId } })
     return NextResponse.json({ ok: true })
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }

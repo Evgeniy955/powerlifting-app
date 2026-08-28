@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireUser, statusForAuthError } from '@/lib/session'
+import { requireUser, apiErrorResponse } from '@/lib/session'
 import { assertAthleteAccessible } from '@/lib/authorization'
 
 // GET /api/athletes/:athleteId/supplements — list, newest intake first.
@@ -17,7 +17,7 @@ export async function GET(_req: NextRequest, { params }: { params: { athleteId: 
     })
     return NextResponse.json(supplements)
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }
 
@@ -72,6 +72,6 @@ export async function POST(req: NextRequest, { params }: { params: { athleteId: 
     })
     return NextResponse.json(supplement, { status: 201 })
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: statusForAuthError(e) })
+    return apiErrorResponse(e)
   }
 }
