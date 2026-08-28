@@ -3,10 +3,9 @@ import { WorkoutView } from '@/components/WorkoutView'
 import { prisma } from '@/lib/prisma'
 import { requireUser } from '@/lib/session'
 import { notFound, redirect } from 'next/navigation'
-import Link from 'next/link'
-import { ArrowLeft } from 'lucide-react'
 import { isMicrocycleVisibleToAthlete } from '@/lib/weekAccess'
 import type { SetChange } from '@/components/SetRow'
+import { BackToMicrocycleLink } from '@/components/BackToMicrocycleLink'
 
 // Server component: loads the workout + RPE table once, then hands off to the
 // client-side WorkoutView for the interactive, reactive editing experience.
@@ -84,12 +83,10 @@ export default async function WorkoutPage({ params }: { params: { workoutId: str
   return (
     <main className="min-h-[calc(100vh-3.5rem)] bg-bg text-text-primary py-6">
       <div className="mb-4 text-center">
-        <Link
-          href={`/microcycle/${workout.microcycleId}`}
-          className="mb-2 inline-flex items-center gap-1.5 text-sm text-text-secondary hover:text-accent"
-        >
-          <ArrowLeft className="h-4 w-4" /> Микроцикл {workout.weekNumber}
-        </Link>
+        <BackToMicrocycleLink
+          microcycleId={workout.microcycleId}
+          weekNumber={workout.weekNumber}
+        />
       </div>
       <WorkoutView
         workoutId={workout.id}
