@@ -9,27 +9,34 @@ export type RpePoint = { reps: number; rpe: number; percent1rm: number }
  *
  * Within a reps-column, %1RM increases monotonically with RPE, so we interpolate
  * linearly between the two bracketing table points (or extrapolate off the end
- * points, clamped to 1-10). If the exact rep count isn't tabulated, we first
+ * points, clamped to 1-10). The chart and UI both use whole %1RM values, so
+ * the input is rounded to that same precision before the lookup. If the exact
+ * rep count isn't tabulated, we first
  * estimate RPE against the nearest lower and upper rep columns that do have data,
  * then blend the two proportionally to how close `reps` is to each.
  */
 export function estimateRpe(reps: number, percent1rm: number, table: RpePoint[]): number | null {
   if (table.length === 0) return null
 
+  // A set such as 210 kg at a 1RM that produces 86.6% is displayed as 87%.
+  // Looking it up as 86.6% made the displayed percentage and its ИУ disagree
+  // (8.8 instead of the chart's exact 9 for 3 reps at 87%).
+  const chartPercent1rm = Math.round(percent1rm * 100) / 100
+
   const repsAvailable = Array.from(new Set(table.map((p) => p.reps))).sort((a, b) => a - b)
   if (repsAvailable.includes(reps)) {
-    return estimateRpeForRepsColumn(reps, percent1rm, table)
+    return estimateRpeForRepsColumn(reps, chartPercent1rm, table)
   }
 
   const lower = [...repsAvailable].reverse().find((r) => r < reps)
   const upper = repsAvailable.find((r) => r > reps)
 
   if (lower == null && upper == null) return null
-  if (lower == null) return estimateRpeForRepsColumn(upper as number, percent1rm, table)
-  if (upper == null) return estimateRpeForRepsColumn(lower, percent1rm, table)
+  if (lower == null) return estimateRpeForRepsColumn(upper as number, chartPercent1rm, table)
+  if (upper == null) return estimateRpeForRepsColumn(lower, chartPercent1rm, table)
 
-  const rpeLower = estimateRpeForRepsColumn(lower, percent1rm, table)
-  const rpeUpper = estimateRpeForRepsColumn(upper, percent1rm, table)
+  const rpeLower = estimateRpeForRepsColumn(lower, chartPercent1rm, table)
+  const rpeUpper = estimateRpeForRepsColumn(upper, chartPercent1rm, table)
   if (rpeLower == null || rpeUpper == null) return rpeLower ?? rpeUpper
 
   const t = (reps - lower) / (upper - lower)
@@ -84,22 +91,19 @@ export type BlockFatigueResult = {
  * - Session type is auto-detected from the heaviest set in the block: >=80% 1RM
  *   is a heavy/regular session, otherwise light.
  * - Each set's own base ИУ comes from the RPE chart (its own reps + %1RM).
- * - Fatigue then accumulates by +0.25 *per set*, not just once for the block:
- *   e.g. 8 / 8.25 / 8.5 / 8.75 / 9 across 5 qualifying sets. Two independent
- *   triggers add this accumulation, and a set close to both takes whichever is
- *   larger (no double-stacking):
- *     (a) heavy sessions — every set at >=85%, counted in the order it appears
- *         (the 1st such set has +0, the 2nd +0.25, the 3rd +0.5, ...);
- *     (b) any run of >=4 consecutive sets at an identical weight that is
- *         itself >=80% — every set within that run accumulates the same way,
- *         by its position in the run (1st +0, 2nd +0.25, 3rd +0.5, ...).
+ * - Fatigue accumulates by +0.25 per set only in either of these cases:
+ *     (a) all sets at >=85% 1RM, counted in their order; or
+ *     (b) consecutive identical sets (same weight and reps), counted within
+ *         that run. The first set has +0, the second +0.25, and so on.
+ *   If both rules apply, only the larger one is used — the bonus is not
+ *   double-counted.
  * - The block's aggregate index (shown under the exercise) is the average of
  *   the resulting per-set values among sets that clear the counting threshold —
  *   75% for heavy/regular sessions, 60% for light sessions. This is meant to
  *   capture actual "рабочие подходы" (working sets at/near the target weight),
  *   not ramp-up sets on the way there.
- * - Light sessions cap at 7.5; heavy/regular sessions cap at 10 (the scale's
- *   natural ceiling). The cap applies per-set too, not just to the aggregate.
+ * - Both light and heavy sessions use the full 1-10 scale from the RPE chart.
+ *   The cap applies per-set too, not just to the aggregate.
  */
 export function computeBlockFatigue(
   sets: { weight: number; reps: number }[],
@@ -114,40 +118,43 @@ export function computeBlockFatigue(
   const maxPct = Math.max(...sets.map((s) => pct(s.weight)))
   const sessionType: 'heavy' | 'light' = maxPct >= 0.8 ? 'heavy' : 'light'
   const threshold = sessionType === 'heavy' ? 0.75 : 0.6
-  const cap = sessionType === 'light' ? 7.5 : 10
+  const cap = 10
 
   const base = sets.map((s) => estimateRpe(s.reps, pct(s.weight), table))
 
-  // Trigger (a): sequential position among >=85% sets in a heavy session.
+  // Sets at 85%+ accumulate fatigue in the order they occur, regardless of
+  // whether their weights/reps are the same.
   const bonusHeavy = new Array(sets.length).fill(0)
-  if (sessionType === 'heavy') {
-    let count = 0
-    for (let i = 0; i < sets.length; i++) {
-      if (pct(sets[i].weight) >= 0.85) {
-        bonusHeavy[i] = 0.25 * count
-        count++
-      }
+  let heavySetCount = 0
+  for (let i = 0; i < sets.length; i++) {
+    if (pct(sets[i].weight) >= 0.85) {
+      bonusHeavy[i] = 0.25 * heavySetCount
+      heavySetCount++
     }
   }
 
-  // Trigger (b): position within a >=4-set run at an identical weight >=80%.
-  const bonusSameWeight = new Array(sets.length).fill(0)
+  // Any repeated, consecutive weight+rep prescription is the same approach.
+  // It accumulates independently of intensity, starting from the second set.
+  const bonusSameSet = new Array(sets.length).fill(0)
   let i = 0
   while (i < sets.length) {
     let j = i
-    while (j + 1 < sets.length && sets[j + 1].weight === sets[i].weight) j++
-    const runLength = j - i + 1
-    if (pct(sets[i].weight) >= 0.8 && runLength >= 4) {
-      for (let k = i; k <= j; k++) bonusSameWeight[k] = 0.25 * (k - i)
+    while (
+      j + 1 < sets.length &&
+      sets[j + 1].weight === sets[i].weight &&
+      sets[j + 1].reps === sets[i].reps
+    ) {
+      j++
+    }
+    if (j > i) {
+      for (let k = i; k <= j; k++) bonusSameSet[k] = 0.25 * (k - i)
     }
     i = j + 1
   }
 
-  const perSet = sets.map((s, idx) => {
-    const b = base[idx]
-    if (b == null) return null
-    const bonus = Math.max(bonusHeavy[idx], bonusSameWeight[idx])
-    return Math.min(round2(b + bonus), cap)
+  const perSet = base.map((value, idx) => {
+    if (value == null) return null
+    return Math.min(round2(value + Math.max(bonusHeavy[idx], bonusSameSet[idx])), cap)
   })
 
   const qualifyingValues = sets
