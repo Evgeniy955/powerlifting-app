@@ -217,7 +217,7 @@ export function MicrocycleWeekView({
         </p>
       ) : (
         <div className="mx-auto max-w-md space-y-3 px-4 lg:max-w-6xl">
-          {workouts.map((workout) => (
+          {workouts.map((workout, index) => (
             <WeekDayTable
               key={workout.id}
               workout={workout}
@@ -226,6 +226,7 @@ export function MicrocycleWeekView({
               role={role}
               canCreateExercise={canCreateExercise}
               locked={lockedMap[workout.id] ?? true}
+              openAddExerciseUpward={index === workouts.length - 1}
               onToggleLocked={() => toggleDay(workout.id)}
               simplified={simplified}
             />

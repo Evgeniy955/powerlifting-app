@@ -29,6 +29,9 @@ type Props = {
   // ExerciseCard's inline exercise-swap editor, where echoing the pick back
   // into the field is what confirms the change before saving.
   clearOnSelect?: boolean
+  // The last workout card in a microcycle sits at the bottom of the page, so
+  // its add-exercise menu needs to grow upward to remain visible.
+  openUpward?: boolean
 }
 
 // Coach-facing autocomplete over ExerciseCatalog, used both to add an exercise to a
@@ -38,6 +41,7 @@ export function ExerciseAutocomplete({
   placeholder,
   canCreate = false,
   clearOnSelect = false,
+  openUpward = false,
 }: Props) {
   const [query, setQuery] = useState('')
   const [options, setOptions] = useState<ExerciseOption[]>([])
@@ -46,9 +50,12 @@ export function ExerciseAutocomplete({
   const [createError, setCreateError] = useState<string | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const wrapperRef = useRef<HTMLDivElement>(null)
-  const [menuRect, setMenuRect] = useState<{ top: number; left: number; width: number } | null>(
-    null
-  )
+  const [menuRect, setMenuRect] = useState<{
+    top?: number
+    bottom?: number
+    left: number
+    width: number
+  } | null>(null)
 
   useEffect(() => {
     setCreateError(null)
@@ -111,7 +118,12 @@ export function ExerciseAutocomplete({
     }
     function updateRect() {
       const rect = wrapperRef.current!.getBoundingClientRect()
-      setMenuRect({ top: rect.bottom, left: rect.left, width: rect.width })
+      setMenuRect({
+        top: openUpward ? undefined : rect.bottom,
+        bottom: openUpward ? window.innerHeight - rect.top : undefined,
+        left: rect.left,
+        width: rect.width,
+      })
     }
     updateRect()
     // capture: true — the table's horizontal scroll container (and any other
@@ -122,7 +134,7 @@ export function ExerciseAutocomplete({
       window.removeEventListener('scroll', updateRect, true)
       window.removeEventListener('resize', updateRect)
     }
-  }, [menuOpen])
+  }, [menuOpen, openUpward])
 
   return (
     <div className="relative" ref={wrapperRef}>
@@ -139,8 +151,13 @@ export function ExerciseAutocomplete({
         typeof document !== 'undefined' &&
         createPortal(
           <ul
-            style={{ top: menuRect.top, left: menuRect.left, width: menuRect.width }}
-            className="fixed z-50 mt-1 max-h-64 overflow-auto rounded-lg border border-border bg-surface shadow-elevated animate-scale-in"
+            style={{
+              top: menuRect.top,
+              bottom: menuRect.bottom,
+              left: menuRect.left,
+              width: menuRect.width,
+            }}
+            className={`fixed z-50 ${openUpward ? 'mb-1' : 'mt-1'} max-h-64 overflow-auto rounded-lg border border-border bg-surface shadow-elevated animate-scale-in`}
           >
             {options.map((opt) => (
               <li key={opt.id}>

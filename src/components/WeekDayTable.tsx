@@ -70,6 +70,9 @@ type Props = {
   // weight/reps/%1RM: the Тонн/Срвес/Инт%/ПМ/КПШ/КО columns, the add-set and
   // add-exercise controls, and the row's edit/drag/delete icons.
   simplified: boolean
+  // The final workout card is nearest the bottom viewport edge, so its
+  // add-exercise autocomplete opens above its input.
+  openAddExerciseUpward: boolean
 }
 
 // Spreadsheet-dense day view — one compact table per day instead of a stack of
@@ -90,6 +93,7 @@ export function WeekDayTable({
   locked,
   onToggleLocked,
   simplified,
+  openAddExerciseUpward,
 }: Props) {
   const [entries, setEntries] = useState<ExerciseEntryData[]>(workout.exerciseEntries)
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
@@ -488,6 +492,7 @@ export function WeekDayTable({
             placeholder="Добавить упражнение..."
             canCreate={canCreateExercise}
             clearOnSelect
+            openUpward={openAddExerciseUpward}
           />
         </div>
       )}
