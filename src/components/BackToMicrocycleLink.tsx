@@ -9,9 +9,10 @@ type Props = {
   weekNumber: number
 }
 
-// A day is edited through client-side API calls. Clear Next.js's client-side
-// route cache before returning to the week so the cached pre-edit microcycle
-// snapshot cannot be shown instead of the latest server data.
+// A day is edited through client-side API calls. Returning to the same URL can
+// reuse Next.js's cached pre-edit route segment, so navigate with a one-off
+// query value. It creates a fresh route-cache key and fetches the current
+// microcycle data without a browser reload.
 export function BackToMicrocycleLink({ microcycleId, weekNumber }: Props) {
   const router = useRouter()
 
@@ -19,7 +20,10 @@ export function BackToMicrocycleLink({ microcycleId, weekNumber }: Props) {
     <Link
       href={`/microcycle/${microcycleId}`}
       prefetch={false}
-      onClick={() => router.refresh()}
+      onClick={(event) => {
+        event.preventDefault()
+        router.push(`/microcycle/${microcycleId}?updated=${Date.now()}`)
+      }}
       className="mb-2 inline-flex items-center gap-1.5 text-sm text-text-secondary hover:text-accent"
     >
       <ArrowLeft className="h-4 w-4" /> Микроцикл {weekNumber}
