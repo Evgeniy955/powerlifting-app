@@ -3,7 +3,7 @@ import { prisma } from './prisma'
 /**
  * Loads a workout with everything the day-view UI needs to render and compute
  * metrics client-side: exercise entries, their sets, exercise catalog info
- * (impactCoefficient), and the athlete's 1RM for each exercise used that day.
+ * (impactCoefficient), and the historical 1RM snapshot for each exercise.
  * Also resolves the owning athleteId (via microcycle -> cycle) for authorization checks.
  */
 export async function getWorkoutForDisplay(workoutId: string) {
@@ -23,14 +23,6 @@ export async function getWorkoutForDisplay(workoutId: string) {
   if (!workout) return null
 
   const athleteId = workout.microcycle.cycle.athleteId
-  const exerciseIds = workout.exerciseEntries.map((e) => e.exerciseId)
-
-  const oneRepMaxes = exerciseIds.length
-    ? await prisma.athlete1RM.findMany({
-        where: { athleteId, exerciseId: { in: exerciseIds } },
-      })
-    : []
-  const oneRepMaxByExercise = new Map(oneRepMaxes.map((rm) => [rm.exerciseId, rm.value]))
 
   // Sibling days in the same microcycle, for prev/next navigation on the day
   // page — ordered by dayNumber (not creation order), same reasoning as
@@ -71,7 +63,7 @@ export async function getWorkoutForDisplay(workoutId: string) {
         impactCoefficient: entry.exercise.impactCoefficient,
         trainingGroup: entry.exercise.trainingGroup,
       },
-      oneRepMax: oneRepMaxByExercise.get(entry.exerciseId) ?? null,
+      oneRepMax: entry.oneRepMax,
       sets: entry.sets.map((s) => ({
         id: s.id,
         setNumber: s.setNumber,
@@ -88,8 +80,8 @@ export async function getWorkoutForDisplay(workoutId: string) {
  * Loads a microcycle (week) with every workout (day) in it, each carrying the
  * same shape `getWorkoutForDisplay` returns per day — so the week page can render
  * one <WorkoutView> per day on a single scrollable page instead of the coach/athlete
- * having to click into each day separately. The 1RM lookup is batched once across
- * every exercise used anywhere in the week, rather than once per day.
+ * having to click into each day separately. Each entry carries its own historical
+ * 1RM snapshot, so no global athlete-level lookup is needed.
  */
 export async function getMicrocycleForDisplay(microcycleId: string) {
   const microcycle = await prisma.microcycle.findUnique({
@@ -113,16 +105,6 @@ export async function getMicrocycleForDisplay(microcycleId: string) {
   if (!microcycle) return null
 
   const athleteId = microcycle.cycle.athleteId
-  const exerciseIds = Array.from(
-    new Set(microcycle.workouts.flatMap((w) => w.exerciseEntries.map((e) => e.exerciseId)))
-  )
-
-  const oneRepMaxes = exerciseIds.length
-    ? await prisma.athlete1RM.findMany({
-        where: { athleteId, exerciseId: { in: exerciseIds } },
-      })
-    : []
-  const oneRepMaxByExercise = new Map(oneRepMaxes.map((rm) => [rm.exerciseId, rm.value]))
 
   // Sibling weeks in the same cycle, for prev/next navigation on the week page —
   // ordered by weekNumber (not creation order), so "next" always means "the
@@ -164,7 +146,7 @@ export async function getMicrocycleForDisplay(microcycleId: string) {
           impactCoefficient: entry.exercise.impactCoefficient,
           trainingGroup: entry.exercise.trainingGroup,
         },
-        oneRepMax: oneRepMaxByExercise.get(entry.exerciseId) ?? null,
+        oneRepMax: entry.oneRepMax,
         sets: entry.sets.map((s) => ({
           id: s.id,
           setNumber: s.setNumber,

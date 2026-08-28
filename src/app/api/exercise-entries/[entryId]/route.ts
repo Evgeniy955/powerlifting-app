@@ -23,9 +23,25 @@ export async function PATCH(req: NextRequest, { params }: { params: { entryId: s
     // ExerciseEntry also has a `workoutId` FK column, and assertCanAccessExerciseEntry
     // above only checks ownership of *this* entry, not of whatever workoutId a
     // client could otherwise smuggle in to relocate it into someone else's plan.
-    const data: { skipped?: boolean; exerciseId?: string; multiplier?: number } = {}
+    const data: {
+      skipped?: boolean
+      exerciseId?: string
+      multiplier?: number
+      oneRepMax?: number | null
+    } = {}
     if (body.skipped !== undefined) data.skipped = body.skipped
-    if (body.exerciseId !== undefined) data.exerciseId = body.exerciseId
+    if (body.exerciseId !== undefined) {
+      data.exerciseId = body.exerciseId
+      const oneRepMax = await prisma.athlete1RM.findUnique({
+        where: {
+          athleteId_exerciseId: {
+            athleteId: chain.athlete.id,
+            exerciseId: body.exerciseId,
+          },
+        },
+      })
+      data.oneRepMax = oneRepMax?.value ?? null
+    }
     if (body.multiplier !== undefined) data.multiplier = body.multiplier
 
     const entry = await prisma.exerciseEntry.update({
@@ -34,19 +50,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { entryId: s
       include: { exercise: true },
     })
 
-    // 1RM is scoped to athlete + exercise, not to ExerciseEntry. Resolving it
-    // after an exercise swap prevents the old exercise's 1RM from being shown
-    // (or later written back) for the newly selected exercise.
-    const oneRepMax = await prisma.athlete1RM.findUnique({
-      where: {
-        athleteId_exerciseId: {
-          athleteId: chain.athlete.id,
-          exerciseId: entry.exerciseId,
-        },
-      },
-    })
-
-    return NextResponse.json({ ...entry, oneRepMax: oneRepMax?.value ?? null })
+    return NextResponse.json(entry)
   } catch (e) {
     return apiErrorResponse(e)
   }

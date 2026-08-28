@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { ChevronRight } from 'lucide-react'
 import {
@@ -20,6 +20,13 @@ import { computeExerciseMetrics, aggregateMetrics } from '@/lib/metrics'
 import type { RpePoint } from '@/lib/rpe'
 
 const WEEKDAY_SHORT = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']
+const ONE_REP_MAX_UPDATED_EVENT = 'one-rep-max-updated'
+
+type OneRepMaxUpdatedDetail = {
+  exerciseId: string
+  value: number
+  effectiveFrom: string
+}
 
 // Same intensity-zone coloring as MetricsBadge, kept in sync by eye rather than
 // shared — small enough function that a shared util would be more indirection
@@ -42,10 +49,11 @@ type Props = {
   workout: WeekWorkoutData
   rpeTable: RpePoint[]
   athleteId: string
-  // 1RM is athlete-wide (not per-day). A coach can edit any exercise's ПМ; an
-  // athlete may only edit their own ОФП (GPP) exercises — Базовые/СФП figures
-  // anchor %1RM-based programming and stay coach-only, read-only for the
-  // athlete. Matches the same split enforced server-side in
+  // 1RM is snapshotted on every exercise entry. Editing it updates this day
+  // and future workouts, never past ones. A coach can edit any exercise's ПМ;
+  // an athlete may only edit their own ОФП (GPP) exercises — Базовые/СФП
+  // figures anchor %1RM-based programming and stay coach-only, read-only for
+  // the athlete. Matches the same split enforced server-side in
   // POST /api/athletes/:athleteId/one-rep-max.
   role: 'COACH' | 'ATHLETE'
   // Coach-only: lets the "Добавить упражнение..." / edit-exercise autocompletes
@@ -91,6 +99,25 @@ export function WeekDayTable({
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null)
   const [draftExercise, setDraftExercise] = useState<ExerciseOption | null>(null)
   const [draftMultiplier, setDraftMultiplier] = useState(1)
+
+  // Each day of the week is rendered as an independent table component. Keep
+  // the visible current/future days aligned immediately after a 1RM edit,
+  // mirroring the same date-scoped update performed by the API.
+  useEffect(() => {
+    function syncOneRepMax(event: Event) {
+      const { exerciseId, value, effectiveFrom } = (event as CustomEvent<OneRepMaxUpdatedDetail>)
+        .detail
+      if (new Date(workout.scheduledDate).getTime() < new Date(effectiveFrom).getTime()) return
+      setEntries((prev) =>
+        prev.map((entry) =>
+          entry.exercise.id === exerciseId ? { ...entry, oneRepMax: value } : entry
+        )
+      )
+    }
+
+    window.addEventListener(ONE_REP_MAX_UPDATED_EVENT, syncOneRepMax)
+    return () => window.removeEventListener(ONE_REP_MAX_UPDATED_EVENT, syncOneRepMax)
+  }, [workout.scheduledDate])
 
   const date = new Date(workout.scheduledDate)
   const weekday = WEEKDAY_SHORT[date.getUTCDay()]
@@ -198,10 +225,9 @@ export function WeekDayTable({
   }
 
   function updateOneRepMaxLocally(entryId: string, exerciseId: string, value: number) {
-    // 1RM belongs to the athlete/exercise pair, so every occurrence of this
-    // exercise in the day must show the same pending value. Debouncing by
-    // exerciseId also prevents two copies of the exercise from racing and
-    // restoring an older value in the database.
+    // All occurrences in this workout share one effective snapshot, so update
+    // them together. Debouncing by exerciseId also prevents two copies of the
+    // exercise from racing and restoring an older value in the database.
     setEntries((prev) =>
       prev.map((e) => (e.exercise.id === exerciseId ? { ...e, oneRepMax: value } : e))
     )
@@ -213,7 +239,7 @@ export function WeekDayTable({
       const res = await fetch(`/api/athletes/${athleteId}/one-rep-max`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ exerciseId, value }),
+        body: JSON.stringify({ exerciseId, value, workoutId: workout.id }),
       })
       if (!res.ok) return
       const saved = (await res.json()) as { value: number }
@@ -221,6 +247,15 @@ export function WeekDayTable({
       // of truth, whether this is the first 1RM or a higher/lower replacement.
       setEntries((prev) =>
         prev.map((e) => (e.exercise.id === exerciseId ? { ...e, oneRepMax: saved.value } : e))
+      )
+      window.dispatchEvent(
+        new CustomEvent<OneRepMaxUpdatedDetail>(ONE_REP_MAX_UPDATED_EVENT, {
+          detail: {
+            exerciseId,
+            value: saved.value,
+            effectiveFrom: new Date(workout.scheduledDate).toISOString(),
+          },
+        })
       )
     }, 400)
   }

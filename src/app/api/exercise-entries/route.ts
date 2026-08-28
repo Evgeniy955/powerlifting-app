@@ -6,9 +6,9 @@ import { coachEmailToNotify, queueChangeNotification } from '@/lib/email'
 import { recordChangeLog } from '@/lib/changeLog'
 
 // POST /api/exercise-entries { workoutId, exerciseId, multiplier? }
-// Adds an exercise block to a workout. The response carries the athlete-wide
-// 1RM for this exercise so a newly added row immediately reflects the value
-// already stored in Athlete1RM instead of being incorrectly initialised as empty.
+// Adds an exercise block to a workout. Its 1RM is snapshotted from the
+// athlete-wide current value so later 1RM edits cannot rewrite this workout's
+// historical programming.
 // Coach normally plans it; athlete could also log an ad-hoc exercise not
 // originally planned.
 export async function POST(req: NextRequest) {
@@ -29,19 +29,20 @@ export async function POST(req: NextRequest) {
       _max: { orderIndex: true },
     })
 
+    const oneRepMax = await prisma.athlete1RM.findUnique({
+      where: {
+        athleteId_exerciseId: { athleteId: chain.athlete.id, exerciseId },
+      },
+    })
     const entry = await prisma.exerciseEntry.create({
       data: {
         workoutId,
         exerciseId,
         multiplier: multiplier ?? 1,
         orderIndex: (maxOrder._max.orderIndex ?? -1) + 1,
+        oneRepMax: oneRepMax?.value ?? null,
       },
       include: { exercise: true, sets: true },
-    })
-    const oneRepMax = await prisma.athlete1RM.findUnique({
-      where: {
-        athleteId_exerciseId: { athleteId: chain.athlete.id, exerciseId },
-      },
     })
 
     const coachEmail = await coachEmailToNotify(user.role, chain.athlete.coachId)
@@ -72,7 +73,7 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    return NextResponse.json({ ...entry, oneRepMax: oneRepMax?.value ?? null }, { status: 201 })
+    return NextResponse.json(entry, { status: 201 })
   } catch (e) {
     return apiErrorResponse(e)
   }

@@ -18,6 +18,13 @@ export async function POST(_req: NextRequest, { params }: { params: { cycleId: s
     }
     await assertAthleteBelongsToCoach(cycle.athleteId, coach.id)
 
+    const currentOneRepMaxes = await prisma.athlete1RM.findMany({
+      where: { athleteId: cycle.athleteId },
+    })
+    const currentOneRepMaxByExercise = new Map(
+      currentOneRepMaxes.map((oneRepMax) => [oneRepMax.exerciseId, oneRepMax.value])
+    )
+
     const lastTwoMicrocycles = await prisma.microcycle.findMany({
       where: { cycleId: cycle.id },
       orderBy: { weekNumber: 'desc' },
@@ -64,6 +71,7 @@ export async function POST(_req: NextRequest, { params }: { params: { cycleId: s
       orderIndex: number
       multiplier: number
       skipped: boolean
+      oneRepMax: number | null
     }[] = []
     const setsData: {
       exerciseEntryId: string
@@ -101,6 +109,7 @@ export async function POST(_req: NextRequest, { params }: { params: { cycleId: s
             orderIndex: entry.orderIndex,
             multiplier: entry.multiplier,
             skipped: false,
+            oneRepMax: currentOneRepMaxByExercise.get(entry.exerciseId) ?? entry.oneRepMax,
           })
 
           for (const s of entry.sets) {

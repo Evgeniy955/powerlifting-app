@@ -342,6 +342,10 @@ model ExerciseEntry {
   exercise   ExerciseCatalog @relation(fields: [exerciseId], references: [id])
   orderIndex Int             @default(0)
   multiplier Float           @default(1.0) // "Множ" — e.g. dumbbell x2
+  // Historical 1RM snapshot used for this workout. Updating an athlete's
+  // current 1RM only changes this field for the workout being edited and
+  // later workouts, so completed/past plans keep their original percentages.
+  oneRepMax  Float?
   // Marked when the athlete didn't get to this exercise (ran out of time, gym was
   // busy, etc.) — distinct from just having zero sets logged, which could equally
   // mean "not filled in yet". Doesn't affect tonnage/КПШ/etc, purely a status flag.

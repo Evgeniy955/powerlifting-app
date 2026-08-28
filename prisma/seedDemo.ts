@@ -77,7 +77,12 @@ async function main() {
     })
 
     const entry = await prisma.exerciseEntry.create({
-      data: { workoutId: workout.id, exerciseId: item.exerciseId, orderIndex: 0 },
+      data: {
+        workoutId: workout.id,
+        exerciseId: item.exerciseId,
+        orderIndex: 0,
+        oneRepMax: item.exerciseId === squat.id ? 150 : 100,
+      },
     })
 
     await prisma.setEntry.createMany({

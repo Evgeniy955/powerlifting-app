@@ -93,6 +93,7 @@ export async function POST(req: NextRequest, { params }: { params: { athleteId: 
       workoutId: string
       exerciseId: string
       orderIndex: number
+      oneRepMax: number | null
     }[] = []
     const setEntriesData: {
       exerciseEntryId: string
@@ -122,6 +123,7 @@ export async function POST(req: NextRequest, { params }: { params: { athleteId: 
         workoutId,
         exerciseId: entry.matchedExerciseId as string,
         orderIndex,
+        oneRepMax: entry.oneRepMax,
       })
 
       for (const [i, s] of entry.sets.entries()) {
@@ -141,6 +143,28 @@ export async function POST(req: NextRequest, { params }: { params: { athleteId: 
       }
     }
 
+    const existingOneRepMaxes = await prisma.athlete1RM.findMany({
+      where: {
+        athleteId: params.athleteId,
+        exerciseId: { in: Array.from(new Set(exerciseEntriesData.map((entry) => entry.exerciseId))) },
+      },
+    })
+    const existingOneRepMaxByExercise = new Map(
+      existingOneRepMaxes.map((oneRepMax) => [oneRepMax.exerciseId, oneRepMax.value])
+    )
+
+    // Preserve a 1RM written on a source row. If that row omitted it, retain
+    // the import's prior behaviour by falling back to the imported or already
+    // stored current value; future edits will then update only forward snapshots.
+    const exerciseEntriesWithOneRepMax = exerciseEntriesData.map((entry) => ({
+      ...entry,
+      oneRepMax:
+        entry.oneRepMax ??
+        oneRepMaxByExercise.get(entry.exerciseId) ??
+        existingOneRepMaxByExercise.get(entry.exerciseId) ??
+        null,
+    }))
+
     await prisma.$transaction([
       prisma.cycle.create({
         data: {
@@ -154,7 +178,7 @@ export async function POST(req: NextRequest, { params }: { params: { athleteId: 
       }),
       prisma.microcycle.createMany({ data: microcyclesData }),
       prisma.workout.createMany({ data: workoutsData }),
-      prisma.exerciseEntry.createMany({ data: exerciseEntriesData }),
+      prisma.exerciseEntry.createMany({ data: exerciseEntriesWithOneRepMax }),
       ...(setEntriesData.length > 0 ? [prisma.setEntry.createMany({ data: setEntriesData })] : []),
       ...Array.from(oneRepMaxByExercise.entries()).map(([exerciseId, value]) =>
         prisma.athlete1RM.upsert({

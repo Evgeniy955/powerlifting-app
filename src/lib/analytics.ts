@@ -47,9 +47,6 @@ export async function getWeeklyLoadDistribution(
     },
   })
 
-  const oneRepMaxes = await prisma.athlete1RM.findMany({ where: { athleteId } })
-  const oneRepMaxByExercise = new Map(oneRepMaxes.map((rm) => [rm.exerciseId, rm.value]))
-
   const points: WeeklyLoadPoint[] = []
 
   for (const cycle of cycles) {
@@ -59,7 +56,7 @@ export async function getWeeklyLoadDistribution(
           computeExerciseMetrics(
             {
               sets: entry.sets.map((s) => ({ weight: s.weight, reps: s.reps })),
-              oneRepMax: oneRepMaxByExercise.get(entry.exerciseId) ?? 0,
+              oneRepMax: entry.oneRepMax ?? 0,
               impactCoefficient: entry.exercise.impactCoefficient,
               multiplier: entry.multiplier,
             },
@@ -149,9 +146,6 @@ export async function getCycleAnalytics(
   })
   if (!cycle) return null
 
-  const oneRepMaxes = await prisma.athlete1RM.findMany({ where: { athleteId: cycle.athleteId } })
-  const oneRepMaxByExercise = new Map(oneRepMaxes.map((rm) => [rm.exerciseId, rm.value]))
-
   const exerciseById = new Map<string, string>()
   for (const mc of cycle.microcycles) {
     for (const w of mc.workouts) {
@@ -189,7 +183,7 @@ export async function getCycleAnalytics(
       computeExerciseMetrics(
         {
           sets: entry.sets.map((s) => ({ weight: s.weight, reps: s.reps })),
-          oneRepMax: oneRepMaxByExercise.get(entry.exerciseId) ?? 0,
+          oneRepMax: entry.oneRepMax ?? 0,
           impactCoefficient: entry.exercise.impactCoefficient,
           multiplier: entry.multiplier,
         },

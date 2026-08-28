@@ -80,6 +80,7 @@ export type CycleExportSet = { weight: number; reps: number }
 export type CycleExportEntry = {
   exerciseId: string
   multiplier: number
+  oneRepMax: number | null
   exercise: { name: string; category: string | null; impactCoefficient: number }
   sets: CycleExportSet[]
 }
@@ -97,7 +98,6 @@ export type CycleExportData = { name: string; microcycles: CycleExportMicrocycle
  */
 export function renderCycleWorkbook(
   cycle: CycleExportData,
-  oneRepMaxByExercise: Map<string, number>,
   rpeTable: RpePoint[]
 ): ExcelJS.Workbook {
   // Every microcycle shares the same column layout (fixed set-group count,
@@ -145,7 +145,7 @@ export function renderCycleWorkbook(
       metrics: computeExerciseMetrics(
         {
           sets: e.sets.map((s) => ({ weight: s.weight, reps: s.reps })),
-          oneRepMax: oneRepMaxByExercise.get(e.exerciseId) ?? 0,
+          oneRepMax: e.oneRepMax ?? 0,
           impactCoefficient: e.exercise.impactCoefficient,
           multiplier: e.multiplier,
         },
@@ -247,7 +247,7 @@ export function renderCycleWorkbook(
 
         row.getCell(4).value = entry.multiplier !== 1 ? entry.multiplier : null
 
-        const oneRepMax = oneRepMaxByExercise.get(entry.exerciseId) ?? 0
+        const oneRepMax = entry.oneRepMax ?? 0
         groups.slice(0, maxGroups).forEach((g, gi) => {
           const base = FIXED_COLS + gi * GROUP_COLS
           row.getCell(base + 1).value = g.weight
@@ -352,10 +352,7 @@ export async function buildCycleWorkbook(cycleId: string): Promise<ExcelJS.Workb
     percent1rm: r.percent1rm,
   }))
 
-  const oneRepMaxes = await prisma.athlete1RM.findMany({ where: { athleteId: cycle.athleteId } })
-  const oneRepMaxByExercise = new Map(oneRepMaxes.map((rm) => [rm.exerciseId, rm.value]))
-
-  return renderCycleWorkbook(cycle, oneRepMaxByExercise, rpeTable)
+  return renderCycleWorkbook(cycle, rpeTable)
 }
 
 export type { ExerciseMetrics }

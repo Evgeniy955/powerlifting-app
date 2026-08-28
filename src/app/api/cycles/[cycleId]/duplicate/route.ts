@@ -35,6 +35,13 @@ export async function POST(req: NextRequest, { params }: { params: { cycleId: st
     }
     await assertAthleteBelongsToCoach(source.athleteId, coach.id)
 
+    const currentOneRepMaxes = await prisma.athlete1RM.findMany({
+      where: { athleteId: source.athleteId },
+    })
+    const currentOneRepMaxByExercise = new Map(
+      currentOneRepMaxes.map((oneRepMax) => [oneRepMax.exerciseId, oneRepMax.value])
+    )
+
     const body = (await req.json()) as { startDate?: string; name?: string }
     if (!body.startDate) {
       return NextResponse.json({ error: 'Дата начала обязательна' }, { status: 400 })
@@ -68,6 +75,7 @@ export async function POST(req: NextRequest, { params }: { params: { cycleId: st
       orderIndex: number
       multiplier: number
       skipped: boolean
+      oneRepMax: number | null
     }[] = []
     const setsData: {
       exerciseEntryId: string
@@ -104,6 +112,9 @@ export async function POST(req: NextRequest, { params }: { params: { cycleId: st
             orderIndex: entry.orderIndex,
             multiplier: entry.multiplier,
             skipped: false,
+            // A duplicated plan is a newly scheduled plan, so start it with
+            // the athlete's current 1RM rather than an old plan's snapshot.
+            oneRepMax: currentOneRepMaxByExercise.get(entry.exerciseId) ?? entry.oneRepMax,
           })
 
           for (const s of entry.sets) {

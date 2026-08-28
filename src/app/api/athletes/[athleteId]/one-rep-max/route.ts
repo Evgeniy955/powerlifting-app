@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireUser, apiErrorResponse } from '@/lib/session'
-import { assertAthleteAccessible, assertAthleteBelongsToCoach } from '@/lib/authorization'
+import {
+  assertAthleteAccessible,
+  assertAthleteBelongsToCoach,
+  assertCanAccessWorkout,
+} from '@/lib/authorization'
 
 // GET /api/athletes/:athleteId/one-rep-max — list all tracked 1RMs for this athlete.
 // Athletes can read their own; coach can read any of their athletes'.
@@ -22,7 +26,7 @@ export async function GET(_req: NextRequest, { params }: { params: { athleteId: 
   }
 }
 
-// POST /api/athletes/:athleteId/one-rep-max { exerciseId, value } — upsert.
+// POST /api/athletes/:athleteId/one-rep-max { exerciseId, value, workoutId } — upsert.
 // Coach can set any exercise's 1RM for their athletes. An athlete may only
 // set their own, and only for ОФП (GPP) exercises — Базовые/СФП figures
 // anchor %1RM-based programming across the whole plan and stay coach-only.
@@ -32,9 +36,21 @@ export async function POST(req: NextRequest, { params }: { params: { athleteId: 
     const user = await requireUser()
     await assertAthleteAccessible(params.athleteId, user)
 
-    const { exerciseId, value } = (await req.json()) as { exerciseId: string; value: number }
-    if (!exerciseId || !Number.isFinite(value) || !(value > 0)) {
-      return NextResponse.json({ error: 'exerciseId и value > 0 обязательны' }, { status: 400 })
+    const { exerciseId, value, workoutId } = (await req.json()) as {
+      exerciseId: string
+      value: number
+      workoutId: string
+    }
+    if (!exerciseId || !workoutId || !Number.isFinite(value) || !(value > 0)) {
+      return NextResponse.json(
+        { error: 'exerciseId, workoutId и value > 0 обязательны' },
+        { status: 400 }
+      )
+    }
+
+    const workoutChain = await assertCanAccessWorkout(workoutId, user)
+    if (workoutChain.athlete.id !== params.athleteId) {
+      return NextResponse.json({ error: 'Тренировка принадлежит другому атлету' }, { status: 403 })
     }
 
     if (user.role === 'ATHLETE') {
@@ -45,14 +61,26 @@ export async function POST(req: NextRequest, { params }: { params: { athleteId: 
     }
 
     // This is deliberately an upsert rather than a "keep the highest value"
-    // operation: a coach may correct 1RM down as well as up. The unique pair
-    // makes the existence check and replacement atomic, avoiding a read/write
-    // race when this is the first value for an exercise.
-    const record = await prisma.athlete1RM.upsert({
-      where: { athleteId_exerciseId: { athleteId: params.athleteId, exerciseId } },
-      update: { value },
-      create: { athleteId: params.athleteId, exerciseId, value },
-    })
+    // operation: a coach may correct 1RM down as well as up. The same value is
+    // copied only into this workout and workouts scheduled after it; earlier
+    // entries retain their historical 1RM snapshot.
+    const [record] = await prisma.$transaction([
+      prisma.athlete1RM.upsert({
+        where: { athleteId_exerciseId: { athleteId: params.athleteId, exerciseId } },
+        update: { value },
+        create: { athleteId: params.athleteId, exerciseId, value },
+      }),
+      prisma.exerciseEntry.updateMany({
+        where: {
+          exerciseId,
+          workout: {
+            scheduledDate: { gte: workoutChain.workout.scheduledDate },
+            microcycle: { cycle: { athleteId: params.athleteId } },
+          },
+        },
+        data: { oneRepMax: value },
+      }),
+    ])
 
     return NextResponse.json(record, { status: 201 })
   } catch (e) {
