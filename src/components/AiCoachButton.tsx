@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Sparkles } from 'lucide-react'
+import { Maximize2, Minimize2, Sparkles } from 'lucide-react'
 import { Button, Dialog } from '@/components/ui'
 
 type Props = {
@@ -24,6 +24,7 @@ export function AiCoachButton({ scope, athleteId, cycleId, contextName }: Props)
   const [draft, setDraft] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState(false)
   const target = scope === 'athlete' ? 'спортсмена' : 'мезоцикла'
   const title = scope === 'athlete' ? 'AI для спортсмена' : 'AI для мезоцикла'
 
@@ -63,14 +64,31 @@ export function AiCoachButton({ scope, athleteId, cycleId, contextName }: Props)
         onOpenChange={setOpen}
         title={title}
         description={`Claude анализирует тренировки ${target} и составляет план по вашей методологии.`}
-        contentClassName="max-w-2xl"
+        contentClassName={
+          expanded
+            ? '!max-w-none h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)]'
+            : 'max-w-2xl'
+        }
+        titleAction={
+          <button
+            type="button"
+            onClick={() => setExpanded((value) => !value)}
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-2 hover:text-text-primary"
+            aria-label={expanded ? 'Свернуть окно AI' : 'Развернуть окно AI'}
+            title={expanded ? 'Свернуть' : 'Развернуть'}
+          >
+            {expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          </button>
+        }
       >
         {contextName && (
           <p className="mb-3 text-sm text-text-primary">
             Контекст: <span className="font-medium">{contextName}</span>
           </p>
         )}
-        <div className="max-h-80 space-y-3 overflow-y-auto rounded-lg border border-border bg-surface-2 p-3">
+        <div
+          className={`${expanded ? 'max-h-[calc(100dvh-17rem)]' : 'max-h-80'} space-y-3 overflow-y-auto rounded-lg border border-border bg-surface-2 p-3`}
+        >
           {messages.length === 0 && (
             <p className="text-sm text-text-secondary">
               Опишите задачу: проанализировать текущую нагрузку, составить следующий блок или

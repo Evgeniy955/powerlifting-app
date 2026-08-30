@@ -47,7 +47,11 @@ export async function getCoachAiReply(messages: CoachAiMessage[], context: Conte
   const client = new Anthropic({ apiKey })
   const message = await client.messages.create({
     model: process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-5',
-    max_tokens: 1600,
+    // The embedded chat needs a visible coach response, not a response made
+    // only of internal thinking blocks. A larger output limit also leaves
+    // room for a two-week plan after the methodology and context are read.
+    thinking: { type: 'disabled' },
+    max_tokens: 2400,
     system: `${COACH_AGENT_PROMPT}
 
 Контекст текущего запроса:
@@ -67,6 +71,12 @@ ${methodology}`,
     messages,
   })
 
-  const text = message.content.find((block) => block.type === 'text')
-  return text?.type === 'text' ? text.text : 'Не удалось сформировать ответ.'
+  const text = message.content
+    .filter((block) => block.type === 'text')
+    .map((block) => block.text.trim())
+    .filter(Boolean)
+    .join('\n\n')
+
+  if (text) return text
+  throw new Error(`Claude did not return text (stop reason: ${message.stop_reason ?? 'unknown'})`)
 }

@@ -10,6 +10,7 @@ type DialogProps = {
   description?: string
   children?: ReactNode
   contentClassName?: string
+  titleAction?: ReactNode
 }
 
 // Hand-rolled modal (no Radix — see design-system decision to extend the
@@ -24,6 +25,7 @@ export function Dialog({
   description,
   children,
   contentClassName = '',
+  titleAction,
 }: DialogProps) {
   const [mounted, setMounted] = useState(false)
   const dialogRef = useRef<HTMLDivElement>(null)
@@ -70,9 +72,12 @@ export function Dialog({
         tabIndex={-1}
         className={`relative w-full max-w-sm rounded-xl border border-border bg-surface p-5 shadow-elevated outline-none animate-scale-in ${contentClassName}`}
       >
-        <h2 id="dialog-title" className="font-display text-lg tracking-wide text-text-primary">
-          {title}
-        </h2>
+        <div className="flex items-start justify-between gap-3">
+          <h2 id="dialog-title" className="font-display text-lg tracking-wide text-text-primary">
+            {title}
+          </h2>
+          {titleAction}
+        </div>
         {description && (
           <p id="dialog-description" className="mt-2 text-sm text-text-secondary">
             {description}
