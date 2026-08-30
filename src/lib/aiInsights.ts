@@ -15,7 +15,7 @@ export class AiNotConfiguredError extends Error {}
  * keeps the prompt small and lets the model reason over a report a coach
  * would actually read, rather than a data dump.
  */
-async function buildAthleteSummary(athleteId: string): Promise<{
+export async function buildAthleteSummary(athleteId: string): Promise<{
   athleteName: string
   summary: string
 } | null> {

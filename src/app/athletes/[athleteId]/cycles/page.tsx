@@ -7,6 +7,7 @@ import { AthleteCyclesList } from '@/components/AthleteCyclesList'
 import { PlansHeaderActions } from '@/components/PlansHeaderActions'
 import { EmptyState } from '@/components/EmptyState'
 import { athleteDisplayName } from '@/lib/athlete'
+import { AiCoachButton } from '@/components/AiCoachButton'
 
 // List of every cycle for one athlete, so a coach can find past imports/plans
 // without needing to keep a direct link around — the gap that caused a just-imported
@@ -53,7 +54,16 @@ export default async function AthleteCyclesPage({ params }: { params: { athleteI
           <AthleteLiveUpdates athleteId={athlete.id} />
         </div>
         <div className="flex items-center gap-2">
-          {user.role === 'COACH' && <PlansHeaderActions athleteId={athlete.id} />}
+          {user.role === 'COACH' && (
+            <>
+              <AiCoachButton
+                scope="athlete"
+                athleteId={athlete.id}
+                contextName={athleteDisplayName(athlete)}
+              />
+              <PlansHeaderActions athleteId={athlete.id} />
+            </>
+          )}
         </div>
       </div>
 

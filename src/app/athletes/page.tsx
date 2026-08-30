@@ -10,7 +10,6 @@ import { DeleteAthleteButton } from '@/components/DeleteAthleteButton'
 import { InviteAthleteButton } from '@/components/InviteAthleteButton'
 import { LoadingIndicator } from '@/components/LoadingIndicator'
 import { athleteDisplayName } from '@/lib/athlete'
-import { AiCoachButton } from '@/components/AiCoachButton'
 
 type Athlete = {
   id: string
@@ -175,10 +174,6 @@ export default function AthletesPage() {
                   >
                     <Pill className="h-4 w-4" />
                   </a>
-                  {/* This roster is populated by a coach-only API, so this
-                      entry point is not exposed to athletes. The future
-                      Claude request will repeat that authorization server-side. */}
-                  <AiCoachButton scope="athlete" contextName={athleteDisplayName(a)} compact />
                   <DeleteAthleteButton
                     athleteId={a.id}
                     athleteName={athleteDisplayName(a)}

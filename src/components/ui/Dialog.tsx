@@ -9,6 +9,7 @@ type DialogProps = {
   title: string
   description?: string
   children?: ReactNode
+  contentClassName?: string
 }
 
 // Hand-rolled modal (no Radix — see design-system decision to extend the
@@ -16,7 +17,14 @@ type DialogProps = {
 // Covers the accessibility basics that matter here: aria-modal, Escape to
 // close, backdrop click to close, focus moved into the dialog on open and
 // returned to the trigger on close, body scroll locked while open.
-export function Dialog({ open, onOpenChange, title, description, children }: DialogProps) {
+export function Dialog({
+  open,
+  onOpenChange,
+  title,
+  description,
+  children,
+  contentClassName = '',
+}: DialogProps) {
   const [mounted, setMounted] = useState(false)
   const dialogRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<Element | null>(null)
@@ -60,7 +68,7 @@ export function Dialog({ open, onOpenChange, title, description, children }: Dia
         aria-labelledby="dialog-title"
         aria-describedby={description ? 'dialog-description' : undefined}
         tabIndex={-1}
-        className="relative w-full max-w-sm rounded-xl border border-border bg-surface p-5 shadow-elevated outline-none animate-scale-in"
+        className={`relative w-full max-w-sm rounded-xl border border-border bg-surface p-5 shadow-elevated outline-none animate-scale-in ${contentClassName}`}
       >
         <h2 id="dialog-title" className="font-display text-lg tracking-wide text-text-primary">
           {title}

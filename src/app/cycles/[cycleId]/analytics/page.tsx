@@ -4,7 +4,6 @@ import { CycleAnalyticsView } from '@/components/CycleAnalyticsView'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
-import { AiCoachButton } from '@/components/AiCoachButton'
 
 // Whole-mesocycle analytics: per-week tonnage/КПШ/сред.вес/интенсивность table
 // plus 4 line charts, optionally scoped to one exercise (e.g. "Приседания") —
@@ -26,17 +25,14 @@ export default async function CycleAnalyticsPage({ params }: { params: { cycleId
 
   return (
     <main className="min-h-[calc(100vh-3.5rem)] bg-bg text-text-primary p-6 max-w-md mx-auto space-y-4 lg:max-w-5xl">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <Link
-            href={`/cycles/${cycle.id}`}
-            className="mb-2 inline-flex items-center gap-1.5 text-sm text-text-secondary hover:text-accent"
-          >
-            <ArrowLeft className="h-4 w-4" /> {cycle.name}
-          </Link>
-          <h1 className="font-display text-xl uppercase tracking-wide">Аналитика мезоцикла</h1>
-        </div>
-        <AiCoachButton scope="mesocycle" contextName={cycle.name} />
+      <div>
+        <Link
+          href={`/cycles/${cycle.id}`}
+          className="mb-2 inline-flex items-center gap-1.5 text-sm text-text-secondary hover:text-accent"
+        >
+          <ArrowLeft className="h-4 w-4" /> {cycle.name}
+        </Link>
+        <h1 className="font-display text-xl uppercase tracking-wide">Аналитика мезоцикла</h1>
       </div>
 
       <CycleAnalyticsView cycleId={cycle.id} totalWeeks={cycle.weeks} />
