@@ -32,6 +32,7 @@ export async function AppHeader() {
       ? [
           { href: '/athletes', label: 'Мои спортсмены', emphasis: true },
           { href: '/admin/users', label: 'Админка' },
+          { href: '/gym', label: 'Тренажёрный зал' },
           { href: '/faq', label: 'Помощь' },
         ]
       : user?.role === 'ATHLETE' && athleteProfileId
@@ -76,6 +77,7 @@ export async function AppHeader() {
                   >
                     Админка
                   </Link>
+                  <Link href="/gym" className="hidden text-sm text-text-secondary transition-colors hover:text-accent hover:underline md:inline">Тренажёрный зал</Link>
                 </>
               )}
               {user.role === 'ATHLETE' && athleteProfileId && (

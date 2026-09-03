@@ -65,6 +65,10 @@ export default async function AdminUsersPage() {
           >
             Упражнения
           </Link>
+          <span className="text-text-secondary">·</span>
+          <Link href="/admin/gym-exercises" className="text-text-secondary transition-colors hover:text-accent hover:underline">
+            Упражнения для зала
+          </Link>
         </div>
         <h1 className="font-display text-xl uppercase tracking-wide">Пользователи</h1>
         <p className="text-sm text-text-secondary">

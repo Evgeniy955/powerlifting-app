@@ -1,8 +1,8 @@
-import { ArrowRight, Dumbbell, Activity, Lock } from 'lucide-react'
+import { ArrowRight, Dumbbell, Activity } from 'lucide-react'
 import { getCurrentUser } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import Link from 'next/link'
-import { buttonVariants, Badge, Card } from '@/components/ui'
+import { buttonVariants, Card } from '@/components/ui'
 import { HeroBackground } from '@/components/HeroBackground'
 
 export default async function HomePage() {
@@ -93,7 +93,8 @@ export default async function HomePage() {
             </Card>
           )}
 
-          <Card className="flex h-full flex-col gap-3 opacity-60" aria-disabled="true">
+          <Link href="/gym" className="group text-left">
+          <Card className="flex h-full flex-col gap-3 transition-colors group-hover:border-accent">
             <div className="flex h-11 w-11 items-center justify-center rounded-full bg-surface-2 text-text-secondary">
               <Activity className="h-5 w-5" />
             </div>
@@ -102,11 +103,9 @@ export default async function HomePage() {
               <p className="text-sm text-text-secondary">Обычные тренировки</p>
             </div>
             <span className="mt-auto inline-flex items-center gap-1.5">
-              <Badge tone="neutral" className="inline-flex items-center gap-1">
-                <Lock className="h-3 w-3" /> Скоро
-              </Badge>
+              <span className="inline-flex items-center gap-1.5 text-sm text-accent">Открыть режим <ArrowRight className="h-4 w-4" /></span>
             </span>
-          </Card>
+          </Card></Link>
         </div>
       </div>
     </main>
