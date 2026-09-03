@@ -7,10 +7,12 @@ import {
   getCoachAiReply,
   type CoachAiMessage,
 } from '@/lib/coachAgent'
+import { DEFAULT_COACH_AI_MODEL, isCoachAiModel } from '@/lib/coachAiModels'
 
 type RequestBody = {
   messages?: unknown
   cycleId?: unknown
+  model?: unknown
 }
 
 type CycleWithWorkouts = NonNullable<
@@ -118,6 +120,10 @@ export async function POST(req: NextRequest, props: { params: Promise<{ athleteI
     if (!messages) {
       return NextResponse.json({ error: 'Некорректное сообщение чата' }, { status: 400 })
     }
+    if (body?.model !== undefined && !isCoachAiModel(body.model)) {
+      return NextResponse.json({ error: 'Некорректная модель AI' }, { status: 400 })
+    }
+    const model = body?.model ?? DEFAULT_COACH_AI_MODEL
 
     const athlete = await prisma.athleteProfile.findUnique({
       where: { id: params.athleteId },
@@ -136,17 +142,21 @@ export async function POST(req: NextRequest, props: { params: Promise<{ athleteI
     if (!summary) return NextResponse.json({ error: 'Атлет не найден' }, { status: 404 })
 
     const origin = new URL(req.url).origin
-    const text = await getCoachAiReply(messages, {
-      athleteName: summary.athleteName,
-      trainingSummary: summary.summary,
-      cycleName: cycle?.name,
-      cyclePlanSummary: cycle ? formatCyclePlan(cycle) : undefined,
-      links: {
-        mesocycle: cycle ? `${origin}/cycles/${cycle.id}` : `${origin}/cycles/`,
-        microcycle: `${origin}/microcycle/`,
-        workout: `${origin}/workout/`,
+    const text = await getCoachAiReply(
+      messages,
+      {
+        athleteName: summary.athleteName,
+        trainingSummary: summary.summary,
+        cycleName: cycle?.name,
+        cyclePlanSummary: cycle ? formatCyclePlan(cycle) : undefined,
+        links: {
+          mesocycle: cycle ? `${origin}/cycles/${cycle.id}` : `${origin}/cycles/`,
+          microcycle: `${origin}/microcycle/`,
+          workout: `${origin}/workout/`,
+        },
       },
-    })
+      model
+    )
     return NextResponse.json({ text })
   } catch (error) {
     if (error instanceof GeminiAiNotConfiguredError) {

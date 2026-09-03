@@ -2,6 +2,7 @@ import { GoogleGenAI } from '@google/genai'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { COACH_AGENT_PROMPT } from './coachAgentPrompt'
+import { DEFAULT_COACH_AI_MODEL, type CoachAiModel } from './coachAiModels'
 
 export class GeminiAiNotConfiguredError extends Error {}
 
@@ -33,7 +34,11 @@ function getMethodology(): Promise<string> {
   return methodologyPromise
 }
 
-export async function getCoachAiReply(messages: CoachAiMessage[], context: Context): Promise<string> {
+export async function getCoachAiReply(
+  messages: CoachAiMessage[],
+  context: Context,
+  model: CoachAiModel = DEFAULT_COACH_AI_MODEL
+): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) throw new GeminiAiNotConfiguredError()
 
@@ -63,7 +68,7 @@ ${context.cyclePlanSummary ? `План выбранного мезоцикла:\
 ${methodology}`
 
   const response = await client.models.generateContent({
-    model: process.env.GEMINI_MODEL ?? 'gemini-3.7-flash',
+    model,
     contents: messages.map((message) => ({
       role: message.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: message.content }],

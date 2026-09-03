@@ -2,7 +2,12 @@
 
 import { useState } from 'react'
 import { Maximize2, Minimize2, Sparkles } from 'lucide-react'
-import { Button, Dialog } from '@/components/ui'
+import { Button, Dialog, Select } from '@/components/ui'
+import {
+  COACH_AI_MODELS,
+  DEFAULT_COACH_AI_MODEL,
+  type CoachAiModel,
+} from '@/lib/coachAiModels'
 
 type Props = {
   scope: 'athlete' | 'mesocycle'
@@ -25,6 +30,7 @@ export function AiCoachButton({ scope, athleteId, cycleId, contextName }: Props)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [expanded, setExpanded] = useState(false)
+  const [model, setModel] = useState<CoachAiModel>(DEFAULT_COACH_AI_MODEL)
   const target = scope === 'athlete' ? 'спортсмена' : 'мезоцикла'
   const title = scope === 'athlete' ? 'AI для спортсмена' : 'AI для мезоцикла'
 
@@ -41,7 +47,7 @@ export function AiCoachButton({ scope, athleteId, cycleId, contextName }: Props)
       const res = await fetch(`/api/athletes/${athleteId}/ai-chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: nextMessages, cycleId }),
+        body: JSON.stringify({ messages: nextMessages, cycleId, model }),
       })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(body.error ?? 'Не удалось получить ответ AI')
@@ -86,8 +92,29 @@ export function AiCoachButton({ scope, athleteId, cycleId, contextName }: Props)
             Контекст: <span className="font-medium">{contextName}</span>
           </p>
         )}
+        <div className="mb-3 rounded-lg border border-border bg-surface-2 p-3">
+          <label htmlFor="coach-ai-model" className="block text-sm font-medium text-text-primary">
+            Модель AI
+          </label>
+          <Select
+            id="coach-ai-model"
+            value={model}
+            onChange={(event) => setModel(event.target.value as CoachAiModel)}
+            disabled={loading}
+            className="mt-1 w-full"
+          >
+            {COACH_AI_MODELS.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.name}
+              </option>
+            ))}
+          </Select>
+          <p className="mt-2 text-xs text-text-secondary">
+            {COACH_AI_MODELS.find((option) => option.id === model)?.description}
+          </p>
+        </div>
         <div
-          className={`${expanded ? 'max-h-[calc(100dvh-17rem)]' : 'max-h-80'} space-y-3 overflow-y-auto rounded-lg border border-border bg-surface-2 p-3`}
+          className={`${expanded ? 'max-h-[calc(100dvh-25rem)]' : 'max-h-80'} space-y-3 overflow-y-auto rounded-lg border border-border bg-surface-2 p-3`}
         >
           {messages.length === 0 && (
             <p className="text-sm text-text-secondary">
