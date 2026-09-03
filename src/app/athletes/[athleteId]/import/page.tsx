@@ -1,11 +1,11 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, use } from 'react';
 import { ArrowRight } from 'lucide-react'
 import { Button, Card, Dropzone, Input, useToast } from '@/components/ui'
 import type { DuplicateSuggestion, ImportPreview, ParsedExerciseRow } from '@/lib/excelImport'
 
-type Props = { params: { athleteId: string } }
+type Props = { params: Promise<{ athleteId: string }> }
 
 function nameKey(name: string) {
   return name.trim().toLowerCase()
@@ -29,7 +29,8 @@ type UnrecognizedAction = 'create' | 'link' | 'skip'
 // per name whether to reuse the existing exercise, add it as genuinely new (coefficient
 // 1.0, editable later), or skip it. Then names the resulting cycle and confirms to
 // commit into the DB.
-export default function ImportPage({ params }: Props) {
+export default function ImportPage(props: Props) {
+  const params = use(props.params);
   const { athleteId } = params
   const toast = useToast()
   const [preview, setPreview] = useState<ImportPreview | null>(null)

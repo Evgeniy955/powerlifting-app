@@ -8,7 +8,8 @@ import { dateRangesOverlap, rangeContains } from '@/lib/dateOverlap'
 // coach-only. Creates an "Этап" inside a period; several stages can sit
 // under the same period. Own date range, independent of the mesocycles
 // attached to it.
-export async function POST(req: NextRequest, { params }: { params: { periodId: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ periodId: string }> }) {
+  const params = await props.params;
   try {
     const coach = await requireCoach()
 

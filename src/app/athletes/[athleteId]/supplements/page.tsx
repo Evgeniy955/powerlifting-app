@@ -7,7 +7,8 @@ import { athleteDisplayName } from '@/lib/athlete'
 // Спортпит — an athlete's supplement-intake log. Reachable by the athlete
 // themselves and by their coach (same ownership rule as /cycles), both of
 // whom can manage entries — nothing here is athlete-write-only.
-export default async function SupplementsPage({ params }: { params: { athleteId: string } }) {
+export default async function SupplementsPage(props: { params: Promise<{ athleteId: string }> }) {
+  const params = await props.params;
   const user = await requireUser()
 
   const athlete = await prisma.athleteProfile.findUnique({

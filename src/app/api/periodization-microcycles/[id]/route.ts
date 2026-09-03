@@ -7,7 +7,8 @@ import { assertAthleteBelongsToCoach } from '@/lib/authorization'
 // Tags a single "Микроцикл" week with one of MICROCYCLE_PRESETS (or a
 // custom label), same free-text-preset pattern as the rest of the
 // periodization hierarchy.
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const coach = await requireCoach()
 

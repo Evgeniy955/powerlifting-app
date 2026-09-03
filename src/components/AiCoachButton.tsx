@@ -16,8 +16,8 @@ type Message = {
   content: string
 }
 
-// Coach-only Claude chat. Its server route checks that the current coach owns
-// the athlete/cycle before it includes any training data or calls Anthropic.
+// Coach-only Gemini chat. Its server route checks that the current coach owns
+// the athlete/cycle before it includes any training data or calls Gemini.
 export function AiCoachButton({ scope, athleteId, cycleId, contextName }: Props) {
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
@@ -63,7 +63,7 @@ export function AiCoachButton({ scope, athleteId, cycleId, contextName }: Props)
         open={open}
         onOpenChange={setOpen}
         title={title}
-        description={`Claude анализирует тренировки ${target} и составляет план по вашей методологии.`}
+        description={`Gemini анализирует тренировки ${target} и составляет план по вашей методологии.`}
         contentClassName={
           expanded
             ? '!max-w-none h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)]'
@@ -108,7 +108,7 @@ export function AiCoachButton({ scope, athleteId, cycleId, contextName }: Props)
               {message.content}
             </div>
           ))}
-          {loading && <p className="text-sm text-text-secondary">Claude анализирует данные…</p>}
+          {loading && <p className="text-sm text-text-secondary">Gemini анализирует данные…</p>}
         </div>
         {error && <p className="mt-2 text-xs text-danger">{error}</p>}
         <div className="mt-3 flex gap-2">

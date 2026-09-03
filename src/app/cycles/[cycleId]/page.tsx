@@ -19,7 +19,8 @@ const WEEKDAY_SHORT = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']
 // Cycle overview: list of microcycles (weeks) -> workouts (days), plus the
 // coach-only "Копировать последние 2 недели" action. Access is checked against
 // the signed-in user: coach must own the athlete, athlete must own the cycle.
-export default async function CyclePage({ params }: { params: { cycleId: string } }) {
+export default async function CyclePage(props: { params: Promise<{ cycleId: string }> }) {
+  const params = await props.params;
   const user = await requireUser()
 
   const cycle = await prisma.cycle.findUnique({

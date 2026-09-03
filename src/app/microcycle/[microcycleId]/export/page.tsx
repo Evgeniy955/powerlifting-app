@@ -10,11 +10,12 @@ import { MicrocycleExportView } from '@/components/MicrocycleExportView'
 // jsPDF), not a server-rendered file. Same access rules as the live week
 // page (ownership + athlete current/past-only visibility) since it exposes
 // the same underlying data, just laid out for a document instead of editing.
-export default async function MicrocycleExportPage({
-  params,
-}: {
-  params: { microcycleId: string }
-}) {
+export default async function MicrocycleExportPage(
+  props: {
+    params: Promise<{ microcycleId: string }>
+  }
+) {
+  const params = await props.params;
   const user = await requireUser()
 
   const [microcycle, rpeTable] = await Promise.all([

@@ -6,7 +6,8 @@ import { assertAthleteAccessible } from '@/lib/authorization'
 // GET /api/athletes/:athleteId/supplements — list, newest intake first.
 // Accessible to the athlete themselves and their coach (same ownsAthlete
 // rule as everything else athlete-scoped).
-export async function GET(_req: NextRequest, { params }: { params: { athleteId: string } }) {
+export async function GET(_req: NextRequest, props: { params: Promise<{ athleteId: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUser()
     await assertAthleteAccessible(params.athleteId, user)
@@ -24,7 +25,8 @@ export async function GET(_req: NextRequest, { params }: { params: { athleteId: 
 // POST /api/athletes/:athleteId/supplements { name, startDate, endDate?, notes? }
 // Athlete logs a supplement they're taking (or a coach, on their behalf) — a
 // name plus an intake period. endDate is optional (still taking it / open-ended).
-export async function POST(req: NextRequest, { params }: { params: { athleteId: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ athleteId: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUser()
     await assertAthleteAccessible(params.athleteId, user)

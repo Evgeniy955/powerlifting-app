@@ -10,7 +10,8 @@ import { getRpeTable } from '@/lib/workout'
 // intensity/KO per week (optionally scoped to one exercise) plus a
 // whole-mesocycle summary and the list of exercises used in the cycle, for
 // the exercise picker on the cycle analytics page.
-export async function GET(req: NextRequest, { params }: { params: { cycleId: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ cycleId: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUser()
 

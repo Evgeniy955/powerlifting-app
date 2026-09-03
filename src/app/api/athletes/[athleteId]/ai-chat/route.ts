@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { requireCoach, apiErrorResponse } from '@/lib/session'
 import { buildAthleteSummary } from '@/lib/aiInsights'
 import {
-  CoachAiNotConfiguredError,
+  GeminiAiNotConfiguredError,
   getCoachAiReply,
   type CoachAiMessage,
 } from '@/lib/coachAgent'
@@ -106,10 +106,11 @@ function parseMessages(value: unknown): CoachAiMessage[] | null {
   return messages
 }
 
-// Coach-only embedded Claude chat. The model receives a compact factual
+// Coach-only embedded Gemini chat. The model receives a compact factual
 // summary, never a database connection or credentials; ownership is verified
 // before a paid provider request is made.
-export async function POST(req: NextRequest, { params }: { params: { athleteId: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ athleteId: string }> }) {
+  const params = await props.params;
   try {
     const coach = await requireCoach()
     const body = (await req.json().catch(() => null)) as RequestBody | null
@@ -148,7 +149,7 @@ export async function POST(req: NextRequest, { params }: { params: { athleteId: 
     })
     return NextResponse.json({ text })
   } catch (error) {
-    if (error instanceof CoachAiNotConfiguredError) {
+    if (error instanceof GeminiAiNotConfiguredError) {
       return NextResponse.json({ error: 'AI не настроен' }, { status: 501 })
     }
     return apiErrorResponse(error)

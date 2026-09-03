@@ -22,7 +22,7 @@ export class NotFoundError extends Error {}
 /** Returns the signed-in user (Supabase Auth session + our own role/profile
  * row), or null if nobody is signed in. */
 export async function getCurrentUser(): Promise<SessionUser | null> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()

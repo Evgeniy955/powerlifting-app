@@ -11,11 +11,12 @@ import { isMicrocycleVisibleToAthlete } from '@/lib/weekAccess'
 // column per set — instead of the tall per-exercise cards the single-day page
 // uses, so a coach/athlete can scan or edit an entire week without endless
 // scrolling. Mirrors the layout of the source Excel workbook this app replaced.
-export default async function MicrocyclePage({
-  params,
-}: {
-  params: { microcycleId: string }
-}) {
+export default async function MicrocyclePage(
+  props: {
+    params: Promise<{ microcycleId: string }>
+  }
+) {
+  const params = await props.params;
   const user = await requireUser()
 
   const [microcycle, rpeTable] = await Promise.all([

@@ -8,7 +8,8 @@ import { requireCoach, apiErrorResponse } from '@/lib/session'
 // user. A coach can't change their own role here (see below), so they can't
 // accidentally lock themselves out of this page — editing their own
 // name/email is fine and allowed.
-export async function PATCH(req: NextRequest, { params }: { params: { userId: string } }) {
+export async function PATCH(req: NextRequest, props: { params: Promise<{ userId: string }> }) {
+  const params = await props.params;
   try {
     const coach = await requireCoach()
 
@@ -73,7 +74,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { userId: st
 //   Athlete1RM under it — is permanently deleted along with the account. The
 //   client is expected to have already confirmed this in plain language
 //   before calling this route; nothing here double-checks that.
-export async function DELETE(_req: NextRequest, { params }: { params: { userId: string } }) {
+export async function DELETE(_req: NextRequest, props: { params: Promise<{ userId: string }> }) {
+  const params = await props.params;
   try {
     const coach = await requireCoach()
     if (params.userId === coach.id) {

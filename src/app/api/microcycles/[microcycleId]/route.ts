@@ -9,10 +9,8 @@ import { assertAthleteBelongsToCoach } from '@/lib/authorization'
 // weeks or touch Cycle.weeks (an informational total, not an enforced cap —
 // see duplicate-last-two-weeks/route.ts, which already appends past it) —
 // a gap in weekNumber is harmless, same as any other list after a delete.
-export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: { microcycleId: string } }
-) {
+export async function DELETE(_req: NextRequest, props: { params: Promise<{ microcycleId: string }> }) {
+  const params = await props.params;
   try {
     const coach = await requireCoach()
 

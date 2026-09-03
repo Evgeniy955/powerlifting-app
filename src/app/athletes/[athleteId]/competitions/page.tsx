@@ -7,7 +7,8 @@ import { athleteDisplayName } from '@/lib/athlete'
 // Соревнования — an athlete's competition results log. Reachable by the
 // athlete themselves and by their coach (same ownership rule as Спортпит/
 // /cycles), both of whom can manage entries.
-export default async function CompetitionsPage({ params }: { params: { athleteId: string } }) {
+export default async function CompetitionsPage(props: { params: Promise<{ athleteId: string }> }) {
+  const params = await props.params;
   const user = await requireUser()
 
   const athlete = await prisma.athleteProfile.findUnique({

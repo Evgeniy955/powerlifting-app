@@ -10,7 +10,8 @@ import { assertAthleteBelongsToCoach } from '@/lib/authorization'
 // own page, same as any ad-hoc week. Doesn't touch Cycle.weeks — that's just
 // an informational total (see duplicate-last-two-weeks/route.ts), already
 // left untouched by delete for the same reason.
-export async function POST(_req: NextRequest, { params }: { params: { cycleId: string } }) {
+export async function POST(_req: NextRequest, props: { params: Promise<{ cycleId: string }> }) {
+  const params = await props.params;
   try {
     const coach = await requireCoach()
 

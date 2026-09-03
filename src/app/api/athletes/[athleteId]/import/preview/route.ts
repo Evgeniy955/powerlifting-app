@@ -18,7 +18,8 @@ const MAX_IMPORT_FILE_BYTES = 20 * 1024 * 1024
 // POST /api/athletes/:athleteId/import/preview — multipart upload (.xlsx/.xlsm),
 // returns parsed rows split into recognized/unrecognized for coach review.
 // Nothing is written to the DB by this step.
-export async function POST(req: NextRequest, { params }: { params: { athleteId: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ athleteId: string }> }) {
+  const params = await props.params;
   try {
     const coach = await requireCoach()
     await assertAthleteBelongsToCoach(params.athleteId, coach.id)

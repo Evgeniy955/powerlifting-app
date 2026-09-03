@@ -1,9 +1,9 @@
-import Anthropic from '@anthropic-ai/sdk'
+import { GoogleGenAI } from '@google/genai'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { COACH_AGENT_PROMPT } from './coachAgentPrompt'
 
-export class CoachAiNotConfiguredError extends Error {}
+export class GeminiAiNotConfiguredError extends Error {}
 
 export type CoachAiMessage = {
   role: 'user' | 'assistant'
@@ -34,8 +34,8 @@ function getMethodology(): Promise<string> {
 }
 
 export async function getCoachAiReply(messages: CoachAiMessage[], context: Context): Promise<string> {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) throw new CoachAiNotConfiguredError()
+  const apiKey = process.env.GEMINI_API_KEY
+  if (!apiKey) throw new GeminiAiNotConfiguredError()
 
   let methodology: string
   try {
@@ -44,15 +44,8 @@ export async function getCoachAiReply(messages: CoachAiMessage[], context: Conte
     throw new Error('Методология для AI-тренера недоступна.')
   }
 
-  const client = new Anthropic({ apiKey })
-  const message = await client.messages.create({
-    model: process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-5',
-    // The embedded chat needs a visible coach response, not a response made
-    // only of internal thinking blocks. A larger output limit also leaves
-    // room for a two-week plan after the methodology and context are read.
-    thinking: { type: 'disabled' },
-    max_tokens: 2400,
-    system: `${COACH_AGENT_PROMPT}
+  const client = new GoogleGenAI({ apiKey })
+  const systemInstruction = `${COACH_AGENT_PROMPT}
 
 Контекст текущего запроса:
 Атлет: ${context.athleteName}
@@ -67,16 +60,24 @@ ${context.trainingSummary}
 ${context.cyclePlanSummary ? `План выбранного мезоцикла:\n${context.cyclePlanSummary}\n` : ''}
 
 Методология RTS / Emerging Strategies:
-${methodology}`,
-    messages,
+${methodology}`
+
+  const response = await client.models.generateContent({
+    model: process.env.GEMINI_MODEL ?? 'gemini-3.7-flash',
+    contents: messages.map((message) => ({
+      role: message.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: message.content }],
+    })),
+    config: {
+      systemInstruction,
+      maxOutputTokens: 2400,
+      temperature: 0.4,
+    },
   })
 
-  const text = message.content
-    .filter((block) => block.type === 'text')
-    .map((block) => block.text.trim())
-    .filter(Boolean)
-    .join('\n\n')
+  const text = response.text?.trim()
 
   if (text) return text
-  throw new Error(`Claude did not return text (stop reason: ${message.stop_reason ?? 'unknown'})`)
+  const finishReason = response.candidates?.[0]?.finishReason ?? 'unknown'
+  throw new Error(`Gemini did not return text (finish reason: ${finishReason})`)
 }

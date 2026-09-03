@@ -8,7 +8,8 @@ import { assertAthleteBelongsToCoach } from '@/lib/authorization'
 // Coach-only. Duplicates the last 2 microcycles (by weekNumber) — including every
 // workout, exercise entry, and set — appended as two new weeks at the end of the cycle.
 // This is the "Копировать последние 2 недели" button; deliberately not exposed to athletes.
-export async function POST(_req: NextRequest, { params }: { params: { cycleId: string } }) {
+export async function POST(_req: NextRequest, props: { params: Promise<{ cycleId: string }> }) {
+  const params = await props.params;
   try {
     const coach = await requireCoach()
 

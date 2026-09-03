@@ -8,7 +8,8 @@ import { assertAthleteBelongsToCoach } from '@/lib/authorization'
 // more "Микроцикл" week (weekNumber = current max + 1) and bumps the
 // mesocycle's own `weeks` count to match, mirroring the "+ Неделя" action
 // that used to add a Microcycle onto a Cycle.
-export async function POST(_req: NextRequest, { params }: { params: { mesocycleId: string } }) {
+export async function POST(_req: NextRequest, props: { params: Promise<{ mesocycleId: string }> }) {
+  const params = await props.params;
   try {
     const coach = await requireCoach()
 

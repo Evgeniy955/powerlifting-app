@@ -9,7 +9,8 @@ import { recordChangeLog } from '@/lib/changeLog'
 // toggles the "didn't get to this exercise" flag, and/or edits which catalog
 // exercise this entry points to and its "Множ" multiplier. Coach or athlete,
 // same access rule as everything else on the workout (assertCanAccessExerciseEntry).
-export async function PATCH(req: NextRequest, { params }: { params: { entryId: string } }) {
+export async function PATCH(req: NextRequest, props: { params: Promise<{ entryId: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUser()
     const chain = await assertCanAccessExerciseEntry(params.entryId, user)
@@ -60,7 +61,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { entryId: s
 // sets, via cascade) from the day's plan. This only ever touches ExerciseEntry —
 // the underlying ExerciseCatalog row (and any other day that also uses it) is
 // completely untouched.
-export async function DELETE(_req: NextRequest, { params }: { params: { entryId: string } }) {
+export async function DELETE(_req: NextRequest, props: { params: Promise<{ entryId: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUser()
     const chain = await assertCanAccessExerciseEntry(params.entryId, user)

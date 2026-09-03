@@ -8,7 +8,8 @@ import { recordChangeLog } from '@/lib/changeLog'
 // PATCH /api/sets/:setId { weight?, reps?, rpe?, completed? } — live edit as the
 // user types (weight/reps/rpe) or toggles the "done" checkbox (completed).
 // Debounced on the client; this route just persists whatever fields are sent.
-export async function PATCH(req: NextRequest, { params }: { params: { setId: string } }) {
+export async function PATCH(req: NextRequest, props: { params: Promise<{ setId: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUser()
     const chain = await assertCanAccessSet(params.setId, user)
@@ -102,7 +103,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { setId: str
 }
 
 // DELETE /api/sets/:setId — remove a set row.
-export async function DELETE(_req: NextRequest, { params }: { params: { setId: string } }) {
+export async function DELETE(_req: NextRequest, props: { params: Promise<{ setId: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUser()
     const chain = await assertCanAccessSet(params.setId, user)

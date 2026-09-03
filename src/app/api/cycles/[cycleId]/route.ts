@@ -12,7 +12,8 @@ const DAY_MS = 24 * 60 * 60 * 1000
 // startDate moves the whole plan: every already-scheduled Workout under
 // it is shifted by the same number of days, so the actual training days
 // stay in sync with the new week 1.
-export async function PATCH(req: NextRequest, { params }: { params: { cycleId: string } }) {
+export async function PATCH(req: NextRequest, props: { params: Promise<{ cycleId: string }> }) {
+  const params = await props.params;
   try {
     const coach = await requireCoach()
 
@@ -72,7 +73,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { cycleId: s
 // DELETE /api/cycles/:cycleId — coach-only. Deletes the cycle and everything under
 // it (microcycles, workouts, exercise entries, sets) via the cascading relations
 // declared in schema.prisma.
-export async function DELETE(_req: NextRequest, { params }: { params: { cycleId: string } }) {
+export async function DELETE(_req: NextRequest, props: { params: Promise<{ cycleId: string }> }) {
+  const params = await props.params;
   try {
     const coach = await requireCoach()
 

@@ -29,7 +29,8 @@ const DAY_MS = 24 * 60 * 60 * 1000
 // breaks against Supabase's pooled/pgbouncer connection ("Transaction API
 // error: Transaction not found") once the pooler recycles the connection
 // mid-transaction. See the same fix in import/confirm/route.ts for more detail.
-export async function POST(req: NextRequest, { params }: { params: { athleteId: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ athleteId: string }> }) {
+  const params = await props.params;
   try {
     const coach = await requireCoach()
     await assertAthleteBelongsToCoach(params.athleteId, coach.id)

@@ -5,7 +5,8 @@ import { assertAthleteBelongsToCoach } from '@/lib/authorization'
 import { addWeeks, dateRangesOverlap, rangeContains } from '@/lib/dateOverlap'
 
 // PATCH /api/stages/:stageId { name?, startDate?, endDate? } — coach-only.
-export async function PATCH(req: NextRequest, { params }: { params: { stageId: string } }) {
+export async function PATCH(req: NextRequest, props: { params: Promise<{ stageId: string }> }) {
+  const params = await props.params;
   try {
     const coach = await requireCoach()
 
@@ -96,7 +97,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { stageId: s
 // (schema onDelete: Cascade), which in turn cascade to their
 // PeriodizationMicrocycles. Real training plans (Cycle) have no relation
 // to Stage at all, so they're never affected by this.
-export async function DELETE(_req: NextRequest, { params }: { params: { stageId: string } }) {
+export async function DELETE(_req: NextRequest, props: { params: Promise<{ stageId: string }> }) {
+  const params = await props.params;
   try {
     const coach = await requireCoach()
 

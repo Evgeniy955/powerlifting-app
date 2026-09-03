@@ -6,7 +6,8 @@ import { assertAthleteAccessible } from '@/lib/authorization'
 // GET /api/athletes/:athleteId/competitions — list, most recent meet first.
 // Accessible to the athlete themselves and their coach (same ownsAthlete
 // rule as Спортпит and everything else athlete-scoped).
-export async function GET(_req: NextRequest, { params }: { params: { athleteId: string } }) {
+export async function GET(_req: NextRequest, props: { params: Promise<{ athleteId: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUser()
     await assertAthleteAccessible(params.athleteId, user)
@@ -27,7 +28,8 @@ export async function GET(_req: NextRequest, { params }: { params: { athleteId: 
 // numbers, weight class, bodyweight and place are each independently
 // optional, since a coach might record a meet before every result is in, or
 // an athlete no-lifted one of the three.
-export async function POST(req: NextRequest, { params }: { params: { athleteId: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ athleteId: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUser()
     await assertAthleteAccessible(params.athleteId, user)

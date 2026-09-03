@@ -15,10 +15,8 @@ import { assertAthleteBelongsToCoach } from '@/lib/authorization'
 // dayNumber is just "next in this microcycle" — unlike the bulk plan-creation
 // route, a single manually-added day has no weekday pattern to stay aligned
 // with, so the coach picks its calendar date directly.
-export async function POST(
-  req: NextRequest,
-  { params }: { params: { microcycleId: string } }
-) {
+export async function POST(req: NextRequest, props: { params: Promise<{ microcycleId: string }> }) {
+  const params = await props.params;
   try {
     const coach = await requireCoach()
 

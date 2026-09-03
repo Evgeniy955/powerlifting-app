@@ -10,8 +10,9 @@ import { assertCanAccessCompetition } from '@/lib/authorization'
 // "no result" without deleting the whole entry).
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { athleteId: string; competitionId: string } }
+  props: { params: Promise<{ athleteId: string; competitionId: string }> }
 ) {
+  const params = await props.params;
   try {
     const user = await requireUser()
     await assertCanAccessCompetition(params.competitionId, user)
@@ -106,8 +107,9 @@ export async function PATCH(
 // DELETE /api/athletes/:athleteId/competitions/:competitionId
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: { athleteId: string; competitionId: string } }
+  props: { params: Promise<{ athleteId: string; competitionId: string }> }
 ) {
+  const params = await props.params;
   try {
     const user = await requireUser()
     await assertCanAccessCompetition(params.competitionId, user)

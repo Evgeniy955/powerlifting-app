@@ -12,7 +12,8 @@ import { AiCoachButton } from '@/components/AiCoachButton'
 // List of every cycle for one athlete, so a coach can find past imports/plans
 // without needing to keep a direct link around — the gap that caused a just-imported
 // cycle to seem "lost" once its one-time confirmation link was closed.
-export default async function AthleteCyclesPage({ params }: { params: { athleteId: string } }) {
+export default async function AthleteCyclesPage(props: { params: Promise<{ athleteId: string }> }) {
+  const params = await props.params;
   const user = await requireUser()
 
   const athlete = await prisma.athleteProfile.findUnique({

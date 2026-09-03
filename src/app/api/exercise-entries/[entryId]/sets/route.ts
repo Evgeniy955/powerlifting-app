@@ -8,7 +8,8 @@ import { assertCanAccessExerciseEntry } from '@/lib/authorization'
 // this repeatedly instead of retyping the same numbers into each new row) —
 // completed always starts false, since it's a fresh set still to be done.
 // No previous set yet -> nothing to duplicate, starts at 0/0 same as before.
-export async function POST(_req: NextRequest, { params }: { params: { entryId: string } }) {
+export async function POST(_req: NextRequest, props: { params: Promise<{ entryId: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUser()
     await assertCanAccessExerciseEntry(params.entryId, user)

@@ -5,7 +5,8 @@ import { assertAthleteBelongsToCoach, assertCanAccessWorkout } from '@/lib/autho
 import { getWorkoutForDisplay, getRpeTable } from '@/lib/workout'
 
 // GET /api/workouts/:workoutId — full day view payload + RPE table for client-side metrics.
-export async function GET(_req: NextRequest, { params }: { params: { workoutId: string } }) {
+export async function GET(_req: NextRequest, props: { params: Promise<{ workoutId: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUser()
     await assertCanAccessWorkout(params.workoutId, user)
@@ -28,7 +29,8 @@ export async function GET(_req: NextRequest, { params }: { params: { workoutId: 
 // workout's current entry set — a client couldn't move an entry into a
 // different day's plan this way, and a stale/tampered list can't silently
 // drop or duplicate a row.
-export async function PATCH(req: NextRequest, { params }: { params: { workoutId: string } }) {
+export async function PATCH(req: NextRequest, props: { params: Promise<{ workoutId: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUser()
     await assertCanAccessWorkout(params.workoutId, user)
@@ -70,10 +72,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { workoutId:
 // POST /api/microcycles/:microcycleId/workouts (AddWorkoutDayButton) — used
 // by the "Перейти на 3 дня" side of ToggleFourthDayButton to drop a
 // microcycle back from 4 days to 3.
-export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: { workoutId: string } }
-) {
+export async function DELETE(_req: NextRequest, props: { params: Promise<{ workoutId: string }> }) {
+  const params = await props.params;
   try {
     const coach = await requireCoach()
 

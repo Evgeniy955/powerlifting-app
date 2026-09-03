@@ -12,7 +12,8 @@ import { addWeeks, rangeContains, rangesOverlap } from '@/lib/dateOverlap'
 // periodization and actual trainable plans are kept separate. Auto-creates
 // its `weeks` PeriodizationMicrocycle rows (weekNumber 1..weeks), same
 // "Микроциклы" row concept as before, just untagged until edited.
-export async function POST(req: NextRequest, { params }: { params: { stageId: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ stageId: string }> }) {
+  const params = await props.params;
   try {
     const coach = await requireCoach()
 

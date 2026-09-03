@@ -17,11 +17,12 @@ import { athleteDisplayName } from '@/lib/athlete'
 // is deliberately NOT a real training plan/Cycle), whose Микроциклы (weeks)
 // show underneath. A coach must add at least one Период before the table
 // appears.
-export default async function PeriodizationPage({
-  params,
-}: {
-  params: { athleteId: string }
-}) {
+export default async function PeriodizationPage(
+  props: {
+    params: Promise<{ athleteId: string }>
+  }
+) {
+  const params = await props.params;
   const user = await requireUser()
 
   const athlete = await prisma.athleteProfile.findUnique({

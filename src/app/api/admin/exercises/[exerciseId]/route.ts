@@ -10,7 +10,8 @@ import { isTrainingGroup } from '@/lib/trainingGroups'
 // the relation, never copied onto the entry. Nothing else to invalidate.
 // trainingGroup is the "move to Базовые/СФП/ОФП" action — pass null to
 // unassign.
-export async function PATCH(req: NextRequest, { params }: { params: { exerciseId: string } }) {
+export async function PATCH(req: NextRequest, props: { params: Promise<{ exerciseId: string }> }) {
+  const params = await props.params;
   try {
     await requireCoach()
 
@@ -96,7 +97,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { exerciseId
 // is permanent and removes the exercise from training history for every
 // athlete who ever logged it — the client is expected to have already made
 // that consequence explicit before calling this route with force=true.
-export async function DELETE(req: NextRequest, { params }: { params: { exerciseId: string } }) {
+export async function DELETE(req: NextRequest, props: { params: Promise<{ exerciseId: string }> }) {
+  const params = await props.params;
   try {
     await requireCoach()
     const force = req.nextUrl.searchParams.get('force') === 'true'
