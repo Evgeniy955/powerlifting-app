@@ -9,7 +9,8 @@ import { requireCoach, apiErrorResponse } from '@/lib/session'
 // applies before an account exists (see /api/athletes/[athleteId]/invite and
 // /api/admin/pending-invites/[athleteId]) — this athlete already has full
 // login access, there's nothing to "accept".
-export async function POST(_req: Request, { params }: { params: { userId: string } }) {
+export async function POST(_req: Request, props: { params: Promise<{ userId: string }> }) {
+  const params = await props.params;
   try {
     const coach = await requireCoach()
 

@@ -8,8 +8,8 @@ type Props = {
 }
 
 // Coach-only "AI-рекомендации" panel: opt-in (button, not auto-fetch on page
-// load) since each click is a real paid Claude API call server-side. Renders
-// a clear setup message rather than a generic error if ANTHROPIC_API_KEY
+// load) since each click is a real paid Gemini API call server-side. Renders
+// a clear setup message rather than a generic error if GEMINI_API_KEY
 // isn't configured yet.
 export function AiInsightsPanel({ athleteId }: Props) {
   const [loading, setLoading] = useState(false)
@@ -52,8 +52,8 @@ export function AiInsightsPanel({ athleteId }: Props) {
 
       {notConfigured && (
         <p className="text-xs text-zone-moderate">
-          {error} Добавь <code>ANTHROPIC_API_KEY</code> в <code>.env</code> (ключ на{' '}
-          console.anthropic.com) и перезапусти сервер.
+          {error} Добавь <code>GEMINI_API_KEY</code> в <code>.env</code> (ключ из Google AI
+          Studio) и перезапусти сервер.
         </p>
       )}
       {error && !notConfigured && <p className="text-xs text-danger">{error}</p>}

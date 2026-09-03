@@ -7,7 +7,8 @@ import { dateRangesOverlap } from '@/lib/dateOverlap'
 // PATCH /api/periods/:periodId { name?, startDate?, endDate? } — coach-only.
 // Period's own date range is edited directly here (a date-range picker on
 // the periodization page), independent of the stages/mesocycles inside it.
-export async function PATCH(req: NextRequest, { params }: { params: { periodId: string } }) {
+export async function PATCH(req: NextRequest, props: { params: Promise<{ periodId: string }> }) {
+  const params = await props.params;
   try {
     const coach = await requireCoach()
 
@@ -66,7 +67,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { periodId: 
 // PeriodizationMicrocycles. Real training plans (Cycle) are a completely
 // separate model with no relation to Period/Stage at all, so they're never
 // affected by this.
-export async function DELETE(_req: NextRequest, { params }: { params: { periodId: string } }) {
+export async function DELETE(_req: NextRequest, props: { params: Promise<{ periodId: string }> }) {
+  const params = await props.params;
   try {
     const coach = await requireCoach()
 

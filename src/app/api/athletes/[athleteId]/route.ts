@@ -10,7 +10,8 @@ import { assertAthleteBelongsToCoach } from '@/lib/authorization'
 // coach via /admin/users; this one is restricted to the athlete's own coach,
 // same as the invite-send route). Doesn't send anything itself — the client
 // follows up with POST /invite once the email is saved.
-export async function PATCH(req: NextRequest, { params }: { params: { athleteId: string } }) {
+export async function PATCH(req: NextRequest, props: { params: Promise<{ athleteId: string }> }) {
+  const params = await props.params;
   try {
     const coach = await requireCoach()
     const athlete = await assertAthleteBelongsToCoach(params.athleteId, coach.id)
@@ -59,7 +60,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { athleteId:
 // DELETE — only reachable from the archive screen, once already archived —
 // performs the real, permanent removal. An athlete with no plans at all has
 // nothing to lose, so DELETE removes them immediately, same as before.
-export async function DELETE(_req: NextRequest, { params }: { params: { athleteId: string } }) {
+export async function DELETE(_req: NextRequest, props: { params: Promise<{ athleteId: string }> }) {
+  const params = await props.params;
   try {
     const coach = await requireCoach()
     const athlete = await assertAthleteBelongsToCoach(params.athleteId, coach.id)

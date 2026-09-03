@@ -9,7 +9,8 @@ import {
 
 // GET /api/athletes/:athleteId/one-rep-max — list all tracked 1RMs for this athlete.
 // Athletes can read their own; coach can read any of their athletes'.
-export async function GET(_req: NextRequest, { params }: { params: { athleteId: string } }) {
+export async function GET(_req: NextRequest, props: { params: Promise<{ athleteId: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUser()
     if (user.role === 'COACH') {
@@ -31,7 +32,8 @@ export async function GET(_req: NextRequest, { params }: { params: { athleteId: 
 // set their own, and only for ОФП (GPP) exercises — Базовые/СФП figures
 // anchor %1RM-based programming across the whole plan and stay coach-only.
 // Used inline when picking an exercise from the autocomplete, to bind/update 1RM.
-export async function POST(req: NextRequest, { params }: { params: { athleteId: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ athleteId: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUser()
     await assertAthleteAccessible(params.athleteId, user)

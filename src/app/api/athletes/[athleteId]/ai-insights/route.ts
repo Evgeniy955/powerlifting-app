@@ -7,7 +7,8 @@ import { getAiInsights, AiNotConfiguredError } from '@/lib/aiInsights'
 // decisions, and each call is a real paid API request, so it's opt-in via a
 // button rather than fetched automatically on page load). Verifies the coach
 // actually owns this athlete before spending an API call on their data.
-export async function POST(_req: NextRequest, { params }: { params: { athleteId: string } }) {
+export async function POST(_req: NextRequest, props: { params: Promise<{ athleteId: string }> }) {
+  const params = await props.params;
   try {
     const coach = await requireCoach()
 

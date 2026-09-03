@@ -9,7 +9,8 @@ import { BackToMicrocycleLink } from '@/components/BackToMicrocycleLink'
 
 // Server component: loads the workout + RPE table once, then hands off to the
 // client-side WorkoutView for the interactive, reactive editing experience.
-export default async function WorkoutPage({ params }: { params: { workoutId: string } }) {
+export default async function WorkoutPage(props: { params: Promise<{ workoutId: string }> }) {
+  const params = await props.params;
   const user = await requireUser()
 
   const [workout, rpeTable] = await Promise.all([

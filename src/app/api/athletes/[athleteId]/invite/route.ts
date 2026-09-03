@@ -8,7 +8,8 @@ import { EmailNotConfiguredError, sendInviteEmail } from '@/lib/email'
 
 // POST /api/athletes/:athleteId/invite — (re)send the invite email. Idempotent:
 // generates a fresh token every call, so calling again is how a coach resends.
-export async function POST(_req: NextRequest, { params }: { params: { athleteId: string } }) {
+export async function POST(_req: NextRequest, props: { params: Promise<{ athleteId: string }> }) {
+  const params = await props.params;
   try {
     const coach = await requireCoach()
     const athlete = await assertAthleteBelongsToCoach(params.athleteId, coach.id)

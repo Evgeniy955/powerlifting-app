@@ -8,8 +8,9 @@ import { assertCanAccessSupplement } from '@/lib/authorization'
 // taking it), a date string sets it, omitted leaves it unchanged.
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { athleteId: string; supplementId: string } }
+  props: { params: Promise<{ athleteId: string; supplementId: string }> }
 ) {
+  const params = await props.params;
   try {
     const user = await requireUser()
     const existing = await assertCanAccessSupplement(params.supplementId, user)
@@ -77,8 +78,9 @@ export async function PATCH(
 // DELETE /api/athletes/:athleteId/supplements/:supplementId
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: { athleteId: string; supplementId: string } }
+  props: { params: Promise<{ athleteId: string; supplementId: string }> }
 ) {
+  const params = await props.params;
   try {
     const user = await requireUser()
     await assertCanAccessSupplement(params.supplementId, user)

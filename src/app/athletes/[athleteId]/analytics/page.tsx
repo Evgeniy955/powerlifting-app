@@ -3,11 +3,12 @@ import { prisma } from '@/lib/prisma'
 import { requireUser } from '@/lib/session'
 import { redirect } from 'next/navigation'
 
-export default async function AthleteAnalyticsPage({
-  params,
-}: {
-  params: { athleteId: string }
-}) {
+export default async function AthleteAnalyticsPage(
+  props: {
+    params: Promise<{ athleteId: string }>
+  }
+) {
+  const params = await props.params;
   const user = await requireUser()
 
   const athlete = await prisma.athleteProfile.findUnique({ where: { id: params.athleteId } })

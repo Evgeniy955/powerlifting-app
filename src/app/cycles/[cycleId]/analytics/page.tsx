@@ -9,7 +9,8 @@ import { ArrowLeft } from 'lucide-react'
 // plus 4 line charts, optionally scoped to one exercise (e.g. "Приседания") —
 // reproduces the source Excel per-movement summary sheet. Reachable from the
 // cycle page (list of microcycles) and from any week's view.
-export default async function CycleAnalyticsPage({ params }: { params: { cycleId: string } }) {
+export default async function CycleAnalyticsPage(props: { params: Promise<{ cycleId: string }> }) {
+  const params = await props.params;
   const user = await requireUser()
 
   const cycle = await prisma.cycle.findUnique({

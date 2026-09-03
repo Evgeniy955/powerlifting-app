@@ -26,11 +26,12 @@ const KIND_TONE = {
 // per-workout highlight in WorkoutView. Computed from a snapshot taken
 // before the update, so this exact load still shows the "новое" badge on
 // what was unseen a moment ago.
-export default async function CycleHistoryPage({
-  params,
-}: {
-  params: { cycleId: string }
-}) {
+export default async function CycleHistoryPage(
+  props: {
+    params: Promise<{ cycleId: string }>
+  }
+) {
+  const params = await props.params;
   const user = await requireUser()
 
   const cycle = await prisma.cycle.findUnique({

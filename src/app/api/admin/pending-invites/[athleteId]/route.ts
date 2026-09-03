@@ -28,7 +28,8 @@ async function loadPendingAthlete(athleteId: string) {
 // it's accepted. Doesn't send anything itself; the client follows up with a
 // POST (resend) only after confirming with the coach, when the email actually
 // changed.
-export async function PATCH(req: NextRequest, { params }: { params: { athleteId: string } }) {
+export async function PATCH(req: NextRequest, props: { params: Promise<{ athleteId: string }> }) {
+  const params = await props.params;
   try {
     await requireCoach()
     const result = await loadPendingAthlete(params.athleteId)
@@ -61,7 +62,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { athleteId:
 
 // POST — (re)send the invite email to whatever inviteEmail is currently set,
 // same idempotent "call again to resend" semantics as the coach-scoped route.
-export async function POST(_req: NextRequest, { params }: { params: { athleteId: string } }) {
+export async function POST(_req: NextRequest, props: { params: Promise<{ athleteId: string }> }) {
+  const params = await props.params;
   try {
     await requireCoach()
     const result = await loadPendingAthlete(params.athleteId)
@@ -104,7 +106,8 @@ export async function POST(_req: NextRequest, { params }: { params: { athleteId:
 // with at least one plan (Cycle) already built for it gets archived
 // (archivedAt set, reversible from the owning coach's /athletes/archive)
 // instead of destroyed outright; one with nothing built yet is just removed.
-export async function DELETE(_req: NextRequest, { params }: { params: { athleteId: string } }) {
+export async function DELETE(_req: NextRequest, props: { params: Promise<{ athleteId: string }> }) {
+  const params = await props.params;
   try {
     await requireCoach()
     const result = await loadPendingAthlete(params.athleteId)

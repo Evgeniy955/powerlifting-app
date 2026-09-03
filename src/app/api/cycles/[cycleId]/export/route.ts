@@ -8,7 +8,8 @@ import { buildCycleWorkbook } from '@/lib/excelExport'
 // Lives on the plan itself (not the athlete) — same access rule as the rest
 // of the cycle page: coach can export any of their athletes' plans, athlete
 // can export their own.
-export async function GET(_req: NextRequest, { params }: { params: { cycleId: string } }) {
+export async function GET(_req: NextRequest, props: { params: Promise<{ cycleId: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUser()
     const cycle = await prisma.cycle.findUnique({

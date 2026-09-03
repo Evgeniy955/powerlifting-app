@@ -20,7 +20,8 @@ import type { ParsedExerciseRow } from '@/lib/excelImport'
 // anyway), and the whole import is issued as one *batched* `$transaction([...])`
 // of plain creates/createMany calls — sent to the DB as a single request, so
 // there's no window for the pooler to swap connections underneath it.
-export async function POST(req: NextRequest, { params }: { params: { athleteId: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ athleteId: string }> }) {
+  const params = await props.params;
   try {
     const coach = await requireCoach()
     await assertAthleteBelongsToCoach(params.athleteId, coach.id)

@@ -14,7 +14,8 @@ async function assertCanView(athleteId: string, userId: string, role: string) {
 // GET /api/athletes/:athleteId/analytics?exerciseId=... 
 // Returns weekly load distribution (all cycles) + progress series for the given exercise
 // (defaults to the athlete's most-tracked 1RM exercise if exerciseId is omitted).
-export async function GET(req: NextRequest, { params }: { params: { athleteId: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ athleteId: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUser()
     await assertCanView(params.athleteId, user.id, user.role)

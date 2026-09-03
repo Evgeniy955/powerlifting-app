@@ -21,7 +21,8 @@ async function loadOwnedMesocycle(mesocycleId: string, coachId: string) {
 // ownership on whichever stage the caller names, so cross-athlete moves
 // aren't possible even if the id were guessed). `weeks` resizes it —
 // PeriodizationMicrocycle rows are added/removed to match at the end.
-export async function PATCH(req: NextRequest, { params }: { params: { mesocycleId: string } }) {
+export async function PATCH(req: NextRequest, props: { params: Promise<{ mesocycleId: string }> }) {
+  const params = await props.params;
   try {
     const coach = await requireCoach()
     const mesocycle = await loadOwnedMesocycle(params.mesocycleId, coach.id)
@@ -146,7 +147,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { mesocycleI
 
 // DELETE /api/mesocycles/:mesocycleId — coach-only. Cascades to its
 // PeriodizationMicrocycle rows via the schema relation.
-export async function DELETE(_req: NextRequest, { params }: { params: { mesocycleId: string } }) {
+export async function DELETE(_req: NextRequest, props: { params: Promise<{ mesocycleId: string }> }) {
+  const params = await props.params;
   try {
     const coach = await requireCoach()
     const mesocycle = await loadOwnedMesocycle(params.mesocycleId, coach.id)

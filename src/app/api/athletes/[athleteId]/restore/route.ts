@@ -6,7 +6,8 @@ import { assertAthleteBelongsToCoach } from '@/lib/authorization'
 // POST /api/athletes/:athleteId/restore — pulls an archived athlete back
 // onto the normal roster (clears archivedAt). Coach-scoped. No-op-ish if the
 // athlete wasn't archived to begin with.
-export async function POST(_req: NextRequest, { params }: { params: { athleteId: string } }) {
+export async function POST(_req: NextRequest, props: { params: Promise<{ athleteId: string }> }) {
+  const params = await props.params;
   try {
     const coach = await requireCoach()
     const athlete = await assertAthleteBelongsToCoach(params.athleteId, coach.id)

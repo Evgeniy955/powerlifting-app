@@ -8,7 +8,8 @@ import { dateRangesOverlap } from '@/lib/dateOverlap'
 // coach-only. Creates a top-level "Период" for this athlete's periodization
 // timeline (/athletes/[athleteId]/periodization). Independent date range,
 // not derived from anything nested inside it.
-export async function POST(req: NextRequest, { params }: { params: { athleteId: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ athleteId: string }> }) {
+  const params = await props.params;
   try {
     const coach = await requireCoach()
     await assertAthleteBelongsToCoach(params.athleteId, coach.id)

@@ -14,7 +14,8 @@ const DAY_MS = 24 * 60 * 60 * 1000
 // it by hand. Unlike duplicate-last-two-weeks (which appends onto the same
 // cycle), this always creates a separate cycle, so the source plan is left
 // untouched.
-export async function POST(req: NextRequest, { params }: { params: { cycleId: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ cycleId: string }> }) {
+  const params = await props.params;
   try {
     const coach = await requireCoach()
 

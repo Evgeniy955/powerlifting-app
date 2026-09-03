@@ -1,10 +1,10 @@
-import Anthropic from '@anthropic-ai/sdk'
+import { GoogleGenAI } from '@google/genai'
 import { prisma } from './prisma'
 import { getWeeklyLoadDistribution, getExerciseProgress } from './analytics'
 import { getRpeTable } from './workout'
 import { athleteDisplayName } from './athlete'
 
-const MODEL = 'claude-sonnet-5'
+const MODEL = process.env.GEMINI_MODEL ?? 'gemini-3.7-flash'
 
 export class AiNotConfiguredError extends Error {}
 
@@ -15,7 +15,7 @@ export class AiNotConfiguredError extends Error {}
  * keeps the prompt small and lets the model reason over a report a coach
  * would actually read, rather than a data dump.
  */
-async function buildAthleteSummary(athleteId: string): Promise<{
+export async function buildAthleteSummary(athleteId: string): Promise<{
   athleteName: string
   summary: string
 } | null> {
@@ -92,36 +92,38 @@ const SYSTEM_PROMPT = `Ты — ассистент тренера по пауэ�
 длины (примерно 150-250 слов).`
 
 /**
- * Calls the Claude API to generate coaching recommendations from an athlete's
- * recent data. Throws AiNotConfiguredError if ANTHROPIC_API_KEY isn't set —
+ * Calls the Gemini API to generate coaching recommendations from an athlete's
+ * recent data. Throws AiNotConfiguredError if GEMINI_API_KEY isn't set —
  * callers should catch that specifically and show a clear setup message
  * instead of a generic error.
  */
 export async function getAiInsights(athleteId: string): Promise<string> {
-  const apiKey = process.env.ANTHROPIC_API_KEY
+  const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) {
     throw new AiNotConfiguredError(
-      'ANTHROPIC_API_KEY не задан в .env — AI-рекомендации недоступны, пока ключ не добавлен.'
+      'GEMINI_API_KEY не задан в .env — AI-рекомендации недоступны, пока ключ не добавлен.'
     )
   }
 
   const data = await buildAthleteSummary(athleteId)
   if (!data) throw new Error('Атлет не найден')
 
-  const client = new Anthropic({ apiKey })
+  const client = new GoogleGenAI({ apiKey })
 
-  const message = await client.messages.create({
+  const response = await client.models.generateContent({
     model: MODEL,
-    max_tokens: 1024,
-    system: SYSTEM_PROMPT,
-    messages: [
+    contents: [
       {
         role: 'user',
-        content: `Атлет: ${data.athleteName}\n\n${data.summary}`,
+        parts: [{ text: `Атлет: ${data.athleteName}\n\n${data.summary}` }],
       },
     ],
+    config: {
+      systemInstruction: SYSTEM_PROMPT,
+      maxOutputTokens: 1024,
+      temperature: 0.4,
+    },
   })
 
-  const textBlock = message.content.find((block) => block.type === 'text')
-  return textBlock && textBlock.type === 'text' ? textBlock.text : ''
+  return response.text?.trim() ?? ''
 }

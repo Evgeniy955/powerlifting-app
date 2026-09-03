@@ -9,6 +9,7 @@ import Link from 'next/link'
 import { Card, buttonVariants } from '@/components/ui'
 import { BarChart3, FileDown, History } from 'lucide-react'
 import { isMicrocycleVisibleToAthlete, currentWeekNumber } from '@/lib/weekAccess'
+import { AiCoachButton } from '@/components/AiCoachButton'
 
 // Same getUTCDay()-indexed convention as WeekDayTable/excelExport — kept
 // local rather than imported since this page only needs the label, not any
@@ -18,7 +19,8 @@ const WEEKDAY_SHORT = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']
 // Cycle overview: list of microcycles (weeks) -> workouts (days), plus the
 // coach-only "Копировать последние 2 недели" action. Access is checked against
 // the signed-in user: coach must own the athlete, athlete must own the cycle.
-export default async function CyclePage({ params }: { params: { cycleId: string } }) {
+export default async function CyclePage(props: { params: Promise<{ cycleId: string }> }) {
+  const params = await props.params;
   const user = await requireUser()
 
   const cycle = await prisma.cycle.findUnique({
@@ -123,12 +125,20 @@ export default async function CyclePage({ params }: { params: { cycleId: string 
 
       <div className="flex flex-wrap gap-2">
         {user.role === 'COACH' && (
-          <Link
-            href={`/cycles/${cycle.id}/analytics`}
-            className={buttonVariants({ variant: 'outline', size: 'sm' })}
-          >
-            <BarChart3 className="h-4 w-4" /> Аналитика мезоцикла
-          </Link>
+          <>
+            <Link
+              href={`/cycles/${cycle.id}/analytics`}
+              className={buttonVariants({ variant: 'outline', size: 'sm' })}
+            >
+              <BarChart3 className="h-4 w-4" /> Аналитика мезоцикла
+            </Link>
+            <AiCoachButton
+              scope="mesocycle"
+              athleteId={cycle.athleteId}
+              cycleId={cycle.id}
+              contextName={cycle.name}
+            />
+          </>
         )}
         <Link
           href={`/cycles/${cycle.id}/history`}
