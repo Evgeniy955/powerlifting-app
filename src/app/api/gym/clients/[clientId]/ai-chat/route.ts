@@ -8,7 +8,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ clientI
   const coach = await requireCoach()
   const { clientId } = await params
   await assertGymClientBelongsToCoach(clientId, coach.id)
-  const body = await req.json() as { messages?: { role: 'user' | 'assistant'; content: string }[]; model?: string }
+  const body = await req.json() as { messages?: { role: 'user' | 'assistant'; content: string }[]; model?: string; consent?: boolean }
+  if (body.consent !== true) return NextResponse.json({ error: 'Нужно подтвердить согласие клиента на AI-анализ данных здоровья' }, { status: 400 })
   const messages = (body.messages ?? []).filter((message) => message.role === 'user' || message.role === 'assistant').slice(-12)
   if (!messages.length) return NextResponse.json({ error: 'Добавьте сообщение для AI' }, { status: 400 })
 
