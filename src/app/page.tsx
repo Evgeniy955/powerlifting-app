@@ -49,6 +49,13 @@ export default async function HomePage() {
         ? `/athletes/${athleteProfileId}/cycles`
         : null
 
+  const gymHref =
+    user.role === 'COACH'
+      ? '/gym/athletes'
+      : athleteProfileId
+        ? `/gym/athletes/${athleteProfileId}/plans`
+        : null
+
   return (
     <main className="relative flex min-h-[calc(100vh-3.5rem)] items-center justify-center overflow-hidden bg-bg px-4 py-16 text-text-primary">
       <HeroBackground />
@@ -93,7 +100,8 @@ export default async function HomePage() {
             </Card>
           )}
 
-          <Link href="/gym" className="group text-left">
+          {gymHref ? (
+          <Link href={gymHref} className="group text-left">
           <Card className="flex h-full flex-col gap-3 transition-colors group-hover:border-accent">
             <div className="flex h-11 w-11 items-center justify-center rounded-full bg-surface-2 text-text-secondary">
               <Activity className="h-5 w-5" />
@@ -106,6 +114,17 @@ export default async function HomePage() {
               <span className="inline-flex items-center gap-1.5 text-sm text-accent">Открыть режим <ArrowRight className="h-4 w-4" /></span>
             </span>
           </Card></Link>
+          ) : (
+            <Card className="flex h-full flex-col gap-3 opacity-60">
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-surface-2 text-text-secondary">
+                <Activity className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="font-display text-lg uppercase tracking-wide">Тренажёрный зал</h2>
+                <p className="text-sm text-text-secondary">Профиль клиента ещё не создан</p>
+              </div>
+            </Card>
+          )}
         </div>
       </div>
     </main>

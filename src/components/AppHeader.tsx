@@ -25,6 +25,13 @@ export async function AppHeader() {
     athleteProfileId = profile?.id ?? null
   }
 
+  const gymHref =
+    user?.role === 'COACH'
+      ? '/gym/athletes'
+      : athleteProfileId
+        ? `/gym/athletes/${athleteProfileId}/plans`
+        : '/'
+
   // Same links as the desktop nav below, just collected once so the mobile
   // hamburger (MobileNavMenu) can render the identical set.
   const mobileLinks: MobileNavLink[] =
@@ -32,7 +39,7 @@ export async function AppHeader() {
       ? [
           { href: '/athletes', label: 'Мои спортсмены', emphasis: true },
           { href: '/admin/users', label: 'Админка' },
-          { href: '/gym', label: 'Тренажёрный зал' },
+          { href: gymHref, label: 'Тренажёрный зал' },
           { href: '/faq', label: 'Помощь' },
         ]
       : user?.role === 'ATHLETE' && athleteProfileId
@@ -77,7 +84,7 @@ export async function AppHeader() {
                   >
                     Админка
                   </Link>
-                  <Link href="/gym" className="hidden text-sm text-text-secondary transition-colors hover:text-accent hover:underline md:inline">Тренажёрный зал</Link>
+                  <Link href={gymHref} className="hidden text-sm text-text-secondary transition-colors hover:text-accent hover:underline md:inline">Тренажёрный зал</Link>
                 </>
               )}
               {user.role === 'ATHLETE' && athleteProfileId && (
