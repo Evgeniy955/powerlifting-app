@@ -17,27 +17,29 @@ VALUES (
 ON CONFLICT (id) DO NOTHING;
 
 DROP POLICY IF EXISTS "assessment files are readable by athlete or coach" ON storage.objects;
-CREATE POLICY "assessment files are readable by athlete or coach"
+DROP POLICY IF EXISTS "assessment files are readable by gym client or coach" ON storage.objects;
+CREATE POLICY "assessment files are readable by gym client or coach"
 ON storage.objects FOR SELECT TO authenticated
 USING (
   bucket_id = 'assessments'
   AND EXISTS (
     SELECT 1
-    FROM public."AthleteProfile" AS athlete
-    WHERE athlete.id::text = (storage.foldername(name))[1]
-      AND (athlete."userId" = auth.uid()::text OR athlete."coachId" = auth.uid()::text)
+    FROM public."GymClient" AS client
+    WHERE client.id::text = (storage.foldername(name))[1]
+      AND (client."userId" = auth.uid()::text OR client."coachId" = auth.uid()::text)
   )
 );
 
 DROP POLICY IF EXISTS "assessment files are uploadable by athlete or coach" ON storage.objects;
-CREATE POLICY "assessment files are uploadable by athlete or coach"
+DROP POLICY IF EXISTS "assessment files are uploadable by gym client or coach" ON storage.objects;
+CREATE POLICY "assessment files are uploadable by gym client or coach"
 ON storage.objects FOR INSERT TO authenticated
 WITH CHECK (
   bucket_id = 'assessments'
   AND EXISTS (
     SELECT 1
-    FROM public."AthleteProfile" AS athlete
-    WHERE athlete.id::text = (storage.foldername(name))[1]
-      AND (athlete."userId" = auth.uid()::text OR athlete."coachId" = auth.uid()::text)
+    FROM public."GymClient" AS client
+    WHERE client.id::text = (storage.foldername(name))[1]
+      AND (client."userId" = auth.uid()::text OR client."coachId" = auth.uid()::text)
   )
 );

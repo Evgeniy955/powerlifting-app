@@ -40,8 +40,14 @@ model User {
   // If this user is an athlete, they have exactly one profile
   athleteProfile AthleteProfile?
 
+  // A gym client is a separate domain from a powerlifting athlete. A user can
+  // have either profile (or both, by an explicit coach action), but gym plans
+  // never use AthleteProfile as their owner.
+  gymClientProfile GymClient? @relation("GymClientUser")
+
   // If this user is a coach, they manage many athlete profiles
-  coachedAthletes AthleteProfile[] @relation("CoachAthletes")
+  coachedAthletes   AthleteProfile[] @relation("CoachAthletes")
+  coachedGymClients GymClient[]      @relation("CoachGymClients")
 
   // Required by @auth/prisma-adapter for the database session strategy.
   accounts Account[]
@@ -114,18 +120,13 @@ model AthleteProfile {
   // Null = active/visible on the normal roster.
   archivedAt DateTime?
 
-  oneRepMaxes   Athlete1RM[]
-  cycles        Cycle[]
-  supplements   Supplement[]
-  periods       Period[]
-  changeLogs    ChangeLog[]
-  competitions  Competition[]
-  gymPlans      GymPlan[]
-  gymMaxes      GymAthleteMax[]
-  healthProfile AthleteHealthProfile?
-  assessments   AthleteAssessment[]
-
-  createdAt DateTime @default(now())
+  oneRepMaxes  Athlete1RM[]
+  cycles       Cycle[]
+  supplements  Supplement[]
+  periods      Period[]
+  changeLogs   ChangeLog[]
+  competitions Competition[]
+  createdAt    DateTime      @default(now())
 
   @@index([coachId])
 }
@@ -242,32 +243,50 @@ model Competition {
   @@index([athleteId])
 }
 
-// Health context is shared by both training directions, but is managed from
-// the gym client profile where it is most useful during exercise selection.
-model AthleteHealthProfile {
-  id                String         @id @default(uuid())
-  athleteId         String         @unique
-  athlete           AthleteProfile @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+// An ordinary gym client is intentionally separate from AthleteProfile.
+// Coaches may create a client before linking a login account to them.
+model GymClient {
+  id          String   @id @default(uuid())
+  userId      String?  @unique
+  user        User?    @relation("GymClientUser", fields: [userId], references: [id], onDelete: Cascade)
+  coachId     String?
+  coach       User?    @relation("CoachGymClients", fields: [coachId], references: [id])
+  displayName String?
+  inviteEmail String?
+  createdAt   DateTime @default(now())
+
+  plans         GymPlan[]
+  maxes         GymClientMax[]
+  healthProfile GymClientHealthProfile?
+  assessments   GymClientAssessment[]
+
+  @@index([coachId])
+}
+
+model GymClientHealthProfile {
+  id                String    @id @default(uuid())
+  clientId          String    @unique
+  client            GymClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
   injuries          String?
   contraindications String?
   notes             String?
-  updatedAt         DateTime       @updatedAt
+  updatedAt         DateTime  @updatedAt
 }
 
 // Imported questionnaire / examination files. The file itself lives in
 // Supabase Storage; extractedText lets the AI compare two questionnaires
 // without exposing storage credentials to the browser.
-model AthleteAssessment {
-  id            String         @id @default(uuid())
-  athleteId     String
-  athlete       AthleteProfile @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+model GymClientAssessment {
+  id            String    @id @default(uuid())
+  clientId      String
+  client        GymClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
   fileName      String
   mimeType      String
   storagePath   String
   extractedText String?
-  createdAt     DateTime       @default(now())
+  createdAt     DateTime  @default(now())
 
-  @@index([athleteId, createdAt])
+  @@index([clientId, createdAt])
 }
 
 // Reference catalog of exercises (seeded from the "Коэффициенты" sheet).
@@ -474,34 +493,34 @@ model GymExerciseCatalog {
   category    String?
   description String?
   exercises   GymExerciseEntry[]
-  maxes       GymAthleteMax[]
+  maxes       GymClientMax[]
   createdAt   DateTime           @default(now())
 }
 
-model GymAthleteMax {
+model GymClientMax {
   id         String             @id @default(uuid())
-  athleteId  String
-  athlete    AthleteProfile     @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  clientId   String
+  client     GymClient          @relation(fields: [clientId], references: [id], onDelete: Cascade)
   exerciseId String
   exercise   GymExerciseCatalog @relation(fields: [exerciseId], references: [id])
   value      Float
   updatedAt  DateTime           @updatedAt
 
-  @@unique([athleteId, exerciseId])
+  @@unique([clientId, exerciseId])
   @@index([exerciseId])
 }
 
 model GymPlan {
-  id        String         @id @default(uuid())
-  athleteId String
-  athlete   AthleteProfile @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  id        String    @id @default(uuid())
+  clientId  String
+  client    GymClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
   name      String
   startDate DateTime
   weeks     Int
-  createdAt DateTime       @default(now())
+  createdAt DateTime  @default(now())
   weeksData GymWeek[]
 
-  @@index([athleteId, startDate])
+  @@index([clientId, startDate])
 }
 
 model GymWeek {

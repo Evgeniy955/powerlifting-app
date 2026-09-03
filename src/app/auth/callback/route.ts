@@ -47,13 +47,19 @@ export async function GET(request: Request) {
     // by this point (that's a separate table we don't own) — sign back out
     // so the browser doesn't end up with a live Supabase session pointing at
     // a Google account with no matching row in our own `public."User"`.
-    const pendingInvite = isCoach
+    const pendingAthleteInvite = isCoach
       ? null
       : await prisma.athleteProfile.findFirst({
           where: { userId: null, inviteStatus: 'PENDING', inviteEmail: email },
         })
 
-    if (!isCoach && !pendingInvite) {
+    const pendingGymClient = isCoach
+      ? null
+      : await prisma.gymClient.findFirst({
+          where: { userId: null, inviteEmail: email },
+        })
+
+    if (!isCoach && !pendingAthleteInvite && !pendingGymClient) {
       await supabase.auth.signOut()
       return NextResponse.redirect(`${origin}/login?error=not_invited`)
     }
@@ -74,11 +80,15 @@ export async function GET(request: Request) {
       },
     })
 
-    if (pendingInvite) {
+    if (pendingAthleteInvite) {
       await prisma.athleteProfile.update({
-        where: { id: pendingInvite.id },
+        where: { id: pendingAthleteInvite.id },
         data: { userId: user.id, inviteStatus: 'ACCEPTED' },
       })
+    }
+
+    if (pendingGymClient) {
+      await prisma.gymClient.update({ where: { id: pendingGymClient.id }, data: { userId: user.id } })
     }
   }
 

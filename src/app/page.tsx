@@ -28,6 +28,7 @@ export default async function HomePage() {
   }
 
   let athleteProfileId: string | null = null
+  let gymClientId: string | null = null
   // The coach picks this name when creating the athlete's profile — for an
   // athlete it's what the greeting below should use, instead of user.name
   // (whatever their linked Google account happens to be called, which for
@@ -35,9 +36,13 @@ export default async function HomePage() {
   // than a real name).
   let athleteProfileName: string | null = null
   if (user.role === 'ATHLETE') {
-    const profile = await prisma.athleteProfile.findUnique({ where: { userId: user.id } })
+    const [profile, gymClient] = await Promise.all([
+      prisma.athleteProfile.findUnique({ where: { userId: user.id } }),
+      prisma.gymClient.findUnique({ where: { userId: user.id } }),
+    ])
     athleteProfileId = profile?.id ?? null
-    athleteProfileName = profile?.displayName ?? null
+    athleteProfileName = profile?.displayName ?? gymClient?.displayName ?? null
+    gymClientId = gymClient?.id ?? null
   }
 
   const greetingName = athleteProfileName ?? user.name ?? 'спортсмен'
@@ -52,8 +57,8 @@ export default async function HomePage() {
   const gymHref =
     user.role === 'COACH'
       ? '/gym/athletes'
-      : athleteProfileId
-        ? `/gym/athletes/${athleteProfileId}/plans`
+      : gymClientId
+        ? `/gym/athletes/${gymClientId}/plans`
         : null
 
   return (

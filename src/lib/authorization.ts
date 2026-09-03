@@ -24,6 +24,24 @@ export async function assertAthleteAccessible(athleteId: string, user: SessionUs
   return athlete
 }
 
+function ownsGymClient(client: { coachId: string | null; userId: string | null }, user: SessionUser) {
+  return user.role === 'COACH' ? client.coachId === user.id : client.userId === user.id
+}
+
+export async function assertGymClientBelongsToCoach(clientId: string, coachId: string) {
+  const client = await prisma.gymClient.findUnique({ where: { id: clientId } })
+  if (!client) throw new NotFoundError('Клиент не найден')
+  if (client.coachId !== coachId) throw new ForbiddenError('Клиент не привязан к этому тренеру')
+  return client
+}
+
+export async function assertGymClientAccessible(clientId: string, user: SessionUser) {
+  const client = await prisma.gymClient.findUnique({ where: { id: clientId } })
+  if (!client) throw new NotFoundError('Клиент не найден')
+  if (!ownsGymClient(client, user)) throw new ForbiddenError('Нет доступа к этому клиенту')
+  return client
+}
+
 // Walks workoutId -> microcycle -> cycle -> athlete and checks ownership. Returns
 // the resolved chain so callers (e.g. the change-notification queue) can reuse it
 // instead of re-querying.

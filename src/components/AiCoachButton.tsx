@@ -14,6 +14,7 @@ type Props = {
   athleteId: string
   cycleId?: string
   contextName?: string
+  endpoint?: 'powerlifting' | 'gym'
 }
 
 type Message = {
@@ -23,7 +24,7 @@ type Message = {
 
 // Coach-only Gemini chat. Its server route checks that the current coach owns
 // the athlete/cycle before it includes any training data or calls Gemini.
-export function AiCoachButton({ scope, athleteId, cycleId, contextName }: Props) {
+export function AiCoachButton({ scope, athleteId, cycleId, contextName, endpoint = 'powerlifting' }: Props) {
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
   const [draft, setDraft] = useState('')
@@ -44,7 +45,8 @@ export function AiCoachButton({ scope, athleteId, cycleId, contextName }: Props)
     setError(null)
     setLoading(true)
     try {
-      const res = await fetch(`/api/athletes/${athleteId}/ai-chat`, {
+      const aiPath = endpoint === 'gym' ? `/api/gym/clients/${athleteId}/ai-chat` : `/api/athletes/${athleteId}/ai-chat`
+      const res = await fetch(aiPath, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: nextMessages, cycleId, model }),
