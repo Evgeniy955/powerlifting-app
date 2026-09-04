@@ -80,7 +80,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ athlete
     const plan = await prisma.$transaction(async (tx) => {
       const maxes = await tx.gymClientMax.findMany({ where: { clientId } })
       const maxByExercise = new Map(maxes.map((max) => [max.exerciseId, max.value]))
-      const prepared = [] as { week: number; day: number; exercises: (ImportedExercise & { exerciseId: string; resolvedMax: number | null })[] }[]
+      const prepared = [] as { week: number; day: number; date: Date | null; exercises: (ImportedExercise & { exerciseId: string; resolvedMax: number | null })[] }[]
 
       for (const workout of workouts) {
         const exercises = [] as (ImportedExercise & { exerciseId: string; resolvedMax: number | null })[]
@@ -106,10 +106,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ athlete
           }
           exercises.push({ ...exercise, exerciseId: catalogExercise.id, resolvedMax })
         }
-        prepared.push({ week: workout.week, day: workout.day, exercises })
+        prepared.push({ week: workout.week, day: workout.day, date: workout.date, exercises })
       }
 
-      const startDate = new Date()
+      // The document's own earliest training date, when it had date
+      // headers — falls back to today only for a plain undated paste (a
+      // single day's exercises with no "15.06.26"-style header at all).
+      const startDate = prepared.find((workout) => workout.date)?.date ?? new Date()
       return tx.gymPlan.create({
         data: {
           clientId,
@@ -126,7 +129,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ athlete
                     .filter((workout) => workout.week === weekNumber)
                     .map((workout) => ({
                       dayNumber: workout.day,
-                      scheduledDate: new Date(startDate.getTime() + ((weekNumber - 1) * 7 + workout.day - 1) * 86400000),
+                      // Real date from the document when it had one —
+                      // otherwise fall back to the old evenly-spaced guess
+                      // so an undated paste still gets a sensible schedule.
+                      scheduledDate: workout.date
+                        ?? new Date(startDate.getTime() + ((weekNumber - 1) * 7 + workout.day - 1) * 86400000),
                       entries: {
                         create: workout.exercises.map((exercise, orderIndex) => ({
                           exerciseId: exercise.exerciseId,
