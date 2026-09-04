@@ -32,13 +32,12 @@ export function AiCoachButton({ scope, athleteId, cycleId, contextName, endpoint
   const [error, setError] = useState<string | null>(null)
   const [expanded, setExpanded] = useState(false)
   const [model, setModel] = useState<CoachAiModel>(DEFAULT_COACH_AI_MODEL)
-  const [healthConsent, setHealthConsent] = useState(false)
   const target = scope === 'athlete' ? (endpoint === 'gym' ? 'клиента' : 'спортсмена') : 'мезоцикла'
   const title = scope === 'athlete' ? (endpoint === 'gym' ? 'AI для клиента' : 'AI для спортсмена') : 'AI для мезоцикла'
 
   async function send() {
     const content = draft.trim()
-    if (!content || loading || (endpoint === 'gym' && !healthConsent)) return
+    if (!content || loading) return
 
     const nextMessages = [...messages, { role: 'user' as const, content }]
     setMessages(nextMessages)
@@ -50,7 +49,7 @@ export function AiCoachButton({ scope, athleteId, cycleId, contextName, endpoint
       const res = await fetch(aiPath, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: nextMessages, cycleId, model, consent: endpoint === 'gym' ? healthConsent : undefined }),
+        body: JSON.stringify({ messages: nextMessages, cycleId, model }),
       })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(body.error ?? 'Не удалось получить ответ AI')
@@ -95,7 +94,6 @@ export function AiCoachButton({ scope, athleteId, cycleId, contextName, endpoint
             Контекст: <span className="font-medium">{contextName}</span>
           </p>
         )}
-        {endpoint === 'gym' && <label className="mb-3 flex gap-2 rounded-lg border border-border bg-surface-2 p-3 text-xs text-text-secondary"><input type="checkbox" checked={healthConsent} onChange={(event) => setHealthConsent(event.target.checked)} /> Подтверждаю согласие клиента на передачу его тренировочных и медицинских данных в Gemini для этого анализа.</label>}
         <div className="mb-3 rounded-lg border border-border bg-surface-2 p-3">
           <label htmlFor="coach-ai-model" className="block text-sm font-medium text-text-primary">
             Модель AI
@@ -156,7 +154,7 @@ export function AiCoachButton({ scope, athleteId, cycleId, contextName, endpoint
             rows={3}
             className="min-w-0 flex-1 resize-y rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none placeholder:text-text-secondary focus:border-accent"
           />
-          <Button type="button" onClick={() => void send()} disabled={loading || !draft.trim() || (endpoint === 'gym' && !healthConsent)}>
+          <Button type="button" onClick={() => void send()} disabled={loading || !draft.trim()}>
             Отправить
           </Button>
         </div>
