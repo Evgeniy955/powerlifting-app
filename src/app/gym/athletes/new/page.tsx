@@ -30,8 +30,8 @@ export default function NewGymClientPage() {
     <Link href="/gym/athletes" className="text-sm text-text-secondary">← Клиенты</Link>
     <div><h1 className="font-display text-xl uppercase">Новый клиент</h1><p className="text-sm text-text-secondary">Этот профиль относится только к тренажёрному залу.</p></div>
     <Card className="space-y-4">
-      <label className="block text-sm">Имя клиента<Input className="mt-1" value={displayName} onChange={(event) => setDisplayName(event.target.value)} maxLength={120} /></label>
-      <label className="block text-sm">Email (необязательно)<Input className="mt-1" type="email" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} maxLength={255} /></label>
+      <label className="block text-sm"><span className="mb-1.5 block">Имя клиента</span><Input className="w-full" value={displayName} onChange={(event) => setDisplayName(event.target.value)} maxLength={120} /></label>
+      <label className="block text-sm"><span className="mb-1.5 block">Email (необязательно)</span><Input className="w-full" type="email" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} maxLength={255} /></label>
       {error && <p className="text-sm text-danger">{error}</p>}
       <Button disabled={saving || !displayName.trim()} onClick={() => void createClient()}>{saving ? 'Создаём…' : 'Создать клиента'}</Button>
     </Card>
