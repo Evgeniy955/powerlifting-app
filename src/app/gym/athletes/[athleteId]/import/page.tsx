@@ -5,6 +5,7 @@ import { use, useMemo, useState } from 'react'
 import { ArrowRight } from 'lucide-react'
 import { Button, Card, Input, useToast } from '@/components/ui'
 import { createClient } from '@/lib/supabase/client'
+import { GymExerciseAutocomplete, type GymExerciseOption } from '@/components/GymExerciseAutocomplete'
 import type { ImportedExercise } from '@/lib/gymImportParser'
 import type { GymExerciseMatch } from '@/lib/gymExerciseMatch'
 
@@ -26,15 +27,15 @@ function nameKey(name: string) {
   return name.trim().toLowerCase()
 }
 
-// What happens to a name with no exact catalog match on confirm — mirrors
-// UnrecognizedAction on the powerlifting Excel-import page:
-//  - 'link'   — reuse the suggested existing exercise instead of creating a
-//    near-duplicate ("Присед" vs "Приседания"). Only valid when a
-//    possibleDuplicate suggestion exists.
-//  - 'create' — add it as a brand-new catalog exercise.
-//  - 'skip'   — not a real exercise (a note, a typo) — leave its sets out
-//    of the import entirely.
-type UnmatchedAction = 'link' | 'create' | 'skip'
+// How a name with no exact catalog match resolves on confirm:
+//  - exerciseId set — the coach picked (or created) a specific exercise
+//    via the search dropdown; use it directly, no guessing needed.
+//  - exerciseId null, not skipped — the coach didn't touch this row; falls
+//    back to creating a brand-new catalog exercise under the raw parsed
+//    name on confirm, same as the old single-click import's default.
+//  - skip — not a real exercise (a note, a typo) — leave its sets out of
+//    the import entirely.
+type UnmatchedResolution = { exerciseId: string | null; exerciseName: string; skip: boolean }
 
 export default function GymImportPage(props: Props) {
   const { athleteId: clientId } = use(props.params)
@@ -44,7 +45,7 @@ export default function GymImportPage(props: Props) {
   const [uploadStatus, setUploadStatus] = useState('')
   const [preview, setPreview] = useState<Preview | null>(null)
   const [planName, setPlanName] = useState('')
-  const [actions, setActions] = useState<Map<string, UnmatchedAction>>(new Map())
+  const [resolutions, setResolutions] = useState<Map<string, UnmatchedResolution>>(new Map())
   const [confirming, setConfirming] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<{ planId: string; workouts: number } | null>(null)
@@ -58,10 +59,11 @@ export default function GymImportPage(props: Props) {
     [preview]
   )
 
-  function setAction(key: string, action: UnmatchedAction) {
-    setActions((prev) => {
+  function updateResolution(key: string, patch: Partial<UnmatchedResolution>) {
+    setResolutions((prev) => {
       const next = new Map(prev)
-      next.set(key, action)
+      const current = next.get(key) ?? { exerciseId: null, exerciseName: '', skip: false }
+      next.set(key, { ...current, ...patch })
       return next
     })
   }
@@ -122,12 +124,18 @@ export default function GymImportPage(props: Props) {
       const json = previewBody as Preview
       setPreview(json)
       setPlanName(json.parsed.name)
-      const initial = new Map<string, UnmatchedAction>()
+      const initial = new Map<string, UnmatchedResolution>()
       for (const m of json.exerciseMatches) {
         if (m.matchedExerciseId) continue
-        initial.set(nameKey(m.name), m.possibleDuplicate ? 'link' : 'create')
+        // Pre-fill with the fuzzy-match suggestion when there is one — the
+        // coach can still search for something else or clear it.
+        initial.set(nameKey(m.name), {
+          exerciseId: m.possibleDuplicate?.exerciseId ?? null,
+          exerciseName: m.possibleDuplicate?.exerciseName ?? '',
+          skip: false,
+        })
       }
-      setActions(initial)
+      setResolutions(initial)
       setUploadStatus('')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка')
@@ -149,23 +157,27 @@ export default function GymImportPage(props: Props) {
           nameToExerciseId[key] = m.matchedExerciseId
           continue
         }
-        const action = actions.get(key) ?? (m.possibleDuplicate ? 'link' : 'create')
-        if (action === 'link' && m.possibleDuplicate) {
-          nameToExerciseId[key] = m.possibleDuplicate.exerciseId
-        } else if (action === 'create') {
-          const res = await fetch('/api/admin/gym-exercises', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: m.name }),
-          })
-          if (res.ok) {
-            const created = await res.json()
-            nameToExerciseId[key] = created.id
-          }
-          // If creation fails (race with an identical name, etc.) this
-          // name's sets are simply left out below — no partial/bad data.
+        const resolution = resolutions.get(key)
+        if (resolution?.skip) continue // not a real exercise — leave out entirely
+        if (resolution?.exerciseId) {
+          // Picked (or already created inline) via the search dropdown.
+          nameToExerciseId[key] = resolution.exerciseId
+          continue
         }
-        // 'skip' — left out of the map entirely.
+        // Coach didn't touch this row and there was no suggestion to
+        // pre-fill — fall back to creating it under the raw parsed name,
+        // same default as the old single-click import.
+        const res = await fetch('/api/admin/gym-exercises', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: m.name }),
+        })
+        if (res.ok) {
+          const created = await res.json()
+          nameToExerciseId[key] = created.id
+        }
+        // If creation fails (race with an identical name, etc.) this
+        // name's sets are simply left out below — no partial/bad data.
       }
 
       const res = await fetch(`/api/gym/athletes/${clientId}/imports/confirm`, {
@@ -193,8 +205,8 @@ export default function GymImportPage(props: Props) {
   const totalToImport = preview
     ? preview.exerciseMatches.reduce((sum, m) => {
         if (m.matchedExerciseId) return sum + m.count
-        const action = actions.get(nameKey(m.name)) ?? (m.possibleDuplicate ? 'link' : 'create')
-        return action === 'skip' ? sum : sum + m.count
+        const resolution = resolutions.get(nameKey(m.name))
+        return resolution?.skip ? sum : sum + m.count
       }, 0)
     : 0
 
@@ -260,17 +272,17 @@ export default function GymImportPage(props: Props) {
           {unmatched.length > 0 && (
             <Card padding="sm" className="space-y-2">
               <p className="text-sm text-zone-moderate">
-                Нет в справочнике упражнений: {unmatched.length} названий. Похожие на уже
-                существующие упражнения отмечены отдельно — выбери, использовать ли
-                существующее (чтобы не плодить дубликаты вроде «Присед» / «Приседания»),
-                добавить как новое, или пропустить (если это не упражнение).
+                Нет в справочнике упражнений: {unmatched.length} названий. Для каждого — найди
+                похожее или подходящее в справочнике и выбери его (чтобы не плодить дубликаты
+                вроде «Присед» / «Приседания»), либо создай новое прямо в поле, либо пропусти
+                (если это не упражнение).
               </p>
-              <div className="max-h-96 overflow-auto space-y-2 text-xs">
+              <div className="max-h-[32rem] overflow-auto space-y-3 text-xs">
                 {unmatched.map((m) => {
                   const key = nameKey(m.name)
-                  const action = actions.get(key) ?? (m.possibleDuplicate ? 'link' : 'create')
+                  const resolution = resolutions.get(key) ?? { exerciseId: null, exerciseName: '', skip: false }
                   return (
-                    <div key={key} className="rounded-lg border border-border p-2 space-y-1.5">
+                    <div key={key} className="space-y-1.5 rounded-lg border border-border p-2">
                       <p>
                         «{m.name}» <span className="text-text-secondary">×{m.count}</span>
                       </p>
@@ -280,33 +292,28 @@ export default function GymImportPage(props: Props) {
                           {Math.round(m.possibleDuplicate.score * 100)}% совпадение)
                         </p>
                       )}
+                      <fieldset disabled={resolution.skip} className="disabled:opacity-40">
+                        <GymExerciseAutocomplete
+                          defaultQuery={m.possibleDuplicate?.exerciseName ?? ''}
+                          placeholder={`Найти в справочнике или создать «${m.name}»…`}
+                          onSelect={(exercise: GymExerciseOption) =>
+                            updateResolution(key, { exerciseId: exercise.id, exerciseName: exercise.name })
+                          }
+                        />
+                      </fieldset>
                       <div className="flex flex-wrap items-center gap-3">
-                        {m.possibleDuplicate && (
-                          <label className="flex items-center gap-1.5">
-                            <input
-                              type="radio"
-                              name={`action-${key}`}
-                              checked={action === 'link'}
-                              onChange={() => setAction(key, 'link')}
-                            />
-                            Это «{m.possibleDuplicate.exerciseName}»
-                          </label>
-                        )}
-                        <label className="flex items-center gap-1.5">
+                        <p className="text-text-secondary">
+                          {resolution.skip
+                            ? 'Будет пропущено'
+                            : resolution.exerciseId
+                              ? `Будет использовано: «${resolution.exerciseName}»`
+                              : `Без выбора — создастся новое «${m.name}»`}
+                        </p>
+                        <label className="ml-auto flex items-center gap-1.5">
                           <input
-                            type="radio"
-                            name={`action-${key}`}
-                            checked={action === 'create'}
-                            onChange={() => setAction(key, 'create')}
-                          />
-                          Новое упражнение
-                        </label>
-                        <label className="flex items-center gap-1.5">
-                          <input
-                            type="radio"
-                            name={`action-${key}`}
-                            checked={action === 'skip'}
-                            onChange={() => setAction(key, 'skip')}
+                            type="checkbox"
+                            checked={resolution.skip}
+                            onChange={(e) => updateResolution(key, { skip: e.target.checked })}
                           />
                           Пропустить
                         </label>
