@@ -1,7 +1,97 @@
 'use client'
-import { use } from 'react'
-import { useState } from 'react'
+
 import Link from 'next/link'
-import { Card, Input } from '@/components/ui'
+import { use, useState } from 'react'
+import { Card, Input, buttonVariants } from '@/components/ui'
 import { createClient } from '@/lib/supabase/client'
-export default function GymImportPage({params}:{params:Promise<{athleteId:string}>}){const {athleteId:clientId}=use(params);const [status,setStatus]=useState('');async function upload(file:File){if(file.size>10*1024*1024){setStatus('Файл больше 10 МБ');return}const allowed=['application/pdf','application/vnd.openxmlformats-officedocument.wordprocessingml.document'];if(!allowed.includes(file.type)){setStatus('Поддерживаются только PDF и DOCX');return}setStatus('Загружаю…');const signed=await fetch(`/api/gym/athletes/${clientId}/assessments/upload-url`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({fileName:file.name,mimeType:file.type,import:true})});const signedBody=await signed.json().catch(()=>({}));if(!signed.ok){setStatus(signedBody.error??'Не удалось подготовить загрузку');return}const {error}=await createClient().storage.from('assessments').uploadToSignedUrl(signedBody.path,signedBody.token,file,{contentType:file.type});if(error){setStatus('Не удалось загрузить файл');return}const r=await fetch(`/api/gym/athletes/${clientId}/assessments`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({fileName:file.name,mimeType:file.type,storagePath:signedBody.path})});setStatus(r.ok?'Документ импортирован и доступен в профиле клиента':'Не удалось сохранить импорт')}return <main className="mx-auto min-h-[calc(100vh-3.5rem)] max-w-2xl space-y-5 bg-bg p-6 text-text-primary"><Link href={`/gym/athletes/${clientId}/plans`} className="text-sm text-text-secondary">← Планы клиента</Link><h1 className="font-display text-xl uppercase">Импорт тренировки</h1><Card className="space-y-3"><p className="text-sm text-text-secondary">Загрузите план или анкету в формате DOCX или PDF. Документ сохранится в профиле клиента.</p><Input type="file" accept="application/pdf,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx" onChange={e=>{const file=e.target.files?.[0];if(file)void upload(file)}}/>{status&&<p className="text-sm text-text-secondary">{status}</p>}</Card></main>}
+
+export default function GymImportPage({ params }: { params: Promise<{ athleteId: string }> }) {
+  const { athleteId: clientId } = use(params)
+  const [status, setStatus] = useState('')
+  const [uploaded, setUploaded] = useState(false)
+
+  async function upload(file: File) {
+    setUploaded(false)
+
+    if (file.size > 10 * 1024 * 1024) {
+      setStatus('Файл больше 10 МБ')
+      return
+    }
+
+    const allowed = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ]
+    if (!allowed.includes(file.type)) {
+      setStatus('Поддерживаются только PDF и DOCX')
+      return
+    }
+
+    setStatus('Загружаю…')
+    const signed = await fetch(`/api/gym/athletes/${clientId}/assessments/upload-url`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fileName: file.name, mimeType: file.type, import: true }),
+    })
+    const signedBody = await signed.json().catch(() => ({}))
+    if (!signed.ok) {
+      setStatus(signedBody.error ?? 'Не удалось подготовить загрузку')
+      return
+    }
+
+    const { error } = await createClient()
+      .storage
+      .from('assessments')
+      .uploadToSignedUrl(signedBody.path, signedBody.token, file, { contentType: file.type })
+    if (error) {
+      setStatus('Не удалось загрузить файл')
+      return
+    }
+
+    const response = await fetch(`/api/gym/athletes/${clientId}/assessments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fileName: file.name,
+        mimeType: file.type,
+        storagePath: signedBody.path,
+      }),
+    })
+
+    if (!response.ok) {
+      setStatus('Не удалось сохранить импорт')
+      return
+    }
+
+    setStatus('Документ импортирован и доступен в профиле клиента')
+    setUploaded(true)
+  }
+
+  return (
+    <main className="mx-auto min-h-[calc(100vh-3.5rem)] max-w-2xl space-y-5 bg-bg p-6 text-text-primary">
+      <Link href={`/gym/athletes/${clientId}/plans`} className="text-sm text-text-secondary">
+        ← Планы клиента
+      </Link>
+      <h1 className="font-display text-xl uppercase">Импорт тренировки</h1>
+      <Card className="space-y-3">
+        <p className="text-sm text-text-secondary">
+          Загрузите план или анкету в формате DOCX или PDF. Документ сохранится в профиле клиента.
+        </p>
+        <Input
+          type="file"
+          accept="application/pdf,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx"
+          onChange={(event) => {
+            const file = event.target.files?.[0]
+            if (file) void upload(file)
+          }}
+        />
+        {status && <p className="text-sm text-text-secondary">{status}</p>}
+        {uploaded && (
+          <Link href={`/gym/athletes/${clientId}/plans`} className={buttonVariants({ variant: 'secondary' })}>
+            Открыть тренировки клиента
+          </Link>
+        )}
+      </Card>
+    </main>
+  )
+}
