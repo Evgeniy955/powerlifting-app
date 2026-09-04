@@ -53,6 +53,18 @@ export default async function AdminUsersPage() {
     hasPlans: _count.cycles > 0,
   }))
 
+  const gymClients = await prisma.gymClient.findMany({
+    orderBy: { createdAt: 'desc' },
+    select: {
+      id: true,
+      displayName: true,
+      inviteEmail: true,
+      user: { select: { name: true, email: true } },
+      coach: { select: { name: true, email: true } },
+      _count: { select: { plans: true } },
+    },
+  })
+
   return (
     <main className="min-h-[calc(100vh-3.5rem)] bg-bg text-text-primary p-6 max-w-md mx-auto space-y-6 lg:max-w-4xl">
       <div>
@@ -65,6 +77,10 @@ export default async function AdminUsersPage() {
           >
             Упражнения
           </Link>
+          <span className="text-text-secondary">·</span>
+          <Link href="/admin/gym-exercises" className="text-text-secondary transition-colors hover:text-accent hover:underline">
+            Упражнения для зала
+          </Link>
         </div>
         <h1 className="font-display text-xl uppercase tracking-wide">Пользователи</h1>
         <p className="text-sm text-text-secondary">
@@ -73,6 +89,11 @@ export default async function AdminUsersPage() {
       </div>
 
       <AdminUsersView initialUsers={users} currentUserId={user.id} />
+
+      <section className="space-y-2">
+        <h2 className="font-display text-lg uppercase tracking-wide">Клиенты · Тренажёрный зал</h2>
+        {gymClients.length ? <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{gymClients.map((client) => <li key={client.id}><Link href={`/gym/athletes/${client.id}/plans`} className="block rounded-lg border border-border bg-surface p-3 transition-colors hover:border-accent"><p className="font-medium">{client.displayName ?? client.user?.name ?? client.user?.email ?? 'Без имени'}</p><p className="text-xs text-text-secondary">{client.inviteEmail ?? client.user?.email ?? 'Без аккаунта'}</p><p className="mt-1 text-xs text-text-secondary">Тренер: {client.coach?.name ?? client.coach?.email ?? 'не назначен'} · планов: {client._count.plans}</p></Link></li>)}</ul> : <p className="text-sm text-text-secondary">Клиентов тренажёрного зала пока нет.</p>}
+      </section>
 
       {pendingInvitesWithPlans.length > 0 && (
         <div className="space-y-2">

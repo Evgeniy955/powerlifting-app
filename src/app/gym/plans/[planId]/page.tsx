@@ -1,0 +1,8 @@
+import Link from 'next/link'
+import { notFound } from 'next/navigation'
+import { prisma } from '@/lib/prisma'
+import { requireUser } from '@/lib/session'
+import { assertGymPlanAccess } from '@/lib/gym'
+import { Card } from '@/components/ui'
+import { AiCoachButton } from '@/components/AiCoachButton'
+export default async function GymPlanPage({params}:{params:Promise<{planId:string}>}) { const user=await requireUser(); const {planId}=await params; const plan=await prisma.gymPlan.findUnique({where:{id:planId},include:{client:true,weeksData:{orderBy:{weekNumber:'asc'},include:{workouts:{orderBy:{dayNumber:'asc'}}}}}}); if(!plan) notFound(); await assertGymPlanAccess(planId,user); return <main className="mx-auto min-h-[calc(100vh-3.5rem)] max-w-4xl space-y-5 bg-bg p-6 text-text-primary"><div className="flex items-center justify-between"><div><Link href={`/gym/athletes/${plan.clientId}/plans`} className="text-sm text-text-secondary">← Планы</Link><h1 className="font-display text-xl uppercase">{plan.name}</h1></div>{user.role==='COACH'&&<AiCoachButton scope="mesocycle" athleteId={plan.clientId} contextName={plan.name} endpoint="gym"/>}</div><div className="grid gap-3 sm:grid-cols-2">{plan.weeksData.map(w=><Card key={w.id}><Link href={`/gym/weeks/${w.id}`} className="block hover:text-accent"><h2 className="font-display uppercase">Микроцикл {w.weekNumber}</h2><div className="mt-3 flex gap-2">{w.workouts.map(day=><span key={day.id} className="rounded border border-border px-2 py-1 text-xs">День {day.dayNumber}</span>)}</div></Link></Card>)}</div></main> }

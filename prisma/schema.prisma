@@ -17,31 +17,37 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(uuid())
-  email         String    @unique
-  emailVerified DateTime?
-  name          String?
-  image         String?
+  id             String    @id @default(uuid())
+  email          String    @unique
+  emailVerified  DateTime?
+  name           String?
+  image          String?
   // "COACH" | "ATHLETE" — plain string because SQLite (local dev) doesn't support
   // Prisma enums. Switch back to `enum Role` once back on Postgres for production.
-  role          String    @default("ATHLETE")
-  googleId      String?   @unique
-  createdAt     DateTime  @default(now())
+  role           String    @default("ATHLETE")
+  googleId       String?   @unique
+  createdAt      DateTime  @default(now())
   // "Упрощённый режим" checkbox (Микроцикл week view + single-day Workout
   // view) — stored per-user rather than in localStorage so it survives an
   // app reload or signing in from a different browser/device.
-  simplifiedView Boolean  @default(false)
+  simplifiedView Boolean   @default(false)
   // "Компактный режим" checkbox (single-day Workout view) — groups
   // consecutive same weight+reps sets into one "вес / countхповт / %1ПМ"
   // line instead of a row per set. Same per-user persistence reasoning as
   // simplifiedView above.
-  compactView    Boolean  @default(false)
+  compactView    Boolean   @default(false)
 
   // If this user is an athlete, they have exactly one profile
   athleteProfile AthleteProfile?
 
+  // A gym client is a separate domain from a powerlifting athlete. A user can
+  // have either profile (or both, by an explicit coach action), but gym plans
+  // never use AthleteProfile as their owner.
+  gymClientProfile GymClient? @relation("GymClientUser")
+
   // If this user is a coach, they manage many athlete profiles
-  coachedAthletes AthleteProfile[] @relation("CoachAthletes")
+  coachedAthletes   AthleteProfile[] @relation("CoachAthletes")
+  coachedGymClients GymClient[]      @relation("CoachGymClients")
 
   // Required by @auth/prisma-adapter for the database session strategy.
   accounts Account[]
@@ -99,9 +105,9 @@ model AthleteProfile {
   coach   User?   @relation("CoachAthletes", fields: [coachId], references: [id])
 
   // Populated for a coach-created placeholder, before `user` exists.
-  displayName String?
-  inviteEmail String?
-  inviteToken String? @unique
+  displayName  String?
+  inviteEmail  String?
+  inviteToken  String?   @unique
   // "NONE" | "PENDING" | "ACCEPTED" — plain string, not an enum, same reason as
   // User.role: SQLite (local dev) doesn't support Prisma enums.
   inviteStatus String    @default("NONE")
@@ -120,8 +126,7 @@ model AthleteProfile {
   periods      Period[]
   changeLogs   ChangeLog[]
   competitions Competition[]
-
-  createdAt DateTime @default(now())
+  createdAt    DateTime      @default(now())
 
   @@index([coachId])
 }
@@ -236,6 +241,52 @@ model Competition {
   createdAt   DateTime       @default(now())
 
   @@index([athleteId])
+}
+
+// An ordinary gym client is intentionally separate from AthleteProfile.
+// Coaches may create a client before linking a login account to them.
+model GymClient {
+  id          String   @id @default(uuid())
+  userId      String?  @unique
+  user        User?    @relation("GymClientUser", fields: [userId], references: [id], onDelete: Cascade)
+  coachId     String?
+  coach       User?    @relation("CoachGymClients", fields: [coachId], references: [id])
+  displayName String?
+  inviteEmail String?
+  createdAt   DateTime @default(now())
+
+  plans         GymPlan[]
+  maxes         GymClientMax[]
+  healthProfile GymClientHealthProfile?
+  assessments   GymClientAssessment[]
+
+  @@index([coachId])
+}
+
+model GymClientHealthProfile {
+  id                String    @id @default(uuid())
+  clientId          String    @unique
+  client            GymClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  injuries          String?
+  contraindications String?
+  notes             String?
+  updatedAt         DateTime  @updatedAt
+}
+
+// Imported questionnaire / examination files. The file itself lives in
+// Supabase Storage; extractedText lets the AI compare two questionnaires
+// without exposing storage credentials to the browser.
+model GymClientAssessment {
+  id            String    @id @default(uuid())
+  clientId      String
+  client        GymClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  fileName      String
+  mimeType      String
+  storagePath   String
+  extractedText String?
+  createdAt     DateTime  @default(now())
+
+  @@index([clientId, createdAt])
 }
 
 // Reference catalog of exercises (seeded from the "Коэффициенты" sheet).
@@ -409,15 +460,15 @@ model ChangeLog {
   exerciseName    String
 
   // "set-updated" | "set-removed" | "exercise-added" | "exercise-removed"
-  kind       String
-  setEntryId String?
-  setNumber  Int?
+  kind        String
+  setEntryId  String?
+  setNumber   Int?
   // "weight" | "reps" — only set when kind is "set-updated"
   field       String?
   beforeValue Float?
   afterValue  Float?
 
-  actorId String
+  actorId   String
   // "COACH" | "ATHLETE" — always "ATHLETE" today (recordChangeLog is only
   // ever called for athlete-made edits), kept generic in case that changes.
   actorRole String
@@ -431,4 +482,89 @@ model ChangeLog {
   @@index([cycleId, createdAt])
   @@index([workoutId])
   @@index([exerciseEntryId, setEntryId])
+}
+
+// Independent training domain for ordinary gym clients. It intentionally
+// does not reuse powerlifting plan/exercise tables so the two modes can evolve
+// independently and the admin catalog stays unambiguous.
+model GymExerciseCatalog {
+  id          String             @id @default(uuid())
+  name        String             @unique
+  category    String?
+  description String?
+  exercises   GymExerciseEntry[]
+  maxes       GymClientMax[]
+  createdAt   DateTime           @default(now())
+}
+
+model GymClientMax {
+  id         String             @id @default(uuid())
+  clientId   String
+  client     GymClient          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  exerciseId String
+  exercise   GymExerciseCatalog @relation(fields: [exerciseId], references: [id])
+  value      Float
+  updatedAt  DateTime           @updatedAt
+
+  @@unique([clientId, exerciseId])
+  @@index([exerciseId])
+}
+
+model GymPlan {
+  id        String    @id @default(uuid())
+  clientId  String
+  client    GymClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name      String
+  startDate DateTime
+  weeks     Int
+  createdAt DateTime  @default(now())
+  weeksData GymWeek[]
+
+  @@index([clientId, startDate])
+}
+
+model GymWeek {
+  id         String       @id @default(uuid())
+  planId     String
+  plan       GymPlan      @relation(fields: [planId], references: [id], onDelete: Cascade)
+  weekNumber Int
+  workouts   GymWorkout[]
+
+  @@unique([planId, weekNumber])
+}
+
+model GymWorkout {
+  id            String             @id @default(uuid())
+  weekId        String
+  week          GymWeek            @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  scheduledDate DateTime
+  dayNumber     Int
+  entries       GymExerciseEntry[]
+
+  @@index([weekId])
+}
+
+model GymExerciseEntry {
+  id         String             @id @default(uuid())
+  workoutId  String
+  workout    GymWorkout         @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  exerciseId String
+  exercise   GymExerciseCatalog @relation(fields: [exerciseId], references: [id])
+  orderIndex Int                @default(0)
+  oneRepMax  Float?
+  sets       GymSetEntry[]
+
+  @@index([workoutId])
+}
+
+model GymSetEntry {
+  id        String           @id @default(uuid())
+  entryId   String
+  entry     GymExerciseEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  setNumber Int
+  weight    Float
+  reps      Int
+  completed Boolean          @default(false)
+
+  @@index([entryId])
 }

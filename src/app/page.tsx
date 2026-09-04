@@ -1,8 +1,8 @@
-import { ArrowRight, Dumbbell, Activity, Lock } from 'lucide-react'
+import { ArrowRight, Dumbbell, Activity } from 'lucide-react'
 import { getCurrentUser } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import Link from 'next/link'
-import { buttonVariants, Badge, Card } from '@/components/ui'
+import { buttonVariants, Card } from '@/components/ui'
 import { HeroBackground } from '@/components/HeroBackground'
 
 export default async function HomePage() {
@@ -28,6 +28,7 @@ export default async function HomePage() {
   }
 
   let athleteProfileId: string | null = null
+  let gymClientId: string | null = null
   // The coach picks this name when creating the athlete's profile — for an
   // athlete it's what the greeting below should use, instead of user.name
   // (whatever their linked Google account happens to be called, which for
@@ -35,9 +36,13 @@ export default async function HomePage() {
   // than a real name).
   let athleteProfileName: string | null = null
   if (user.role === 'ATHLETE') {
-    const profile = await prisma.athleteProfile.findUnique({ where: { userId: user.id } })
+    const [profile, gymClient] = await Promise.all([
+      prisma.athleteProfile.findUnique({ where: { userId: user.id } }),
+      prisma.gymClient.findUnique({ where: { userId: user.id } }),
+    ])
     athleteProfileId = profile?.id ?? null
-    athleteProfileName = profile?.displayName ?? null
+    athleteProfileName = profile?.displayName ?? gymClient?.displayName ?? null
+    gymClientId = gymClient?.id ?? null
   }
 
   const greetingName = athleteProfileName ?? user.name ?? 'спортсмен'
@@ -47,6 +52,13 @@ export default async function HomePage() {
       ? '/athletes'
       : athleteProfileId
         ? `/athletes/${athleteProfileId}/cycles`
+        : null
+
+  const gymHref =
+    user.role === 'COACH'
+      ? '/gym/athletes'
+      : gymClientId
+        ? `/gym/athletes/${gymClientId}/plans`
         : null
 
   return (
@@ -93,7 +105,9 @@ export default async function HomePage() {
             </Card>
           )}
 
-          <Card className="flex h-full flex-col gap-3 opacity-60" aria-disabled="true">
+          {gymHref ? (
+          <Link href={gymHref} className="group text-left">
+          <Card className="flex h-full flex-col gap-3 transition-colors group-hover:border-accent">
             <div className="flex h-11 w-11 items-center justify-center rounded-full bg-surface-2 text-text-secondary">
               <Activity className="h-5 w-5" />
             </div>
@@ -102,11 +116,20 @@ export default async function HomePage() {
               <p className="text-sm text-text-secondary">Обычные тренировки</p>
             </div>
             <span className="mt-auto inline-flex items-center gap-1.5">
-              <Badge tone="neutral" className="inline-flex items-center gap-1">
-                <Lock className="h-3 w-3" /> Скоро
-              </Badge>
+              <span className="inline-flex items-center gap-1.5 text-sm text-accent">Открыть режим <ArrowRight className="h-4 w-4" /></span>
             </span>
-          </Card>
+          </Card></Link>
+          ) : (
+            <Card className="flex h-full flex-col gap-3 opacity-60">
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-surface-2 text-text-secondary">
+                <Activity className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="font-display text-lg uppercase tracking-wide">Тренажёрный зал</h2>
+                <p className="text-sm text-text-secondary">Профиль клиента ещё не создан</p>
+              </div>
+            </Card>
+          )}
         </div>
       </div>
     </main>

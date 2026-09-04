@@ -20,10 +20,22 @@ export async function AppHeader() {
   const user = await getCurrentUser()
 
   let athleteProfileId: string | null = null
+  let gymClientId: string | null = null
   if (user?.role === 'ATHLETE') {
-    const profile = await prisma.athleteProfile.findUnique({ where: { userId: user.id } })
+    const [profile, gymClient] = await Promise.all([
+      prisma.athleteProfile.findUnique({ where: { userId: user.id } }),
+      prisma.gymClient.findUnique({ where: { userId: user.id } }),
+    ])
     athleteProfileId = profile?.id ?? null
+    gymClientId = gymClient?.id ?? null
   }
+
+  const gymHref =
+    user?.role === 'COACH'
+      ? '/gym/athletes'
+      : gymClientId
+        ? `/gym/athletes/${gymClientId}/plans`
+        : '/'
 
   // Same links as the desktop nav below, just collected once so the mobile
   // hamburger (MobileNavMenu) can render the identical set.
@@ -32,13 +44,17 @@ export async function AppHeader() {
       ? [
           { href: '/athletes', label: 'Мои спортсмены', emphasis: true },
           { href: '/admin/users', label: 'Админка' },
+          { href: gymHref, label: 'Тренажёрный зал' },
           { href: '/faq', label: 'Помощь' },
         ]
-      : user?.role === 'ATHLETE' && athleteProfileId
+      : user?.role === 'ATHLETE'
         ? [
-            { href: `/athletes/${athleteProfileId}/cycles`, label: 'Мои планы', emphasis: true },
-            { href: `/athletes/${athleteProfileId}/supplements`, label: 'Спортпит' },
-            { href: `/athletes/${athleteProfileId}/competitions`, label: 'Соревнования' },
+            ...(athleteProfileId ? [
+              { href: `/athletes/${athleteProfileId}/cycles`, label: 'Мои планы', emphasis: true },
+              { href: `/athletes/${athleteProfileId}/supplements`, label: 'Спортпит' },
+              { href: `/athletes/${athleteProfileId}/competitions`, label: 'Соревнования' },
+            ] : []),
+            ...(gymClientId ? [{ href: gymHref, label: 'Тренажёрный зал', emphasis: !athleteProfileId }] : []),
             { href: '/faq', label: 'Помощь' },
           ]
         : []
@@ -76,6 +92,7 @@ export async function AppHeader() {
                   >
                     Админка
                   </Link>
+                  <Link href={gymHref} className="hidden text-sm text-text-secondary transition-colors hover:text-accent hover:underline md:inline">Тренажёрный зал</Link>
                 </>
               )}
               {user.role === 'ATHLETE' && athleteProfileId && (
@@ -99,6 +116,9 @@ export async function AppHeader() {
                     Соревнования
                   </Link>
                 </>
+              )}
+              {user.role === 'ATHLETE' && gymClientId && (
+                <Link href={gymHref} className="hidden text-sm text-text-secondary transition-colors hover:text-accent hover:underline md:inline">Тренажёрный зал</Link>
               )}
               <Link
                 href="/faq"
