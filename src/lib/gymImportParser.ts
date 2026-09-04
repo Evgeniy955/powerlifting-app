@@ -135,10 +135,20 @@ function extractGroups(line: string): { name: string; groups: Group[] } {
   while ((match = GROUP_RE.exec(line))) {
     if (firstIndex === -1) firstIndex = match.index
     const weight = match[1] ? roundToHalf(toAverage(match[1])) : 0
-    const sets = Math.round(Number(match[2]))
     const repsText = match[3]
     const toFailure = MAX_WORD.test(repsText)
-    const reps = toFailure ? TO_FAILURE_PLACEHOLDER_REPS : Math.round(toAverage(repsText))
+    let sets = Math.round(Number(match[2]))
+    let reps = toFailure ? TO_FAILURE_PLACEHOLDER_REPS : Math.round(toAverage(repsText))
+    // Some exercises are written rep-count-first, set-count-second — e.g.
+    // "Подъем штанги на бицепс 21х4" means 21 reps for 4 sets, not 21
+    // sets of 4 (which would be nonsense). If the primary reading has an
+    // implausible set count (>20) but swapping the two numbers gives an
+    // ordinary sets×reps pair, use the swap instead of discarding the line.
+    if (!toFailure && sets > 20 && sets <= 100 && reps > 0 && reps <= 20) {
+      const swapped = { sets: reps, reps: sets }
+      sets = swapped.sets
+      reps = swapped.reps
+    }
     if (sets > 0 && sets <= 20 && reps > 0 && reps <= 100 && weight >= 0 && weight <= 2000) {
       groups.push({ weight, sets, reps, toFailure })
     }
