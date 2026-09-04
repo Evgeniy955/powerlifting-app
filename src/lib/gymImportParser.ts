@@ -171,6 +171,31 @@ function extractGroups(line: string): { name: string; groups: Group[] } {
   return { name, groups }
 }
 
+// Common gym-program splits, most-preferred first — used only when a
+// document has no real dates at all to bucket by (see trainingsPerWeekGuess
+// above). Prefers whichever of these evenly divides the total workout
+// count (12 -> 3/week for 4 weeks), and otherwise falls back to whichever
+// leaves the smallest remainder so only the last week is short.
+const COMMON_TRAININGS_PER_WEEK = [3, 4, 5, 6, 2]
+
+function guessTrainingsPerWeek(total: number): number {
+  if (total <= 1) return total || 1
+  for (const d of COMMON_TRAININGS_PER_WEEK) {
+    if (d <= total && total % d === 0) return d
+  }
+  let best = COMMON_TRAININGS_PER_WEEK[0]
+  let bestRemainder = total % best
+  for (const d of COMMON_TRAININGS_PER_WEEK.slice(1)) {
+    if (d > total) continue
+    const remainder = total % d
+    if (remainder < bestRemainder) {
+      best = d
+      bestRemainder = remainder
+    }
+  }
+  return best
+}
+
 export function parseGymPlanText(rawText: string, planName?: string): ParsedGymPlan {
   const text = stripFormatting(rawText)
   const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
@@ -236,22 +261,37 @@ export function parseGymPlanText(rawText: string, planName?: string): ParsedGymP
   const firstDate = sorted.find((bucket) => bucket.date)?.date ?? null
   const DAY_MS = 24 * 60 * 60 * 1000
 
+  // A document with no date headers at all — just numbered day markers
+  // ("1", "2", "3"...) or a single undated paste — has no real calendar to
+  // bucket by. Guess a plausible trainings-per-week split from the total
+  // count instead of assuming a fixed 7-per-week (which would cram a whole
+  // week's worth of training into a few real days): 12 numbered workouts
+  // most likely means 3 sessions/week for 4 weeks, not 7 then 5.
+  const trainingsPerWeekGuess = firstDate ? null : guessTrainingsPerWeek(sorted.length)
+
   // Week buckets of 7 real calendar days from the earliest training date —
   // not "7 entries per week" — so a document that skips days (15.06, then
   // 17.06) still lands in the right microcycle instead of an evenly-spaced
-  // fake schedule. A bucket with no real date (a bare "1"/"2"/... day
-  // number, or no headers at all) falls back to its position among the
-  // other buckets as its "days since start" — so an undated document still
-  // splits into 7-day microcycles, same as before real dates were parsed.
+  // fake schedule. A bucket with no real date at all (the whole document is
+  // undated) instead buckets by the guessed trainings-per-week above.
   // Within a week, day is just the sequential slot (1, 2, 3...) among that
   // week's training days, matching how GymWeekView already labels them
   // ("День 1" / "День 2") regardless of weekday.
   const dayCountByWeek = new Map<number, number>()
   const workouts: ImportedWorkout[] = sorted.map((bucket, index) => {
-    const daysSinceStart = bucket.date && firstDate
-      ? Math.round((bucket.date.getTime() - firstDate.getTime()) / DAY_MS)
-      : index
-    const week = Math.floor(daysSinceStart / 7) + 1
+    let week: number
+    if (bucket.date && firstDate) {
+      const daysSinceStart = Math.round((bucket.date.getTime() - firstDate.getTime()) / DAY_MS)
+      week = Math.floor(daysSinceStart / 7) + 1
+    } else if (trainingsPerWeekGuess) {
+      week = Math.floor(index / trainingsPerWeekGuess) + 1
+    } else {
+      // Mixed dated/undated document — an undated bucket among dated ones
+      // has no per-week guess to lean on, so it keeps the old positional
+      // fallback (7 slots/week) rather than a guess based on the whole
+      // document's count, which wouldn't mean much here.
+      week = Math.floor(index / 7) + 1
+    }
     const day = (dayCountByWeek.get(week) ?? 0) + 1
     dayCountByWeek.set(week, day)
     return {
