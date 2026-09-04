@@ -159,6 +159,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ athlete
 
     return NextResponse.json({ planId, workouts: workouts.length })
   } catch (error) {
+    // apiErrorResponse only logs the error's name/type (never its message,
+    // to avoid leaking internals to the client) — that's not enough to
+    // diagnose a genuine server bug from the terminal, so log the full
+    // error here first. Check this server's stdout after a failed import.
+    console.error('Gym import confirm failed', error)
     return apiErrorResponse(error)
   }
 }
