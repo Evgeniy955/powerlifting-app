@@ -30,7 +30,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ weekId:
       },
     })
     if (!week) {
-      return NextResponse.json({ error: 'Микроцикл не найден' }, { status: 404 })
+      return NextResponse.json({ error: 'Неделя не найдена' }, { status: 404 })
     }
     await assertGymClientAccessible(week.plan.clientId, user)
 

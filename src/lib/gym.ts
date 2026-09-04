@@ -20,6 +20,18 @@ export async function assertGymPlanAccess(planId: string, user: SessionUser) {
   return plan
 }
 
+// "15.06.2026" or "15.06.2026 – 21.06.2026" — the calendar span a
+// microcycle's ("Неделя") training days actually fall on, shown next to
+// the week number wherever it's listed (plan page's week grid, week page
+// heading) since week numbering alone doesn't say which real dates it is.
+export function formatGymWeekDateRange(workouts: { scheduledDate: Date }[]): string | null {
+  if (!workouts.length) return null
+  const dates = workouts.map((w) => w.scheduledDate.toISOString().slice(0, 10)).sort()
+  const first = dates[0]
+  const last = dates[dates.length - 1]
+  return first === last ? first : `${first} – ${last}`
+}
+
 export async function getGymWeekForDisplay(weekId: string) {
   return prisma.gymWeek.findUnique({
     where: { id: weekId },

@@ -7,7 +7,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ weekId:
   try {
     const coach = await requireCoach(); const { weekId } = await params
     const week = await prisma.gymWeek.findUnique({ where: { id: weekId }, include: { plan: true, workouts: { select: { dayNumber: true } } } })
-    if (!week) return NextResponse.json({ error: 'Микроцикл не найден' }, { status: 404 })
+    if (!week) return NextResponse.json({ error: 'Неделя не найдена' }, { status: 404 })
     await assertGymClientBelongsToCoach(week.plan.clientId, coach.id)
     const { scheduledDate } = await req.json() as { scheduledDate?: string }
     const date = new Date(scheduledDate ?? '')
