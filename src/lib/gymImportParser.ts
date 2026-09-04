@@ -20,8 +20,13 @@
 // bucketed into weeks of 7 real calendar days starting from the earliest
 // training date — so a plan built from a document that skips days (e.g.
 // 15.06 then 17.06) keeps its actual training dates instead of being
-// squashed into a fake 7-day-a-week schedule. If no date headers are
-// present, everything becomes a single week/day with no explicit date.
+// squashed into a fake 7-day-a-week schedule.
+//
+// Templates that number training days instead of dating them ("1", "2", "3"
+// alone on their own line) also start a new day — with no real date, but
+// still a new workout bucket, so the whole document doesn't collapse into
+// one giant "day". Undated buckets fall back to positional 7-per-week
+// bucketing (same as when a document has no day headers at all).
 
 export type ImportedSet = { weight: number; reps: number }
 export type ImportedExercise = { name: string; sets: ImportedSet[]; oneRepMax: number | null }
@@ -42,6 +47,13 @@ export type ParsedGymPlan = {
 }
 
 const DATE_LINE = /^(\d{1,2})\.(\d{1,2})\.(\d{2,4})$/
+// A day header that's just a bare number ("1", "2", ... on its own line) —
+// common in templates that number training days instead of dating them
+// ("День 1", "Тренировка 2"). No real calendar date to attach, but it must
+// still start a new workout bucket — without this, a whole multi-day
+// document with no dd.mm.yy headers collapses into a single giant "day"
+// (every exercise from every numbered day dumped into one workout).
+const BARE_DAY_LINE = /^\d{1,3}$/
 const WEEKDAY_NAMES = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота']
 
 // dd.mm.yy(yy) -> a real UTC date (noon, to stay clear of DST/timezone
@@ -93,6 +105,14 @@ function stripFormatting(text: string): string {
 
 type Group = { weight: number; sets: number; reps: number }
 
+// Fallback for a line with no "sets×reps" token at all, just a bare
+// dash-separated sequence of per-set rep counts — "12-10-8-6-4" (pyramid:
+// 5 sets, 12 reps then 10 then 8...), "10-8-6-6". Very common in real
+// training logs and otherwise indistinguishable from a stray number, so
+// it's only tried once the primary GROUP_RE has found nothing: at least 2
+// numbers, each a plausible rep count (1-100).
+const BARE_SEQUENCE_RE = /\d{1,3}(?:\s*-\s*\d{1,3}){1,9}/
+
 function extractGroups(line: string): { name: string; groups: Group[] } {
   GROUP_RE.lastIndex = 0
   const groups: Group[] = []
@@ -107,6 +127,18 @@ function extractGroups(line: string): { name: string; groups: Group[] } {
       groups.push({ weight, sets, reps })
     }
   }
+
+  if (!groups.length) {
+    const seqMatch = line.match(BARE_SEQUENCE_RE)
+    if (seqMatch) {
+      const reps = seqMatch[0].split('-').map((part) => Math.round(Number(part.trim())))
+      if (reps.length >= 2 && reps.every((r) => r > 0 && r <= 100)) {
+        firstIndex = seqMatch.index ?? -1
+        for (const r of reps) groups.push({ weight: 0, sets: 1, reps: r })
+      }
+    }
+  }
+
   const name = (firstIndex === -1 ? line : line.slice(0, firstIndex))
     .replace(/[,;:\s]+$/, '')
     .trim()
@@ -129,6 +161,11 @@ export function parseGymPlanText(rawText: string, planName?: string): ParsedGymP
       current = { date: parseDateHeader(dateMatch), sourceOrder: days.length, exercises: [] }
       days.push(current)
       if (!firstDateLabel) firstDateLabel = rawLine
+      continue
+    }
+    if (BARE_DAY_LINE.test(rawLine)) {
+      current = { date: null, sourceOrder: days.length, exercises: [] }
+      days.push(current)
       continue
     }
 
@@ -176,14 +213,19 @@ export function parseGymPlanText(rawText: string, planName?: string): ParsedGymP
   // Week buckets of 7 real calendar days from the earliest training date —
   // not "7 entries per week" — so a document that skips days (15.06, then
   // 17.06) still lands in the right microcycle instead of an evenly-spaced
-  // fake schedule. Within a week, day is just the sequential slot (1, 2,
-  // 3...) among that week's training days, matching how GymWeekView already
-  // labels them ("День 1" / "День 2") regardless of weekday.
+  // fake schedule. A bucket with no real date (a bare "1"/"2"/... day
+  // number, or no headers at all) falls back to its position among the
+  // other buckets as its "days since start" — so an undated document still
+  // splits into 7-day microcycles, same as before real dates were parsed.
+  // Within a week, day is just the sequential slot (1, 2, 3...) among that
+  // week's training days, matching how GymWeekView already labels them
+  // ("День 1" / "День 2") regardless of weekday.
   const dayCountByWeek = new Map<number, number>()
-  const workouts: ImportedWorkout[] = sorted.map((bucket) => {
-    const week = bucket.date && firstDate
-      ? Math.floor((bucket.date.getTime() - firstDate.getTime()) / (7 * DAY_MS)) + 1
-      : 1
+  const workouts: ImportedWorkout[] = sorted.map((bucket, index) => {
+    const daysSinceStart = bucket.date && firstDate
+      ? Math.round((bucket.date.getTime() - firstDate.getTime()) / DAY_MS)
+      : index
+    const week = Math.floor(daysSinceStart / 7) + 1
     const day = (dayCountByWeek.get(week) ?? 0) + 1
     dayCountByWeek.set(week, day)
     return {
