@@ -120,6 +120,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ athlete
                               setNumber: setIndex + 1,
                               weight: set.weight,
                               reps: set.reps,
+                              toFailure: set.toFailure ?? false,
                             })),
                           },
                         })),

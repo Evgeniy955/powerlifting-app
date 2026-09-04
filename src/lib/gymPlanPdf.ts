@@ -1,7 +1,7 @@
 import { jsPDF } from 'jspdf'
 import { DEJAVU_SANS_REGULAR_BASE64, DEJAVU_SANS_BOLD_BASE64 } from '@/lib/fonts/dejaVuSansBase64'
 
-export type PdfSet = { setNumber: number; weight: number; reps: number }
+export type PdfSet = { setNumber: number; weight: number; reps: number; toFailure: boolean }
 export type PdfExercise = { name: string; oneRepMax: number | null; sets: PdfSet[] }
 export type PdfWorkout = { dayNumber: number; scheduledDate: Date; exercises: PdfExercise[] }
 export type PdfWeek = { weekNumber: number; workouts: PdfWorkout[] }
@@ -23,14 +23,17 @@ function formatDate(date: Date): string {
 // sets elsewhere (see GymWorkoutEditor's compactSets).
 function formatSets(sets: PdfSet[]): string {
   if (!sets.length) return '—'
-  const groups: { weight: number; reps: number; count: number }[] = []
+  const groups: { weight: number; reps: number; toFailure: boolean; count: number }[] = []
   for (const set of sets) {
     const last = groups[groups.length - 1]
-    if (last && last.weight === set.weight && last.reps === set.reps) last.count += 1
-    else groups.push({ weight: set.weight, reps: set.reps, count: 1 })
+    if (last && last.weight === set.weight && last.reps === set.reps && last.toFailure === set.toFailure) last.count += 1
+    else groups.push({ weight: set.weight, reps: set.reps, toFailure: set.toFailure, count: 1 })
   }
   return groups
-    .map((g) => (g.weight > 0 ? `${g.weight}кг×${g.reps}` : `×${g.reps}`) + (g.count > 1 ? ` (×${g.count})` : ''))
+    .map((g) => {
+      const repsLabel = g.toFailure ? 'до отказа' : String(g.reps)
+      return (g.weight > 0 ? `${g.weight}кг×${repsLabel}` : `×${repsLabel}`) + (g.count > 1 ? ` (×${g.count})` : '')
+    })
     .join(', ')
 }
 

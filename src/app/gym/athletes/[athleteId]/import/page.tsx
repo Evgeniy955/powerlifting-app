@@ -199,7 +199,12 @@ export default function GymImportPage(props: Props) {
   }
 
   function summarizeSets(exercise: ImportedExercise) {
-    return exercise.sets.map((s) => (s.weight > 0 ? `${s.weight}×${s.reps}` : `×${s.reps}`)).join(', ')
+    return exercise.sets
+      .map((s) => {
+        const repsLabel = s.toFailure ? 'до отказа' : String(s.reps)
+        return s.weight > 0 ? `${s.weight}×${repsLabel}` : `×${repsLabel}`
+      })
+      .join(', ')
   }
 
   const totalToImport = preview

@@ -54,7 +54,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ planId:
           exercises: workout.entries.map((entry) => ({
             name: entry.exercise.name,
             oneRepMax: entry.oneRepMax,
-            sets: entry.sets.map((set) => ({ setNumber: set.setNumber, weight: set.weight, reps: set.reps })),
+            sets: entry.sets.map((set) => ({ setNumber: set.setNumber, weight: set.weight, reps: set.reps, toFailure: set.toFailure })),
           })),
         })),
       })),

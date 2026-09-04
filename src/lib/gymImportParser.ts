@@ -28,7 +28,12 @@
 // one giant "day". Undated buckets fall back to positional 7-per-week
 // bucketing (same as when a document has no day headers at all).
 
-export type ImportedSet = { weight: number; reps: number }
+// toFailure marks a set that the source document wrote as "до отказа"
+// ("max"/"макс"/"отказ", no fixed rep count) rather than a real prescribed
+// number — reps then holds a placeholder (see TO_FAILURE_PLACEHOLDER_REPS)
+// so the schema's required Int column still has a value, but every UI
+// surface must check this flag and show "до отказа" instead of the number.
+export type ImportedSet = { weight: number; reps: number; toFailure?: boolean }
 export type ImportedExercise = { name: string; sets: ImportedSet[]; oneRepMax: number | null }
 export type ImportedWorkout = {
   week: number
@@ -79,10 +84,19 @@ const NUMBER = /\d+(?:[.,]\d+)?/
 const NUMBER_OR_RANGE = new RegExp(`${NUMBER.source}(?:\\s*-\\s*${NUMBER.source})*`)
 const SET_SEP = /[xхX×\/]/ // latin x, cyrillic х, multiplication sign, slash
 
-// weight (optional, with optional range/unit) + sets<sep>reps (required, with optional reps range)
+// "до отказа" written as max/максимум/отказ instead of a rep count — see
+// ImportedSet.toFailure. Reps then gets this placeholder so the required
+// Int column still has a value; every display surface must check the flag
+// and show "до отказа" rather than treating it as a literal prescribed
+// number.
+const MAX_WORD = /max|макс(?:имум)?|отказ[а-я]*/i
+export const TO_FAILURE_PLACEHOLDER_REPS = 12
+
+// weight (optional, with optional range/unit) + sets<sep>reps (required — a
+// numeric rep count/range, or a "до отказа" word)
 const GROUP_RE = new RegExp(
   `(?:(${NUMBER_OR_RANGE.source})\\s*(?:кг|kg)?\\s+)?` + // optional weight
-  `(\\d+)\\s*${SET_SEP.source}\\s*(${NUMBER_OR_RANGE.source})`, // sets x reps
+  `(\\d+)\\s*${SET_SEP.source}\\s*(${NUMBER_OR_RANGE.source}|${MAX_WORD.source})`, // sets x reps
   'gi',
 )
 
@@ -103,7 +117,7 @@ function stripFormatting(text: string): string {
   return text.replace(/\*\*/g, '').replace(/[_`]/g, '')
 }
 
-type Group = { weight: number; sets: number; reps: number }
+type Group = { weight: number; sets: number; reps: number; toFailure: boolean }
 
 // Fallback for a line with no "sets×reps" token at all, just a bare
 // dash-separated sequence of per-set rep counts — "12-10-8-6-4" (pyramid:
@@ -122,9 +136,11 @@ function extractGroups(line: string): { name: string; groups: Group[] } {
     if (firstIndex === -1) firstIndex = match.index
     const weight = match[1] ? roundToHalf(toAverage(match[1])) : 0
     const sets = Math.round(Number(match[2]))
-    const reps = Math.round(toAverage(match[3]))
+    const repsText = match[3]
+    const toFailure = MAX_WORD.test(repsText)
+    const reps = toFailure ? TO_FAILURE_PLACEHOLDER_REPS : Math.round(toAverage(repsText))
     if (sets > 0 && sets <= 20 && reps > 0 && reps <= 100 && weight >= 0 && weight <= 2000) {
-      groups.push({ weight, sets, reps })
+      groups.push({ weight, sets, reps, toFailure })
     }
   }
 
@@ -134,7 +150,7 @@ function extractGroups(line: string): { name: string; groups: Group[] } {
       const reps = seqMatch[0].split('-').map((part) => Math.round(Number(part.trim())))
       if (reps.length >= 2 && reps.every((r) => r > 0 && r <= 100)) {
         firstIndex = seqMatch.index ?? -1
-        for (const r of reps) groups.push({ weight: 0, sets: 1, reps: r })
+        for (const r of reps) groups.push({ weight: 0, sets: 1, reps: r, toFailure: false })
       }
     }
   }
@@ -187,7 +203,7 @@ export function parseGymPlanText(rawText: string, planName?: string): ParsedGymP
     const sets: ImportedSet[] = []
     for (const group of groups) {
       for (let i = 0; i < group.sets; i += 1) {
-        sets.push({ weight: group.weight, reps: group.reps })
+        sets.push({ weight: group.weight, reps: group.reps, ...(group.toFailure ? { toFailure: true } : {}) })
       }
     }
     current.exercises.push({ name: name.slice(0, 160), sets, oneRepMax: null })

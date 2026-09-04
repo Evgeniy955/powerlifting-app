@@ -61,7 +61,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ planId:
       orderIndex: number
       oneRepMax: number | null
     }[] = []
-    const setsData: { entryId: string; setNumber: number; weight: number; reps: number }[] = []
+    const setsData: { entryId: string; setNumber: number; weight: number; reps: number; toFailure: boolean }[] = []
 
     for (const week of source.weeksData) {
       const newWeekId = randomUUID()
@@ -92,6 +92,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ planId:
               setNumber: set.setNumber,
               weight: set.weight,
               reps: set.reps,
+              toFailure: set.toFailure,
             })
           }
         }

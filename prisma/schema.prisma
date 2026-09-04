@@ -565,6 +565,10 @@ model GymSetEntry {
   weight    Float
   reps      Int
   completed Boolean          @default(false)
+  // "До отказа" (AMRAP) — reps holds a placeholder number in this case
+  // (see TO_FAILURE_PLACEHOLDER_REPS in gymImportParser.ts), not a real
+  // prescribed count; UI must show "до отказа" instead of the number.
+  toFailure Boolean          @default(false)
 
   @@index([entryId])
 }
