@@ -76,7 +76,11 @@ export default function GymImportPage({ params }: { params: Promise<{ athleteId:
       return
     }
 
-    setStatus(`План импортирован: тренировок ${importedBody.workouts ?? 0}`)
+    const skipped = Array.isArray(importedBody.unmatchedLines) ? importedBody.unmatchedLines.length : 0
+    setStatus(
+      `План импортирован: тренировок ${importedBody.workouts ?? 0}` +
+        (skipped ? `. Не распознано строк: ${skipped} — добавьте их вручную.` : ''),
+    )
     setPlanId(importedBody.planId)
   }
 
@@ -88,10 +92,13 @@ export default function GymImportPage({ params }: { params: Promise<{ athleteId:
       <h1 className="font-display text-xl uppercase">Импорт тренировки</h1>
       <Card className="space-y-3">
         <p className="text-sm text-text-secondary">
-          Загрузите план в формате DOCX или PDF. AI извлечёт тренировки, упражнения, подходы и веса.
+          Загрузите план в формате DOCX или PDF. Тренировки, упражнения, подходы и веса
+          распознаются автоматически по тексту документа — без AI.
         </p>
         <p className="text-xs text-text-secondary">
-          Для распознавания план передаётся в Gemini. Не загружайте документы, на передачу которых у вас нет согласия.
+          Поддерживаемая запись подхода: «Упражнение 120 4х6» или «Упражнение 120 4/6»
+          (вес, количество подходов, количество повторов). Строки, которые не удалось
+          разобрать, останутся без изменений — добавьте их вручную после импорта.
         </p>
         <Input
           type="file"
