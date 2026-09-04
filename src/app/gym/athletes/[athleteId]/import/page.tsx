@@ -8,10 +8,10 @@ import { createClient } from '@/lib/supabase/client'
 export default function GymImportPage({ params }: { params: Promise<{ athleteId: string }> }) {
   const { athleteId: clientId } = use(params)
   const [status, setStatus] = useState('')
-  const [uploaded, setUploaded] = useState(false)
+  const [planId, setPlanId] = useState<string | null>(null)
 
   async function upload(file: File) {
-    setUploaded(false)
+    setPlanId(null)
 
     if (file.size > 10 * 1024 * 1024) {
       setStatus('Файл больше 10 МБ')
@@ -27,7 +27,7 @@ export default function GymImportPage({ params }: { params: Promise<{ athleteId:
       return
     }
 
-    setStatus('Загружаю…')
+    setStatus('Загружаю и распознаю план…')
     const signed = await fetch(`/api/gym/athletes/${clientId}/assessments/upload-url`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -58,13 +58,26 @@ export default function GymImportPage({ params }: { params: Promise<{ athleteId:
       }),
     })
 
-    if (!response.ok) {
+    const assessment = await response.json().catch(() => ({}))
+    if (!response.ok || typeof assessment.id !== 'string') {
       setStatus('Не удалось сохранить импорт')
       return
     }
 
-    setStatus('Документ импортирован и доступен в профиле клиента')
-    setUploaded(true)
+    setStatus('Распознаю тренировки…')
+    const imported = await fetch(`/api/gym/athletes/${clientId}/imports`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ assessmentId: assessment.id }),
+    })
+    const importedBody = await imported.json().catch(() => ({}))
+    if (!imported.ok || typeof importedBody.planId !== 'string') {
+      setStatus(importedBody.error ?? 'Документ сохранён, но план не удалось создать')
+      return
+    }
+
+    setStatus(`План импортирован: тренировок ${importedBody.workouts ?? 0}`)
+    setPlanId(importedBody.planId)
   }
 
   return (
@@ -75,7 +88,10 @@ export default function GymImportPage({ params }: { params: Promise<{ athleteId:
       <h1 className="font-display text-xl uppercase">Импорт тренировки</h1>
       <Card className="space-y-3">
         <p className="text-sm text-text-secondary">
-          Загрузите план или анкету в формате DOCX или PDF. Документ сохранится в профиле клиента.
+          Загрузите план в формате DOCX или PDF. AI извлечёт тренировки, упражнения, подходы и веса.
+        </p>
+        <p className="text-xs text-text-secondary">
+          Для распознавания план передаётся в Gemini. Не загружайте документы, на передачу которых у вас нет согласия.
         </p>
         <Input
           type="file"
@@ -86,9 +102,9 @@ export default function GymImportPage({ params }: { params: Promise<{ athleteId:
           }}
         />
         {status && <p className="text-sm text-text-secondary">{status}</p>}
-        {uploaded && (
-          <Link href={`/gym/athletes/${clientId}/plans`} className={buttonVariants({ variant: 'secondary' })}>
-            Открыть тренировки клиента
+        {planId && (
+          <Link href={`/gym/plans/${planId}`} className={buttonVariants({ variant: 'secondary' })}>
+            Открыть импортированный план
           </Link>
         )}
       </Card>
