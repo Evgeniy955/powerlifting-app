@@ -233,7 +233,7 @@ export function renderCycleWorkbook(
         row.height = 15
 
         row.getCell(2).value = position + 1
-        row.getCell(2).alignment = { horizontal: 'center' }
+        row.getCell(2).alignment = { horizontal: 'center', vertical: 'middle' }
 
         const nameCell = row.getCell(3)
         nameCell.value = entry.exercise.name
@@ -246,17 +246,32 @@ export function renderCycleWorkbook(
         nameCell.alignment = { wrapText: true, vertical: 'middle' }
 
         row.getCell(4).value = entry.multiplier !== 1 ? entry.multiplier : null
+        row.getCell(4).alignment = { vertical: 'middle' }
 
+        // Excel's default vertical alignment is "bottom" when unset — fine
+        // for a single-line row, but nameCell above can wrap a long
+        // exercise name onto 2+ lines and grow the whole row, which then
+        // left every load figure sitting on the row's bottom border instead
+        // of centered like the exercise name next to it. Explicit
+        // vertical: 'middle' on every data cell in the row keeps them
+        // aligned with each other regardless of row height.
         const oneRepMax = entry.oneRepMax ?? 0
         groups.slice(0, maxGroups).forEach((g, gi) => {
           const base = FIXED_COLS + gi * GROUP_COLS
-          row.getCell(base + 1).value = g.weight
-          row.getCell(base + 2).value = g.count
-          row.getCell(base + 3).value = g.reps
+          const weightCell = row.getCell(base + 1)
+          weightCell.value = g.weight
+          weightCell.alignment = { vertical: 'middle' }
+          const countCell = row.getCell(base + 2)
+          countCell.value = g.count
+          countCell.alignment = { vertical: 'middle' }
+          const repsCell = row.getCell(base + 3)
+          repsCell.value = g.reps
+          repsCell.alignment = { vertical: 'middle' }
           if (oneRepMax > 0) {
             const pctCell = row.getCell(base + 4)
             pctCell.value = g.weight / oneRepMax
             pctCell.numFmt = '0%'
+            pctCell.alignment = { vertical: 'middle' }
           }
         })
 
@@ -271,6 +286,7 @@ export function renderCycleWorkbook(
         for (const [col, val, fmt] of summaryVals) {
           const cell = row.getCell(col)
           cell.value = val as ExcelJS.CellValue
+          cell.alignment = { vertical: 'middle' }
           if (fmt) cell.numFmt = fmt
         }
       })
