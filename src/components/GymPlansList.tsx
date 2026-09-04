@@ -137,15 +137,15 @@ export function GymPlansList({ plans, canManage }: Props) {
                 {STATUS_LABEL[planStatus(plan, now)]}
               </Badge>
               <div className="ml-auto flex shrink-0 items-center gap-2">
-                <a
-                  href={`/api/gym/plans/${plan.id}/export`}
+                <Link
+                  href={`/gym/plans/${plan.id}/export`}
                   title="Экспорт в PDF"
                   aria-label="Экспорт в PDF"
                   onClick={(e) => e.stopPropagation()}
                   className="flex h-7 w-7 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-2 hover:text-accent"
                 >
                   <FileDown className="h-3.5 w-3.5" />
-                </a>
+                </Link>
                 {canManage && (
                   <>
                     <GymRenamePlanButton planId={plan.id} planName={plan.name} />
