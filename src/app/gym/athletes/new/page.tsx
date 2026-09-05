@@ -3,12 +3,17 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Button, Card, Input } from '@/components/ui'
+import { Button, Card, Checkbox, Input, useToast } from '@/components/ui'
 
 export default function NewGymClientPage() {
   const router = useRouter()
+  const toast = useToast()
   const [displayName, setDisplayName] = useState('')
   const [inviteEmail, setInviteEmail] = useState('')
+  // Send the invite right away by default — a coach who bothered typing an
+  // email almost always wants it sent now; unchecking lets them create the
+  // profile first and send later from the client list instead.
+  const [sendInviteNow, setSendInviteNow] = useState(true)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -21,8 +26,26 @@ export default function NewGymClientPage() {
       body: JSON.stringify({ displayName, inviteEmail }),
     })
     const body = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      setSaving(false)
+      return setError(body.error ?? 'Не удалось создать клиента')
+    }
+
+    if (sendInviteNow && inviteEmail.trim()) {
+      const inviteRes = await fetch(`/api/gym/clients/${body.id}/invite`, { method: 'POST' })
+      if (inviteRes.ok) {
+        toast({ title: 'Приглашение отправлено', variant: 'success' })
+      } else {
+        const inviteBody = await inviteRes.json().catch(() => ({}))
+        toast({
+          title: 'Клиент создан, но приглашение не отправлено',
+          description: inviteBody.error ?? 'Отправьте его позже из списка клиентов.',
+          variant: 'error',
+        })
+      }
+    }
+
     setSaving(false)
-    if (!response.ok) return setError(body.error ?? 'Не удалось создать клиента')
     router.replace(`/gym/athletes/${body.id}/plans`)
   }
 
@@ -32,8 +55,17 @@ export default function NewGymClientPage() {
     <Card className="space-y-4">
       <label className="block text-sm"><span className="mb-1.5 block">Имя клиента</span><Input className="w-full" value={displayName} onChange={(event) => setDisplayName(event.target.value)} maxLength={120} /></label>
       <label className="block text-sm"><span className="mb-1.5 block">Email (необязательно)</span><Input className="w-full" type="email" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} maxLength={255} /></label>
+      {inviteEmail.trim() && (
+        <Checkbox
+          checked={sendInviteNow}
+          onChange={(event) => setSendInviteNow(event.target.checked)}
+          label="Отправить приглашение сразу"
+        />
+      )}
       {error && <p className="text-sm text-danger">{error}</p>}
-      <Button disabled={saving || !displayName.trim()} onClick={() => void createClient()}>{saving ? 'Создаём…' : 'Создать клиента'}</Button>
+      <Button disabled={saving || !displayName.trim()} onClick={() => void createClient()}>
+        {saving ? 'Создаём…' : sendInviteNow && inviteEmail.trim() ? 'Создать и пригласить' : 'Создать клиента'}
+      </Button>
     </Card>
   </main>
 }

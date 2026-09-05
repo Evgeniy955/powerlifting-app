@@ -253,6 +253,12 @@ model GymClient {
   coach       User?    @relation("CoachGymClients", fields: [coachId], references: [id])
   displayName String?
   inviteEmail String?
+  inviteToken String?   @unique
+  // "NONE" | "PENDING" | "ACCEPTED" — same convention as
+  // AthleteProfile.inviteStatus (plain string, not an enum: SQLite local dev
+  // doesn't support Prisma enums).
+  inviteStatus String   @default("NONE")
+  invitedAt    DateTime?
   createdAt   DateTime @default(now())
 
   plans         GymPlan[]

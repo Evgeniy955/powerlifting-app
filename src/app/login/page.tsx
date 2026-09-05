@@ -7,7 +7,7 @@ import { Button, Card } from '@/components/ui'
 import { HeroBackground } from '@/components/HeroBackground'
 import { createClient } from '@/lib/supabase/client'
 
-type InviteInfo = { displayName: string | null; coachName: string }
+type InviteInfo = { displayName: string | null; coachName: string; kind?: 'ATHLETE' | 'GYM' }
 
 function InviteBanner() {
   const token = useSearchParams().get('invite')
@@ -26,7 +26,8 @@ function InviteBanner() {
   return (
     <p className="mt-2 text-sm text-text-secondary">
       Тренер <span className="text-text-primary">{invite.coachName}</span> приглашает вас
-      {invite.displayName ? <> как <span className="text-text-primary">{invite.displayName}</span></> : null}.
+      {invite.displayName ? <> как <span className="text-text-primary">{invite.displayName}</span></> : null}
+      {invite.kind === 'GYM' ? ' в тренажёрный зал' : null}.
     </p>
   )
 }

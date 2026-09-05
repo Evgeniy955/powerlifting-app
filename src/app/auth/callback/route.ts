@@ -88,7 +88,10 @@ export async function GET(request: Request) {
     }
 
     if (pendingGymClient) {
-      await prisma.gymClient.update({ where: { id: pendingGymClient.id }, data: { userId: user.id } })
+      await prisma.gymClient.update({
+        where: { id: pendingGymClient.id },
+        data: { userId: user.id, inviteStatus: 'ACCEPTED' },
+      })
     }
   }
 

@@ -62,9 +62,15 @@ type InviteEmailInput = {
   token: string
 }
 
-// Awaited at its one call site (POST /api/athletes/[id]/invite) and allowed to
-// throw — the coach needs to know immediately if the send failed.
-export async function sendInviteEmail({ to, coachName, athleteDisplayName, token }: InviteEmailInput) {
+// Shared by both invite flavors below — same layout, only the "invites you
+// as ..." sentence and the role noun in the subject differ, since it's the
+// same app/account either way (a gym client and a powerlifting athlete are
+// both just a User row with Google sign-in), just scoped to a different
+// module once they're in.
+async function sendInviteEmailInternal(
+  { to, coachName, athleteDisplayName, token }: InviteEmailInput,
+  { roleNoun, pitch }: { roleNoun: string; pitch: string }
+) {
   const { transporter, from } = getMailer()
   const acceptUrl = `${appBaseUrl()}/login?invite=${token}`
 
@@ -77,10 +83,30 @@ export async function sendInviteEmail({ to, coachName, athleteDisplayName, token
     subject: `${coachName} приглашает вас в IronLedger`,
     html: `
       <p>Привет${safeAthleteName ? `, ${safeAthleteName}` : ''}!</p>
-      <p><strong>${safeCoachName}</strong> приглашает вас как атлета в IronLedger — дневник тренировок по пауэрлифтингу.</p>
+      <p><strong>${safeCoachName}</strong> приглашает вас как ${roleNoun} в IronLedger — ${pitch}.</p>
       <p><a href="${acceptUrl}">Принять приглашение и войти через Google</a></p>
       <p style="color:#888;font-size:12px">Если вы не ожидали это письмо, просто проигнорируйте его.</p>
     `,
+  })
+}
+
+// Awaited at its one call site (POST /api/athletes/[id]/invite) and allowed to
+// throw — the coach needs to know immediately if the send failed.
+export async function sendInviteEmail(input: InviteEmailInput) {
+  await sendInviteEmailInternal(input, {
+    roleNoun: 'атлета',
+    pitch: 'дневник тренировок по пауэрлифтингу',
+  })
+}
+
+// Same flow as sendInviteEmail, for a gym client instead of a powerlifting
+// athlete — different pitch line only. Awaited at its one call site (POST
+// /api/gym/clients/[clientId]/invite) and allowed to throw for the same
+// reason as sendInviteEmail.
+export async function sendGymInviteEmail(input: InviteEmailInput) {
+  await sendInviteEmailInternal(input, {
+    roleNoun: 'клиента',
+    pitch: 'дневник тренировок в тренажёрном зале',
   })
 }
 
