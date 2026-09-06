@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireCoach, requireUser, apiErrorResponse } from '@/lib/session'
-export async function GET(req: Request) { try { await requireUser(); const url = new URL(req.url); const q = url.searchParams.get('q')?.trim() ?? ''; const exercises = await prisma.gymExerciseCatalog.findMany({ where: q ? { name: { contains: q, mode: 'insensitive' } } : undefined, orderBy: { name: 'asc' }, take: 30 }); return NextResponse.json(exercises) } catch (error) { return apiErrorResponse(error) } }
+// Powers the exercise picker when adding an entry to a workout — archived
+// exercises (soft-deleted, still referenced by existing history) are
+// excluded here so they can't be picked for new entries, while staying
+// resolvable via the relation wherever they're already used.
+export async function GET(req: Request) { try { await requireUser(); const url = new URL(req.url); const q = url.searchParams.get('q')?.trim() ?? ''; const exercises = await prisma.gymExerciseCatalog.findMany({ where: { archivedAt: null, ...(q ? { name: { contains: q, mode: 'insensitive' as const } } : {}) }, orderBy: { name: 'asc' }, take: 30 }); return NextResponse.json(exercises) } catch (error) { return apiErrorResponse(error) } }
 // Get-or-create: a straight unique-constraint failure here almost always
 // means a genuine race, not user error — the import review screen's
 // exact-match check ran against the catalog as it stood when preview was

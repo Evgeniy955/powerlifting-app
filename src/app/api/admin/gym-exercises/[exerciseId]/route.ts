@@ -2,19 +2,23 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireCoach, apiErrorResponse } from '@/lib/session'
 
-// PATCH /api/admin/gym-exercises/:exerciseId { name?, category? } — coach-only.
+// PATCH /api/admin/gym-exercises/:exerciseId { name?, category?, archived? } — coach-only.
 // Mirrors PATCH /api/admin/exercises/:exerciseId (powerlifting catalog):
 // renaming here updates every gym plan that uses this exercise immediately,
 // since GymExerciseEntry/GymClientMax only store the exerciseId and always
 // read the display name live off GymExerciseCatalog via the relation.
+// `archived: false` restores a soft-deleted exercise (see DELETE below).
 export async function PATCH(req: NextRequest, props: { params: Promise<{ exerciseId: string }> }) {
   const params = await props.params
   try {
     await requireCoach()
 
-    const body = (await req.json()) as { name?: string; category?: string | null }
-    const data: { name?: string; category?: string | null } = {}
+    const body = (await req.json()) as { name?: string; category?: string | null; archived?: boolean }
+    const data: { name?: string; category?: string | null; archivedAt?: Date | null } = {}
 
+    if (body.archived !== undefined) {
+      data.archivedAt = body.archived ? new Date() : null
+    }
     if (body.name !== undefined) {
       const name = body.name.trim()
       if (!name) {
@@ -46,16 +50,19 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ exercis
   }
 }
 
-// DELETE /api/admin/gym-exercises/:exerciseId[?force=true] — coach-only.
-// Same usage-guard/force-delete pattern as DELETE /api/admin/exercises/:exerciseId:
-// refuses by default if the exercise is logged in any workout entry or has a
-// tracked client max, returning 409 with the counts; ?force=true deletes
-// those referencing rows first (in a transaction), then the catalog row.
-export async function DELETE(req: NextRequest, props: { params: Promise<{ exerciseId: string }> }) {
+// DELETE /api/admin/gym-exercises/:exerciseId — coach-only.
+// Mirrors DELETE /api/admin/exercises/:exerciseId (powerlifting catalog): an
+// unused exercise (no workout entries, no tracked client max) is hard-
+// deleted; an exercise that's in use is archived instead (archivedAt =
+// now()) so every existing GymExerciseEntry/GymClientMax FK stays intact and
+// keeps resolving the name/category live via the relation — plans, PDF/Excel
+// exports and client maxes are unaffected. Archiving only hides it from the
+// catalog list and from the workout-entry exercise picker
+// (GET /api/admin/gym-exercises). Reversible via PATCH { archived: false }.
+export async function DELETE(_req: NextRequest, props: { params: Promise<{ exerciseId: string }> }) {
   const params = await props.params
   try {
     await requireCoach()
-    const force = req.nextUrl.searchParams.get('force') === 'true'
 
     const existing = await prisma.gymExerciseCatalog.findUnique({
       where: { id: params.exerciseId },
@@ -66,26 +73,15 @@ export async function DELETE(req: NextRequest, props: { params: Promise<{ exerci
     }
 
     const usageCount = existing._count.exercises + existing._count.maxes
-    if (usageCount > 0 && !force) {
-      return NextResponse.json(
-        {
-          error: `Упражнение используется (записей в тренировках: ${existing._count.exercises}, максимумов: ${existing._count.maxes}).`,
-          usage: { exercises: existing._count.exercises, maxes: existing._count.maxes },
-        },
-        { status: 409 }
-      )
-    }
-
     if (usageCount > 0) {
-      await prisma.$transaction([
-        prisma.gymExerciseEntry.deleteMany({ where: { exerciseId: params.exerciseId } }),
-        prisma.gymClientMax.deleteMany({ where: { exerciseId: params.exerciseId } }),
-        prisma.gymExerciseCatalog.delete({ where: { id: params.exerciseId } }),
-      ])
-    } else {
-      await prisma.gymExerciseCatalog.delete({ where: { id: params.exerciseId } })
+      const archived = await prisma.gymExerciseCatalog.update({
+        where: { id: params.exerciseId },
+        data: { archivedAt: new Date() },
+      })
+      return NextResponse.json({ archived: true, exercise: archived })
     }
 
+    await prisma.gymExerciseCatalog.delete({ where: { id: params.exerciseId } })
     return NextResponse.json({ ok: true })
   } catch (e) {
     return apiErrorResponse(e)
