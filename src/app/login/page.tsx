@@ -7,6 +7,36 @@ import { Button, Card } from '@/components/ui'
 import { HeroBackground } from '@/components/HeroBackground'
 import { createClient } from '@/lib/supabase/client'
 
+// SignInButton reads the invite token itself (rather than LoginPage passing
+// it down) purely so useSearchParams() stays inside the Suspense boundary
+// below — Next.js requires that during static rendering.
+function SignInButton() {
+  const token = useSearchParams().get('invite')
+
+  const handleSignIn = async () => {
+    const supabase = createClient()
+    // Forwarding `invite` here is what makes accepting an invite actually
+    // mean "clicked the link in the email": /auth/callback reads it back off
+    // this same redirectTo URL (Supabase appends its own `?code=...` to
+    // whatever we pass) and requires it to match a pending invite's token —
+    // signing in with just the right email, invite link skipped, no longer
+    // links the account. See auth/callback/route.ts.
+    const redirectTo = token
+      ? `${window.location.origin}/auth/callback?invite=${encodeURIComponent(token)}`
+      : `${window.location.origin}/auth/callback`
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo },
+    })
+  }
+
+  return (
+    <Button className="mt-6 w-full" onClick={handleSignIn}>
+      Войти через Google
+    </Button>
+  )
+}
+
 type InviteInfo = { displayName: string | null; coachName: string; kind?: 'ATHLETE' | 'GYM' }
 
 function InviteBanner() {
@@ -51,14 +81,6 @@ function ErrorNotice() {
 }
 
 export default function LoginPage() {
-  const handleSignIn = async () => {
-    const supabase = createClient()
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
-    })
-  }
-
   return (
     <main className="relative flex min-h-[calc(100vh-3.5rem)] items-center justify-center overflow-hidden bg-bg px-4 text-text-primary">
       <HeroBackground />
@@ -77,11 +99,8 @@ export default function LoginPage() {
         <Suspense fallback={null}>
           <InviteBanner />
           <ErrorNotice />
+          <SignInButton />
         </Suspense>
-
-        <Button className="mt-6 w-full" onClick={handleSignIn}>
-          Войти через Google
-        </Button>
       </Card>
     </main>
   )

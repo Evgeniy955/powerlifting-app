@@ -1,8 +1,17 @@
 import { prisma } from './prisma'
 import { ForbiddenError, NotFoundError, type SessionUser } from './session'
 
-function ownsAthlete(athlete: { coachId: string | null; userId: string | null }, user: SessionUser) {
-  return user.role === 'COACH' ? athlete.coachId === user.id : athlete.userId === user.id
+// Defense in depth alongside auth/callback/route.ts's invite-token check:
+// even if some future code path ever set userId without also flipping
+// inviteStatus to 'ACCEPTED' (the callback only does both together), an
+// athlete/client who hasn't actually accepted their invite should still be
+// treated as having no access of their own — coaches are unaffected, this
+// only narrows the non-coach branch.
+function ownsAthlete(
+  athlete: { coachId: string | null; userId: string | null; inviteStatus: string },
+  user: SessionUser
+) {
+  return user.role === 'COACH' ? athlete.coachId === user.id : athlete.userId === user.id && athlete.inviteStatus === 'ACCEPTED'
 }
 
 export async function assertAthleteBelongsToCoach(athleteId: string, coachId: string) {
@@ -24,8 +33,12 @@ export async function assertAthleteAccessible(athleteId: string, user: SessionUs
   return athlete
 }
 
-function ownsGymClient(client: { coachId: string | null; userId: string | null }, user: SessionUser) {
-  return user.role === 'COACH' ? client.coachId === user.id : client.userId === user.id
+// Same reasoning as ownsAthlete above.
+function ownsGymClient(
+  client: { coachId: string | null; userId: string | null; inviteStatus: string },
+  user: SessionUser
+) {
+  return user.role === 'COACH' ? client.coachId === user.id : client.userId === user.id && client.inviteStatus === 'ACCEPTED'
 }
 
 export async function assertGymClientBelongsToCoach(clientId: string, coachId: string) {

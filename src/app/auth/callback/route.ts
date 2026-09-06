@@ -20,6 +20,13 @@ export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
   const next = searchParams.get('next') ?? '/'
+  // The invite token from the emailed link (see sendInviteEmailInternal in
+  // lib/email.ts: "/login?invite=<token>") — login/page.tsx forwards it
+  // through as part of `redirectTo` when starting the Google OAuth flow, so
+  // it survives the round trip and comes back here. Its presence (and match
+  // below) is what "accepting the invite" now actually means — see the
+  // pendingAthleteInvite/pendingGymClient lookups below.
+  const inviteToken = searchParams.get('invite')
 
   if (!code) {
     return NextResponse.redirect(`${origin}/login?error=missing_code`)
@@ -40,24 +47,33 @@ export async function GET(request: Request) {
   if (!existing) {
     const isCoach = COACH_EMAILS.includes(email)
 
-    // Closed signup: the only way into the app as an athlete is a pending
-    // invite from a coach (matched by exact email) — no more organic
-    // self-signup. Coaches are still admitted straight from COACH_EMAILS.
-    // Supabase Auth already created its own auth.users row for this session
-    // by this point (that's a separate table we don't own) — sign back out
-    // so the browser doesn't end up with a live Supabase session pointing at
-    // a Google account with no matching row in our own `public."User"`.
-    const pendingAthleteInvite = isCoach
-      ? null
-      : await prisma.athleteProfile.findFirst({
-          where: { userId: null, inviteStatus: 'PENDING', inviteEmail: email },
-        })
+    // Closed signup: the only way into the app as an athlete/client is
+    // clicking the actual link from an invite email — matched by BOTH the
+    // token that link carried AND the invited email (not just email alone).
+    // Signing up "organically" with an email a coach happens to have typed
+    // in, without ever opening that email, must not be enough — that used to
+    // be exactly what happened here (this only checked inviteEmail, and for
+    // GymClient didn't even require inviteStatus: 'PENDING'), so acceptance
+    // was really just "first Google sign-in with the right address," invite
+    // link optional. Coaches are still admitted straight from COACH_EMAILS,
+    // no invite involved. Supabase Auth already created its own auth.users
+    // row for this session by this point (a separate table we don't own) —
+    // sign back out so the browser doesn't end up with a live Supabase
+    // session pointing at a Google account with no matching row in our own
+    // `public."User"`.
+    const pendingAthleteInvite =
+      isCoach || !inviteToken
+        ? null
+        : await prisma.athleteProfile.findFirst({
+            where: { userId: null, inviteStatus: 'PENDING', inviteToken, inviteEmail: email },
+          })
 
-    const pendingGymClient = isCoach
-      ? null
-      : await prisma.gymClient.findFirst({
-          where: { userId: null, inviteEmail: email },
-        })
+    const pendingGymClient =
+      isCoach || !inviteToken
+        ? null
+        : await prisma.gymClient.findFirst({
+            where: { userId: null, inviteStatus: 'PENDING', inviteToken, inviteEmail: email },
+          })
 
     if (!isCoach && !pendingAthleteInvite && !pendingGymClient) {
       await supabase.auth.signOut()
