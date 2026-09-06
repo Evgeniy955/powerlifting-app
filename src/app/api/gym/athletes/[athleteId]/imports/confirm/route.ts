@@ -142,6 +142,43 @@ export async function POST(req: Request, { params }: { params: Promise<{ athlete
       })
     }
 
+    // Defensive check before writing anything: every exerciseId in
+    // entriesData came from the client's nameToExerciseId map, built partly
+    // from ids resolved during an earlier preview request (matchedExerciseId,
+    // a fuzzy possibleDuplicate suggestion) and partly from ids returned by
+    // POST /api/admin/gym-exercises calls made just above. If any of those
+    // ids no longer exist in GymExerciseCatalog by the time we get here —
+    // e.g. the coach (or another tab) deleted an unused exercise in the
+    // window between preview and confirm — the createMany below would fail
+    // the whole transaction with a raw P2003 foreign-key error and no
+    // indication of which exercise caused it ("Внутренняя ошибка сервера"
+    // with nothing actionable). Catching it here instead gives a precise,
+    // actionable message and skips straight past the bad exercise's rows
+    // rather than losing the entire import.
+    const distinctExerciseIds = [...new Set(entriesData.map((e) => e.exerciseId))]
+    const foundExercises = await prisma.gymExerciseCatalog.findMany({
+      where: { id: { in: distinctExerciseIds } },
+      select: { id: true, name: true },
+    })
+    const foundIds = new Set(foundExercises.map((e) => e.id))
+    const missingIds = distinctExerciseIds.filter((id) => !foundIds.has(id))
+    if (missingIds.length > 0) {
+      console.error('Gym import confirm: exerciseId(s) no longer exist', missingIds)
+      const missingNames = Object.entries(nameToExerciseId)
+        .filter(([, id]) => missingIds.includes(id))
+        .map(([key]) => key)
+      return NextResponse.json(
+        {
+          error:
+            `Не удалось найти упражнение${missingNames.length > 1 ? 'я' : ''} в справочнике: ` +
+            `${missingNames.join(', ') || missingIds.join(', ')}. Возможно, оно было удалено, пока ` +
+            `шёл импорт. Обновите страницу (загрузите файл заново) и повторите — это пересчитает ` +
+            `сопоставление упражнений по актуальному справочнику.`,
+        },
+        { status: 409 }
+      )
+    }
+
     await prisma.$transaction([
       prisma.gymPlan.create({ data: { id: planId, clientId, name: planName, weeks: parsedPlan.weeks, startDate } }),
       prisma.gymWeek.createMany({ data: weeksData }),
