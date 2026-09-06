@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { requireUser, apiErrorResponse } from '@/lib/session'
-import { assertGymClientAccessible } from '@/lib/authorization'
+import { requireCoach, apiErrorResponse } from '@/lib/session'
+import { assertGymClientBelongsToCoach } from '@/lib/authorization'
 
 const ALLOWED_MIME_TYPES = new Set([
   'image/png',
@@ -16,9 +16,9 @@ const ALLOWED_MIME_TYPES = new Set([
 // only after the server has checked access to the specific gym client.
 export async function POST(req: Request, { params }: { params: Promise<{ athleteId: string }> }) {
   try {
-    const user = await requireUser()
+    const coach = await requireCoach()
     const { athleteId: clientId } = await params
-    await assertGymClientAccessible(clientId, user)
+    await assertGymClientBelongsToCoach(clientId, coach.id)
     const body = await req.json() as { fileName?: string; mimeType?: string; import?: boolean }
     if (!body.fileName || !ALLOWED_MIME_TYPES.has(body.mimeType ?? '')) {
       return NextResponse.json({ error: 'Недопустимый тип файла' }, { status: 400 })

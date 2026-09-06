@@ -1,5 +1,6 @@
 import nodemailer, { type Transporter } from 'nodemailer'
 import { prisma } from './prisma'
+import { wardNoun } from './gender'
 
 export class EmailNotConfiguredError extends Error {}
 
@@ -66,11 +67,13 @@ type InviteEmailInput = {
 // as ..." sentence and the role noun in the subject differ, since it's the
 // same app/account either way (a gym client and a powerlifting athlete are
 // both just a User row with Google sign-in), just scoped to a different
-// module once they're in.
+// module once they're in. roleNoun can depend on the invitee's own name
+// (gym mode picks "подопечного"/"подопечную" — see sendGymInviteEmail).
 async function sendInviteEmailInternal(
   { to, coachName, athleteDisplayName, token }: InviteEmailInput,
-  { roleNoun, pitch }: { roleNoun: string; pitch: string }
+  { roleNoun, pitch }: { roleNoun: string | ((name: string) => string); pitch: string }
 ) {
+  const resolvedRoleNoun = typeof roleNoun === 'function' ? roleNoun(athleteDisplayName) : roleNoun
   const { transporter, from } = getMailer()
   const acceptUrl = `${appBaseUrl()}/login?invite=${token}`
 
@@ -83,7 +86,7 @@ async function sendInviteEmailInternal(
     subject: `${coachName} приглашает вас в IronLedger`,
     html: `
       <p>Привет${safeAthleteName ? `, ${safeAthleteName}` : ''}!</p>
-      <p><strong>${safeCoachName}</strong> приглашает вас как ${roleNoun} в IronLedger — ${pitch}.</p>
+      <p><strong>${safeCoachName}</strong> приглашает вас как ${resolvedRoleNoun} в IronLedger — ${pitch}.</p>
       <p><a href="${acceptUrl}">Принять приглашение и войти через Google</a></p>
       <p style="color:#888;font-size:12px">Если вы не ожидали это письмо, просто проигнорируйте его.</p>
     `,
@@ -99,13 +102,15 @@ export async function sendInviteEmail(input: InviteEmailInput) {
   })
 }
 
-// Same flow as sendInviteEmail, for a gym client instead of a powerlifting
-// athlete — different pitch line only. Awaited at its one call site (POST
+// Same flow as sendInviteEmail, for a gym client ("подопечный"/"подопечная"
+// — see lib/gender.ts) instead of a powerlifting athlete — different pitch
+// line, and the role noun is gender-guessed from their own name rather than
+// a fixed word. Awaited at its one call site (POST
 // /api/gym/clients/[clientId]/invite) and allowed to throw for the same
 // reason as sendInviteEmail.
 export async function sendGymInviteEmail(input: InviteEmailInput) {
   await sendInviteEmailInternal(input, {
-    roleNoun: 'клиента',
+    roleNoun: (name) => wardNoun(name, 'accusative'),
     pitch: 'дневник тренировок в тренажёрном зале',
   })
 }

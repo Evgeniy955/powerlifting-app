@@ -40,7 +40,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ planId:
     }
     await assertGymClientAccessible(plan.clientId, user)
 
-    const clientName = plan.client.displayName ?? plan.client.user?.name ?? 'Клиент'
+    const clientName = plan.client.displayName ?? plan.client.user?.name ?? 'Подопечный'
 
     const pdfPlan: PdfPlan = {
       name: plan.name,

@@ -30,7 +30,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ workout
     }
     await assertGymClientAccessible(workout.week.plan.clientId, user)
 
-    const clientName = workout.week.plan.client.displayName ?? workout.week.plan.client.user?.name ?? 'Клиент'
+    const clientName = workout.week.plan.client.displayName ?? workout.week.plan.client.user?.name ?? 'Подопечный'
 
     const pdfWorkout: PdfWorkoutExport = {
       planName: workout.week.plan.name,

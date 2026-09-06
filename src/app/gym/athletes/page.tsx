@@ -21,7 +21,7 @@ export default async function GymAthletesPage() {
     clients = await prisma.gymClient.findMany({ where: { coachId: user.id }, orderBy: { displayName: 'asc' }, include: { user: { select: { name: true, email: true } }, plans: { select: { id: true } } } })
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && ['P2021', 'P2022'].includes(error.code)) {
-      return <main className="mx-auto min-h-[calc(100vh-3.5rem)] max-w-4xl space-y-5 bg-bg p-6 text-text-primary"><h1 className="font-display text-xl uppercase">Клиенты · Тренажёрный зал</h1><Card><p className="font-medium">Режим обновляется</p><p className="mt-1 text-sm text-text-secondary">Таблицы клиентов ещё не созданы в базе данных. После применения миграции эта страница станет доступна автоматически.</p></Card></main>
+      return <main className="mx-auto min-h-[calc(100vh-3.5rem)] max-w-4xl space-y-5 bg-bg p-6 text-text-primary"><h1 className="font-display text-xl uppercase">Подопечные · Тренажёрный зал</h1><Card><p className="font-medium">Режим обновляется</p><p className="mt-1 text-sm text-text-secondary">Таблицы подопечных ещё не созданы в базе данных. После применения миграции эта страница станет доступна автоматически.</p></Card></main>
     }
     throw error
   }
@@ -29,8 +29,8 @@ export default async function GymAthletesPage() {
     <main className="mx-auto min-h-[calc(100vh-3.5rem)] max-w-4xl space-y-5 bg-bg p-6 text-text-primary">
       <AutoRefreshOnMount />
       <div className="flex items-center justify-between">
-        <h1 className="font-display text-xl uppercase">Клиенты · Тренажёрный зал</h1>
-        <Link className={buttonVariants({ size: 'sm' })} href="/gym/athletes/new"><UserPlus className="h-4 w-4" /> Клиент</Link>
+        <h1 className="font-display text-xl uppercase">Подопечные · Тренажёрный зал</h1>
+        <Link className={buttonVariants({ size: 'sm' })} href="/gym/athletes/new"><UserPlus className="h-4 w-4" /> Подопечный</Link>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         {clients.map((client) => {
@@ -62,7 +62,7 @@ export default async function GymAthletesPage() {
             </Card>
           )
         })}
-        {!clients.length && <Card><p className="text-sm text-text-secondary">Клиентов пока нет. Добавьте первого клиента.</p></Card>}
+        {!clients.length && <Card><p className="text-sm text-text-secondary">Подопечных пока нет. Добавьте первого.</p></Card>}
       </div>
     </main>
   )

@@ -91,8 +91,8 @@ export default async function AdminUsersPage() {
       <AdminUsersView initialUsers={users} currentUserId={user.id} />
 
       <section className="space-y-2">
-        <h2 className="font-display text-lg uppercase tracking-wide">Клиенты · Тренажёрный зал</h2>
-        {gymClients.length ? <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{gymClients.map((client) => <li key={client.id}><Link href={`/gym/athletes/${client.id}/plans`} className="block rounded-lg border border-border bg-surface p-3 transition-colors hover:border-accent"><p className="font-medium">{client.displayName ?? client.user?.name ?? client.user?.email ?? 'Без имени'}</p><p className="text-xs text-text-secondary">{client.inviteEmail ?? client.user?.email ?? 'Без аккаунта'}</p><p className="mt-1 text-xs text-text-secondary">Тренер: {client.coach?.name ?? client.coach?.email ?? 'не назначен'} · планов: {client._count.plans}</p></Link></li>)}</ul> : <p className="text-sm text-text-secondary">Клиентов тренажёрного зала пока нет.</p>}
+        <h2 className="font-display text-lg uppercase tracking-wide">Подопечные · Тренажёрный зал</h2>
+        {gymClients.length ? <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{gymClients.map((client) => <li key={client.id}><Link href={`/gym/athletes/${client.id}/plans`} className="block rounded-lg border border-border bg-surface p-3 transition-colors hover:border-accent"><p className="font-medium">{client.displayName ?? client.user?.name ?? client.user?.email ?? 'Без имени'}</p><p className="text-xs text-text-secondary">{client.inviteEmail ?? client.user?.email ?? 'Без аккаунта'}</p><p className="mt-1 text-xs text-text-secondary">Тренер: {client.coach?.name ?? client.coach?.email ?? 'не назначен'} · планов: {client._count.plans}</p></Link></li>)}</ul> : <p className="text-sm text-text-secondary">Подопечных тренажёрного зала пока нет.</p>}
       </section>
 
       {pendingInvitesWithPlans.length > 0 && (

@@ -25,7 +25,7 @@ export default async function GymWorkoutExportPage({ params }: { params: Promise
 
   await assertGymClientAccessible(workout.week.plan.clientId, user)
 
-  const clientName = workout.week.plan.client.displayName ?? workout.week.plan.client.user?.name ?? 'Клиент'
+  const clientName = workout.week.plan.client.displayName ?? workout.week.plan.client.user?.name ?? 'Подопечный'
 
   const days: GymExportDay[] = [
     {

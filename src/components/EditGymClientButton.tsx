@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Pencil } from 'lucide-react'
 import { Button, Dialog, Input, useToast } from '@/components/ui'
+import { wardNoun } from '@/lib/gender'
 
 type Props = {
   clientId: string
@@ -66,7 +67,7 @@ export function EditGymClientButton({ clientId, displayName }: Props) {
         <Pencil className="h-4 w-4" />
       </button>
 
-      <Dialog open={open} onOpenChange={setOpen} title="Изменить имя клиента">
+      <Dialog open={open} onOpenChange={setOpen} title={`Изменить имя ${wardNoun(displayName, 'accusative')}`}>
         <div
           className="flex flex-col gap-3"
           onClick={(e) => e.stopPropagation()}
@@ -74,7 +75,7 @@ export function EditGymClientButton({ clientId, displayName }: Props) {
           <Input
             value={draftName}
             onChange={(e) => setDraftName(e.target.value)}
-            placeholder="Имя клиента"
+            placeholder={`Имя ${wardNoun(displayName, 'accusative')}`}
             autoFocus
           />
           <div className="flex justify-end gap-2">

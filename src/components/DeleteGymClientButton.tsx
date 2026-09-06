@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Trash2 } from 'lucide-react'
 import { Button, Dialog, useToast } from '@/components/ui'
+import { wardNoun } from '@/lib/gender'
 
 type Props = {
   clientId: string
@@ -32,7 +33,7 @@ export function DeleteGymClientButton({ clientId, clientName, accepted }: Props)
       const res = await fetch(`/api/gym/clients/${clientId}`, { method: 'DELETE' })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
-        throw new Error(body.error ?? 'Не удалось удалить клиента')
+        throw new Error(body.error ?? `Не удалось удалить ${wardNoun(clientName, 'accusative')}`)
       }
       toast({ title: `«${clientName}» удалён`, variant: 'success' })
       router.refresh()
@@ -58,14 +59,14 @@ export function DeleteGymClientButton({ clientId, clientName, accepted }: Props)
           setConfirmOpen(true)
         }}
         disabled={loading}
-        title="Удалить клиента"
-        aria-label="Удалить клиента"
+        title={`Удалить ${wardNoun(clientName, 'accusative')}`}
+        aria-label={`Удалить ${wardNoun(clientName, 'accusative')}`}
         className="flex h-8 w-8 items-center justify-center rounded-full bg-danger text-on-danger shadow-card transition-transform hover:scale-110 hover:brightness-110 disabled:opacity-50"
       >
         <Trash2 className="h-4 w-4" />
       </button>
 
-      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen} title="Удалить клиента?" description={dialogDescription}>
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen} title={`Удалить ${wardNoun(clientName, 'accusative')}?`} description={dialogDescription}>
         <div className="flex justify-end gap-2">
           <Button variant="outline" size="sm" onClick={() => setConfirmOpen(false)}>
             Отмена
