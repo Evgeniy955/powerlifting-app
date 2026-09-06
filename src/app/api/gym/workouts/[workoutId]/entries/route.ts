@@ -17,6 +17,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ workout
     if (!body.exerciseId || !Number.isFinite(workingWeight) || workingWeight <= 0 || !Number.isInteger(reps) || reps < 1) return NextResponse.json({ error: 'Выберите упражнение и укажите рабочий вес и повторы' }, { status: 400 })
     const exercise = await prisma.gymExerciseCatalog.findUnique({ where: { id: body.exerciseId } })
     if (!exercise) return NextResponse.json({ error: 'Упражнение не найдено' }, { status: 404 })
+    if (exercise.archivedAt) return NextResponse.json({ error: 'Упражнение архивировано и недоступно для выбора' }, { status: 400 })
     const estimatedMax = estimateGymOneRepMax(workingWeight, reps)
     if (!estimatedMax) return NextResponse.json({ error: 'Не удалось рассчитать начальный максимум' }, { status: 400 })
     const existingMax = await prisma.gymClientMax.findUnique({ where: { clientId_exerciseId: { clientId: workout.week.plan.clientId, exerciseId: body.exerciseId } } })

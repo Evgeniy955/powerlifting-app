@@ -9,7 +9,10 @@ export async function GET(req: NextRequest) {
     await requireUser()
     const q = req.nextUrl.searchParams.get('q')?.trim() ?? ''
     const exercises = await prisma.exerciseCatalog.findMany({
-      where: q ? { name: { contains: q, mode: 'insensitive' } } : undefined,
+      where: {
+        archivedAt: null,
+        ...(q ? { name: { contains: q, mode: 'insensitive' as const } } : {}),
+      },
       orderBy: { name: 'asc' },
       take: 20,
     })

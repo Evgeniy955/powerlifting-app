@@ -1,26 +1,29 @@
 'use client'
 
-import { useState } from 'react'
-import { Check, Pencil, Trash2, X } from 'lucide-react'
-import { Button, Card, Input, useToast } from '@/components/ui'
+import { useMemo, useState } from 'react'
+import { Check, Pencil, RotateCcw, Search, Trash2, X } from 'lucide-react'
+import { Badge, Button, Card, Input, useToast } from '@/components/ui'
 
 type GymExercise = {
   id: string
   name: string
   category: string | null
+  archivedAt: string | Date | null
   _count: { exercises: number; maxes: number }
 }
 
 // Coach-only gym exercise catalog management — rename, retag category,
-// delete unused rows. Mirrors AdminExercisesView (the powerlifting side's
+// archive/delete rows. Mirrors AdminExercisesView (the powerlifting side's
 // catalog), minus the training-group sorting that side has and this one
 // doesn't need. Renaming needs no propagation step: GymExerciseEntry/
 // GymClientMax only ever store the exerciseId and read name/category live
 // off GymExerciseCatalog via the relation, so a save shows up immediately
-// everywhere the exercise is used. Deleting a row that's actually in use is
-// blocked by the API (409) unless the coach confirms a force delete, which
-// also removes it from every workout it's logged in and every client's
-// tracked max — same trade-off as the powerlifting side.
+// everywhere the exercise is used. Deleting a row that's actually in use
+// archives it instead (archivedAt set) — existing workouts/maxes keep
+// pointing at it and keep resolving its name live, it just disappears from
+// the picker for new entries. An unused row is hard-deleted right away, same
+// as before. Archived rows stay listed here (greyed out) with a restore
+// action.
 export function GymExerciseAdmin({ initial }: { initial: GymExercise[] }) {
   const toast = useToast()
   const [items, setItems] = useState(initial)
@@ -32,6 +35,23 @@ export function GymExerciseAdmin({ initial }: { initial: GymExercise[] }) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draftName, setDraftName] = useState('')
   const [draftCategory, setDraftCategory] = useState('')
+
+  // Same search behavior as the powerlifting side's AdminExercisesView:
+  // client-side filter by name or category, case-insensitive. The full list
+  // (initial) is small enough for a coach's catalog that fetching it once
+  // and filtering in the browser is simpler than a server round trip per
+  // keystroke. Active exercises sort before archived ones (each group still
+  // alphabetical, since the initial list already comes in name order).
+  const [query, setQuery] = useState('')
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    const base = q
+      ? items.filter(
+          (item) => item.name.toLowerCase().includes(q) || (item.category ?? '').toLowerCase().includes(q)
+        )
+      : items
+    return [...base].sort((a, b) => Number(!!a.archivedAt) - Number(!!b.archivedAt))
+  }, [items, query])
 
   async function add() {
     if (!name.trim()) return
@@ -78,6 +98,7 @@ export function GymExerciseAdmin({ initial }: { initial: GymExercise[] }) {
         prev.map((x) => (x.id === item.id ? { ...x, name: body.name, category: body.category } : x))
       )
       setEditingId(null)
+      toast({ title: 'Изменения сохранены — обновились все планы, где используется упражнение', variant: 'success' })
     } catch {
       const message = 'Проблема с сетью — изменения не сохранены'
       setError(message)
@@ -90,38 +111,65 @@ export function GymExerciseAdmin({ initial }: { initial: GymExercise[] }) {
   async function deleteExercise(item: GymExercise) {
     setError(null)
     const usage = item._count.exercises + item._count.maxes
-    let force = false
 
-    if (usage > 0) {
-      const confirmed = window.confirm(
-        `«${item.name}» используется (записей в тренировках: ${item._count.exercises}, ` +
-          `максимумов: ${item._count.maxes}). Удалить всё равно? Оно пропадёт и из истории ` +
-          `тренировок, и из сохранённых максимумов — отменить это будет нельзя.`
-      )
-      if (!confirmed) return
-      force = true
-    } else if (!window.confirm(`Удалить упражнение «${item.name}» из каталога?`)) {
-      return
-    }
+    const confirmed = window.confirm(
+      usage > 0
+        ? `«${item.name}» используется (записей в тренировках: ${item._count.exercises}, ` +
+            `максимумов: ${item._count.maxes}). Упражнение будет архивировано: пропадёт из списка ` +
+            `для новых тренировок, но существующие планы и максимумы останутся без изменений. ` +
+            `Продолжить?`
+        : `Удалить упражнение «${item.name}» из каталога?`
+    )
+    if (!confirmed) return
 
     setPendingId(item.id)
     try {
-      const res = await fetch(`/api/admin/gym-exercises/${item.id}${force ? '?force=true' : ''}`, {
-        method: 'DELETE',
-      })
+      const res = await fetch(`/api/admin/gym-exercises/${item.id}`, { method: 'DELETE' })
+      const body = await res.json().catch(() => ({}))
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
         const message = body.error ?? 'Не удалось удалить упражнение'
         setError(message)
         toast({ title: 'Не удалось удалить', description: message, variant: 'error' })
         return
       }
-      setItems((prev) => prev.filter((x) => x.id !== item.id))
-      toast({ title: `«${item.name}» удалено`, variant: 'success' })
+      if (body.archived) {
+        setItems((prev) => prev.map((x) => (x.id === item.id ? { ...x, archivedAt: body.exercise.archivedAt } : x)))
+        toast({ title: `«${item.name}» архивировано`, variant: 'success' })
+      } else {
+        setItems((prev) => prev.filter((x) => x.id !== item.id))
+        toast({ title: `«${item.name}» удалено`, variant: 'success' })
+      }
     } catch {
       const message = 'Проблема с сетью — упражнение не удалено'
       setError(message)
       toast({ title: 'Не удалось удалить', description: message, variant: 'error' })
+    } finally {
+      setPendingId(null)
+    }
+  }
+
+  async function restoreExercise(item: GymExercise) {
+    setError(null)
+    setPendingId(item.id)
+    try {
+      const res = await fetch(`/api/admin/gym-exercises/${item.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ archived: false }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        const message = body.error ?? 'Не удалось восстановить упражнение'
+        setError(message)
+        toast({ title: 'Не удалось восстановить', description: message, variant: 'error' })
+        return
+      }
+      setItems((prev) => prev.map((x) => (x.id === item.id ? { ...x, archivedAt: null } : x)))
+      toast({ title: `«${item.name}» снова доступно`, variant: 'success' })
+    } catch {
+      const message = 'Проблема с сетью — упражнение не восстановлено'
+      setError(message)
+      toast({ title: 'Не удалось восстановить', description: message, variant: 'error' })
     } finally {
       setPendingId(null)
     }
@@ -135,11 +183,25 @@ export function GymExerciseAdmin({ initial }: { initial: GymExercise[] }) {
         <Button onClick={() => void add()}>Добавить</Button>
       </div>
 
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-secondary" />
+        <Input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Поиск по названию или категории..."
+          className="w-full pl-8"
+        />
+      </div>
+
       {error && <p className="text-sm text-danger">{error}</p>}
 
+      {query.trim() && filtered.length === 0 && (
+        <p className="text-sm text-text-secondary">Ничего не найдено.</p>
+      )}
+
       <div className="divide-y divide-border">
-        {items.map((item) => (
-          <div key={item.id} className="py-2 text-sm">
+        {filtered.map((item) => (
+          <div key={item.id} className={`py-2 text-sm ${item.archivedAt ? 'opacity-60' : ''}`}>
             {editingId === item.id ? (
               <div className="space-y-2">
                 <Input
@@ -180,33 +242,53 @@ export function GymExerciseAdmin({ initial }: { initial: GymExercise[] }) {
                   <span>
                     {item.name}
                     {item.category && <span className="ml-2 text-text-secondary">{item.category}</span>}
+                    {item.archivedAt && (
+                      <Badge tone="neutral" className="ml-2">
+                        Архивировано
+                      </Badge>
+                    )}
                   </span>
                   <p className="text-xs text-text-secondary">{item._count.exercises} в планах</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => startEdit(item)}
-                    aria-label="Редактировать упражнение"
-                    title="Редактировать упражнение"
-                    className="text-text-secondary transition-colors hover:text-accent"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    disabled={pendingId === item.id}
-                    onClick={() => void deleteExercise(item)}
-                    aria-label="Удалить упражнение"
-                    title={
-                      item._count.exercises + item._count.maxes > 0
-                        ? 'Используется — удаление сотрёт историю тренировок и максимумы'
-                        : 'Удалить упражнение'
-                    }
-                    className="text-text-secondary transition-colors hover:text-danger disabled:opacity-50"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                  {item.archivedAt ? (
+                    <button
+                      type="button"
+                      disabled={pendingId === item.id}
+                      onClick={() => void restoreExercise(item)}
+                      aria-label="Восстановить упражнение"
+                      title="Восстановить упражнение"
+                      className="text-text-secondary transition-colors hover:text-accent disabled:opacity-50"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" />
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => startEdit(item)}
+                        aria-label="Редактировать упражнение"
+                        title="Редактировать упражнение"
+                        className="text-text-secondary transition-colors hover:text-accent"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={pendingId === item.id}
+                        onClick={() => void deleteExercise(item)}
+                        aria-label="Удалить упражнение"
+                        title={
+                          item._count.exercises + item._count.maxes > 0
+                            ? 'Используется — будет архивировано, существующие планы не пострадают'
+                            : 'Удалить упражнение'
+                        }
+                        className="text-text-secondary transition-colors hover:text-danger disabled:opacity-50"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             )}

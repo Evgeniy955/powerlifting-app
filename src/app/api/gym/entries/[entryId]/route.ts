@@ -22,6 +22,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ entryI
     if (body.exerciseId !== undefined) {
       const exercise = await prisma.gymExerciseCatalog.findUnique({ where: { id: body.exerciseId } })
       if (!exercise) return NextResponse.json({ error: 'Упражнение не найдено в справочнике' }, { status: 404 })
+      if (exercise.archivedAt) return NextResponse.json({ error: 'Упражнение архивировано и недоступно для выбора' }, { status: 400 })
       const existingMax = await prisma.gymClientMax.findUnique({ where: { clientId_exerciseId: { clientId, exerciseId: body.exerciseId } } })
       const updated = await prisma.gymExerciseEntry.update({
         where: { id: entryId },

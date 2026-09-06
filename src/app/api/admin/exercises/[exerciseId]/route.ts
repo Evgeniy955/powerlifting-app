@@ -3,13 +3,14 @@ import { prisma } from '@/lib/prisma'
 import { requireCoach, apiErrorResponse } from '@/lib/session'
 import { isTrainingGroup } from '@/lib/trainingGroups'
 
-// PATCH /api/admin/exercises/:exerciseId { name?, category?, impactCoefficient?, trainingGroup? }
+// PATCH /api/admin/exercises/:exerciseId { name?, category?, impactCoefficient?, trainingGroup?, archived? }
 // Coach-only. Renaming here updates every training program that uses this
 // exercise immediately — ExerciseEntry and Athlete1RM only store the
 // exerciseId, the display name is always read live off ExerciseCatalog via
 // the relation, never copied onto the entry. Nothing else to invalidate.
 // trainingGroup is the "move to Базовые/СФП/ОФП" action — pass null to
-// unassign.
+// unassign. `archived: false` restores a soft-deleted exercise (undoes the
+// archivedAt set by DELETE below) without needing a separate endpoint.
 export async function PATCH(req: NextRequest, props: { params: Promise<{ exerciseId: string }> }) {
   const params = await props.params;
   try {
@@ -20,14 +21,19 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ exercis
       category?: string | null
       impactCoefficient?: number
       trainingGroup?: string | null
+      archived?: boolean
     }
     const data: {
       name?: string
       category?: string | null
       impactCoefficient?: number
       trainingGroup?: string | null
+      archivedAt?: Date | null
     } = {}
 
+    if (body.archived !== undefined) {
+      data.archivedAt = body.archived ? new Date() : null
+    }
     if (body.name !== undefined) {
       const name = body.name.trim()
       if (!name) {
@@ -84,24 +90,20 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ exercis
   }
 }
 
-// DELETE /api/admin/exercises/:exerciseId[?force=true] — coach-only.
+// DELETE /api/admin/exercises/:exerciseId — coach-only.
 //
-// By default, refuses to delete an exercise that's actually in use (logged
-// in any workout, or has a tracked 1RM) — returns 409 with the usage counts
-// so the client can warn before retrying.
-//
-// With ?force=true, the coach has explicitly confirmed they want to delete
-// it anyway: every ExerciseEntry referencing it (and, via the schema's
-// existing cascade, their SetEntry rows) and every Athlete1RM referencing
-// it are deleted first, in a transaction, then the catalog row itself. This
-// is permanent and removes the exercise from training history for every
-// athlete who ever logged it — the client is expected to have already made
-// that consequence explicit before calling this route with force=true.
-export async function DELETE(req: NextRequest, props: { params: Promise<{ exerciseId: string }> }) {
+// An exercise with no usage at all (never logged, no tracked 1RM) is hard-
+// deleted — nothing references it, nothing to preserve. An exercise that IS
+// in use is archived instead (archivedAt = now()): the catalog row and
+// every ExerciseEntry/Athlete1RM FK pointing at it stay intact, so training
+// history, PDF/Excel exports and analytics keep resolving its name/category
+// live via the relation exactly as before. Archiving only hides it from the
+// catalog list and from the exercise picker used when building new
+// workouts (GET /api/exercises). Reversible via PATCH { archived: false }.
+export async function DELETE(_req: NextRequest, props: { params: Promise<{ exerciseId: string }> }) {
   const params = await props.params;
   try {
     await requireCoach()
-    const force = req.nextUrl.searchParams.get('force') === 'true'
 
     const existing = await prisma.exerciseCatalog.findUnique({
       where: { id: params.exerciseId },
@@ -112,29 +114,15 @@ export async function DELETE(req: NextRequest, props: { params: Promise<{ exerci
     }
 
     const usageCount = existing._count.exerciseEntries + existing._count.oneRepMaxes
-    if (usageCount > 0 && !force) {
-      return NextResponse.json(
-        {
-          error: `Упражнение используется (записей в тренировках: ${existing._count.exerciseEntries}, 1ПМ: ${existing._count.oneRepMaxes}).`,
-          usage: {
-            exerciseEntries: existing._count.exerciseEntries,
-            oneRepMaxes: existing._count.oneRepMaxes,
-          },
-        },
-        { status: 409 }
-      )
-    }
-
     if (usageCount > 0) {
-      await prisma.$transaction([
-        prisma.exerciseEntry.deleteMany({ where: { exerciseId: params.exerciseId } }),
-        prisma.athlete1RM.deleteMany({ where: { exerciseId: params.exerciseId } }),
-        prisma.exerciseCatalog.delete({ where: { id: params.exerciseId } }),
-      ])
-    } else {
-      await prisma.exerciseCatalog.delete({ where: { id: params.exerciseId } })
+      const archived = await prisma.exerciseCatalog.update({
+        where: { id: params.exerciseId },
+        data: { archivedAt: new Date() },
+      })
+      return NextResponse.json({ archived: true, exercise: archived })
     }
 
+    await prisma.exerciseCatalog.delete({ where: { id: params.exerciseId } })
     return NextResponse.json({ ok: true })
   } catch (e) {
     return apiErrorResponse(e)

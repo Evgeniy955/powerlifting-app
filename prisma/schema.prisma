@@ -308,6 +308,15 @@ model ExerciseCatalog {
   // Null until assigned — plain string, not an enum, same reasoning as
   // User.role/AthleteProfile.inviteStatus elsewhere in this schema.
   trainingGroup     String?
+  // Soft-delete: set when a coach "deletes" an exercise that's already in
+  // use (logged in a workout, or has a tracked 1RM). Keeps the row (and
+  // every ExerciseEntry/Athlete1RM FK pointing at it) intact so training
+  // history and exports keep resolving the name/category live via the
+  // relation — only hides it from the catalog and from the exercise picker
+  // used when building new workouts. Null = active. An exercise with no
+  // usage at all is still hard-deleted, so this only ever gets set on rows
+  // that have history worth preserving.
+  archivedAt        DateTime?
 
   oneRepMaxes     Athlete1RM[]
   exerciseEntries ExerciseEntry[]
@@ -498,6 +507,11 @@ model GymExerciseCatalog {
   name        String             @unique
   category    String?
   description String?
+  // Soft-delete — same reasoning as ExerciseCatalog.archivedAt: deleting an
+  // exercise that's already logged in a workout or tracked as a client max
+  // archives it instead, so existing plans keep resolving it via the
+  // relation. Null = active/visible in the picker.
+  archivedAt  DateTime?
   exercises   GymExerciseEntry[]
   maxes       GymClientMax[]
   createdAt   DateTime           @default(now())

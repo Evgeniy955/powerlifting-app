@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Check, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
+import { Check, Pencil, Plus, RotateCcw, Search, Trash2, X } from 'lucide-react'
 import { Badge, Button, Card, Input, Select, useToast } from '@/components/ui'
 import { classifyMainLift, type MainLift } from '@/lib/mainLifts'
 import {
@@ -19,6 +19,7 @@ export type AdminExercise = {
   category: string | null
   impactCoefficient: number
   trainingGroup: string | null
+  archivedAt: string | Date | null
   _count: { exerciseEntries: number; oneRepMaxes: number }
 }
 
@@ -102,6 +103,13 @@ export function AdminExercisesView({ initialExercises }: Props) {
           ? ex.trainingGroup
           : UNASSIGNED
       byGroup[key].push(ex)
+    }
+    // Archived exercises sink to the bottom of their block instead of
+    // getting their own section — there just aren't enough of them at once
+    // to justify a fifth grouping, and this keeps a restored exercise
+    // popping right back to where it was.
+    for (const key of GROUP_ORDER) {
+      byGroup[key].sort((a, b) => Number(!!a.archivedAt) - Number(!!b.archivedAt))
     }
     return byGroup
   }, [exercises, query])
@@ -204,41 +212,69 @@ export function AdminExercisesView({ initialExercises }: Props) {
     setError(null)
 
     const usage = ex._count.exerciseEntries + ex._count.oneRepMaxes
-    let force = false
-
-    if (usage > 0) {
-      const confirmed = window.confirm(
-        `«${ex.name}» используется (записей в тренировках: ${ex._count.exerciseEntries}, ` +
-          `1ПМ: ${ex._count.oneRepMaxes}). Вы уверены, что хотите удалить? Упражнение ` +
-          `пропадёт и из истории тренировок, и из сохранённых 1ПМ — отменить это будет нельзя.`
-      )
-      if (!confirmed) return
-      force = true
-    } else {
-      if (!window.confirm(`Удалить упражнение «${ex.name}» из каталога?`)) return
-    }
+    const confirmed = window.confirm(
+      usage > 0
+        ? `«${ex.name}» используется (записей в тренировках: ${ex._count.exerciseEntries}, ` +
+            `1ПМ: ${ex._count.oneRepMaxes}). Упражнение будет архивировано: пропадёт из списка ` +
+            `для новых тренировок, но существующие планы и 1ПМ останутся без изменений. Продолжить?`
+        : `Удалить упражнение «${ex.name}» из каталога?`
+    )
+    if (!confirmed) return
 
     setPendingId(ex.id)
     try {
-      const res = await fetch(`/api/admin/exercises/${ex.id}${force ? '?force=true' : ''}`, {
-        method: 'DELETE',
-      })
+      const res = await fetch(`/api/admin/exercises/${ex.id}`, { method: 'DELETE' })
+      const body = await res.json().catch(() => ({}))
 
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
         const message = body.error ?? 'Не удалось удалить упражнение'
         setError(message)
         toast({ title: 'Не удалось удалить', description: message, variant: 'error' })
         return
       }
 
-      setExercises((prev) => prev.filter((x) => x.id !== ex.id))
-      toast({ title: `«${ex.name}» удалено`, variant: 'success' })
+      if (body.archived) {
+        setExercises((prev) =>
+          prev.map((x) => (x.id === ex.id ? { ...x, archivedAt: body.exercise.archivedAt } : x))
+        )
+        toast({ title: `«${ex.name}» архивировано`, variant: 'success' })
+      } else {
+        setExercises((prev) => prev.filter((x) => x.id !== ex.id))
+        toast({ title: `«${ex.name}» удалено`, variant: 'success' })
+      }
     } catch (e) {
       console.error('deleteExercise failed', e)
       const message = 'Проблема с сетью — упражнение не удалено'
       setError(message)
       toast({ title: 'Не удалось удалить', description: message, variant: 'error' })
+    } finally {
+      setPendingId(null)
+    }
+  }
+
+  async function restoreExercise(ex: AdminExercise) {
+    setError(null)
+    setPendingId(ex.id)
+    try {
+      const res = await fetch(`/api/admin/exercises/${ex.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ archived: false }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        const message = body.error ?? 'Не удалось восстановить упражнение'
+        setError(message)
+        toast({ title: 'Не удалось восстановить', description: message, variant: 'error' })
+        return
+      }
+      setExercises((prev) => prev.map((x) => (x.id === ex.id ? { ...x, archivedAt: null } : x)))
+      toast({ title: `«${ex.name}» снова доступно`, variant: 'success' })
+    } catch (e) {
+      console.error('restoreExercise failed', e)
+      const message = 'Проблема с сетью — упражнение не восстановлено'
+      setError(message)
+      toast({ title: 'Не удалось восстановить', description: message, variant: 'error' })
     } finally {
       setPendingId(null)
     }
@@ -286,6 +322,7 @@ export function AdminExercisesView({ initialExercises }: Props) {
             category: body.category,
             impactCoefficient: body.impactCoefficient,
             trainingGroup: body.trainingGroup ?? null,
+            archivedAt: null,
             _count: { exerciseEntries: 0, oneRepMaxes: 0 },
           },
         ].sort((a, b) => a.name.localeCompare(b.name, 'ru'))
@@ -312,7 +349,7 @@ export function AdminExercisesView({ initialExercises }: Props) {
 
     return (
       <li key={ex.id}>
-        <Card padding="sm" className={`space-y-2 border-l-4 ${color.borderLeft}`}>
+        <Card padding="sm" className={`space-y-2 border-l-4 ${color.borderLeft} ${ex.archivedAt ? 'opacity-60' : ''}`}>
           {editingId === ex.id ? (
             <div className="space-y-2">
               <Input
@@ -366,6 +403,7 @@ export function AdminExercisesView({ initialExercises }: Props) {
                 <div className="mt-1 flex flex-wrap items-center gap-1.5">
                   {ex.category && <Badge tone="neutral">{ex.category}</Badge>}
                   {lift && <Badge tone="accent">{LIFT_LABEL[lift]}</Badge>}
+                  {ex.archivedAt && <Badge tone="neutral">Архивировано</Badge>}
                 </div>
                 <p className="mt-1 text-xs text-text-secondary">
                   {usage > 0
@@ -391,29 +429,44 @@ export function AdminExercisesView({ initialExercises }: Props) {
               </div>
 
               <div className="flex shrink-0 items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => startEdit(ex)}
-                  aria-label="Редактировать упражнение"
-                  title="Редактировать упражнение"
-                  className="text-text-secondary transition-colors hover:text-accent"
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  disabled={pendingId === ex.id}
-                  onClick={() => deleteExercise(ex)}
-                  aria-label="Удалить упражнение"
-                  title={
-                    usage > 0
-                      ? 'Используется — удаление сотрёт историю тренировок и 1ПМ'
-                      : 'Удалить упражнение'
-                  }
-                  className="text-text-secondary transition-colors hover:text-danger disabled:opacity-50"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
+                {ex.archivedAt ? (
+                  <button
+                    type="button"
+                    disabled={pendingId === ex.id}
+                    onClick={() => restoreExercise(ex)}
+                    aria-label="Восстановить упражнение"
+                    title="Восстановить упражнение"
+                    className="text-text-secondary transition-colors hover:text-accent disabled:opacity-50"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => startEdit(ex)}
+                      aria-label="Редактировать упражнение"
+                      title="Редактировать упражнение"
+                      className="text-text-secondary transition-colors hover:text-accent"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={pendingId === ex.id}
+                      onClick={() => deleteExercise(ex)}
+                      aria-label="Удалить упражнение"
+                      title={
+                        usage > 0
+                          ? 'Используется — будет архивировано, существующие планы не пострадают'
+                          : 'Удалить упражнение'
+                      }
+                      className="text-text-secondary transition-colors hover:text-danger disabled:opacity-50"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           )}
