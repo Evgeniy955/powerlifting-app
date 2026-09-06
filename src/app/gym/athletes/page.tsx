@@ -6,6 +6,8 @@ import { requireUser } from '@/lib/session'
 import { redirect } from 'next/navigation'
 import { Badge, Card, buttonVariants } from '@/components/ui'
 import { GymInviteClientButton } from '@/components/GymInviteClientButton'
+import { EditGymClientButton } from '@/components/EditGymClientButton'
+import { DeleteGymClientButton } from '@/components/DeleteGymClientButton'
 
 type GymClientCard = Prisma.GymClientGetPayload<{
   include: { user: { select: { name: true; email: true } }; plans: { select: { id: true } } }
@@ -29,26 +31,35 @@ export default async function GymAthletesPage() {
         <Link className={buttonVariants({ size: 'sm' })} href="/gym/athletes/new"><UserPlus className="h-4 w-4" /> Клиент</Link>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
-        {clients.map((client) => (
-          <Card key={client.id} className="space-y-3">
-            <Link href={`/gym/athletes/${client.id}/plans`} className="flex items-center gap-3 transition-colors hover:opacity-80">
-              <UserRound className="text-accent" />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <p className="truncate font-medium">{client.displayName ?? client.user?.name ?? client.user?.email ?? 'Без имени'}</p>
-                  {!client.userId && client.inviteStatus === 'PENDING' && <Badge tone="moderate">Приглашение отправлено</Badge>}
-                  {!client.userId && client.inviteStatus === 'NONE' && <Badge tone="neutral">Не приглашён</Badge>}
+        {clients.map((client) => {
+          const name = client.displayName ?? client.user?.name ?? client.user?.email ?? 'Без имени'
+          return (
+            <Card key={client.id} className="space-y-3">
+              <div className="flex items-center gap-3">
+                <Link href={`/gym/athletes/${client.id}/plans`} className="flex min-w-0 flex-1 items-center gap-3 transition-colors hover:opacity-80">
+                  <UserRound className="text-accent" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate font-medium">{name}</p>
+                      {!client.userId && client.inviteStatus === 'PENDING' && <Badge tone="moderate">Приглашение отправлено</Badge>}
+                      {!client.userId && client.inviteStatus === 'NONE' && <Badge tone="neutral">Не приглашён</Badge>}
+                    </div>
+                    <p className="text-xs text-text-secondary">Планов: {client.plans.length}</p>
+                  </div>
+                </Link>
+                <div className="flex shrink-0 gap-2">
+                  <EditGymClientButton clientId={client.id} displayName={client.displayName} />
+                  <DeleteGymClientButton clientId={client.id} clientName={name} accepted={!!client.userId} />
                 </div>
-                <p className="text-xs text-text-secondary">Планов: {client.plans.length}</p>
               </div>
-            </Link>
-            {!client.userId && (
-              <div className="border-t border-border pt-3">
-                <GymInviteClientButton clientId={client.id} inviteEmail={client.inviteEmail} />
-              </div>
-            )}
-          </Card>
-        ))}
+              {!client.userId && (
+                <div className="border-t border-border pt-3">
+                  <GymInviteClientButton clientId={client.id} inviteEmail={client.inviteEmail} />
+                </div>
+              )}
+            </Card>
+          )
+        })}
         {!clients.length && <Card><p className="text-sm text-text-secondary">Клиентов пока нет. Добавьте первого клиента.</p></Card>}
       </div>
     </main>
