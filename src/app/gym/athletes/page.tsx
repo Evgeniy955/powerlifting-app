@@ -8,6 +8,7 @@ import { Badge, Card, buttonVariants } from '@/components/ui'
 import { GymInviteClientButton } from '@/components/GymInviteClientButton'
 import { EditGymClientButton } from '@/components/EditGymClientButton'
 import { DeleteGymClientButton } from '@/components/DeleteGymClientButton'
+import { AutoRefreshOnMount } from '@/components/AutoRefreshOnMount'
 
 type GymClientCard = Prisma.GymClientGetPayload<{
   include: { user: { select: { name: true; email: true } }; plans: { select: { id: true } } }
@@ -26,6 +27,7 @@ export default async function GymAthletesPage() {
   }
   return (
     <main className="mx-auto min-h-[calc(100vh-3.5rem)] max-w-4xl space-y-5 bg-bg p-6 text-text-primary">
+      <AutoRefreshOnMount />
       <div className="flex items-center justify-between">
         <h1 className="font-display text-xl uppercase">Клиенты · Тренажёрный зал</h1>
         <Link className={buttonVariants({ size: 'sm' })} href="/gym/athletes/new"><UserPlus className="h-4 w-4" /> Клиент</Link>
