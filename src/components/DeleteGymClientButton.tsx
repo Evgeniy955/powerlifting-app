@@ -12,6 +12,14 @@ type Props = {
   // Whether this client has accepted their invite (has a real account) —
   // changes the confirmation wording, same reasoning as DeleteAthleteButton.
   accepted: boolean
+  // Override the coach-scoped endpoint — used by the admin panel, which
+  // deletes any gym client (not just the signed-in coach's own), mirroring
+  // how DeleteAthleteButton supports a deleteUrl override.
+  deleteUrl?: string
+  // Called instead of router.refresh() on success — the admin panel keeps
+  // its own list state (mirrors AdminPendingInvites) rather than relying on
+  // a server-rendered list.
+  onDone?: () => void
 }
 
 // Gym-mode counterpart of DeleteAthleteButton. Simpler than that one: no
@@ -20,7 +28,7 @@ type Props = {
 // server-rendered list (src/app/gym/athletes/page.tsx), so success refreshes
 // the route instead of calling back into client-side list state — same
 // pattern as GymInviteClientButton.
-export function DeleteGymClientButton({ clientId, clientName, accepted }: Props) {
+export function DeleteGymClientButton({ clientId, clientName, accepted, deleteUrl, onDone }: Props) {
   const router = useRouter()
   const toast = useToast()
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -30,13 +38,14 @@ export function DeleteGymClientButton({ clientId, clientName, accepted }: Props)
     setConfirmOpen(false)
     setLoading(true)
     try {
-      const res = await fetch(`/api/gym/clients/${clientId}`, { method: 'DELETE' })
+      const res = await fetch(deleteUrl ?? `/api/gym/clients/${clientId}`, { method: 'DELETE' })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
         throw new Error(body.error ?? `Не удалось удалить ${wardNoun(clientName, 'accusative')}`)
       }
       toast({ title: `«${clientName}» удалён`, variant: 'success' })
-      router.refresh()
+      if (onDone) onDone()
+      else router.refresh()
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Ошибка'
       toast({ title: 'Не удалось удалить', description: message, variant: 'error' })

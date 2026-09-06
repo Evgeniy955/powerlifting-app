@@ -3,6 +3,8 @@ import { requireUser } from '@/lib/session'
 import { redirect } from 'next/navigation'
 import { AdminUsersView } from '@/components/AdminUsersView'
 import { AdminPendingInvites } from '@/components/AdminPendingInvites'
+import { EditGymClientButton } from '@/components/EditGymClientButton'
+import { DeleteGymClientButton } from '@/components/DeleteGymClientButton'
 import Link from 'next/link'
 
 // Coach-only role management screen. There's no separate ADMIN role in this
@@ -59,6 +61,7 @@ export default async function AdminUsersPage() {
       id: true,
       displayName: true,
       inviteEmail: true,
+      userId: true,
       user: { select: { name: true, email: true } },
       coach: { select: { name: true, email: true } },
       _count: { select: { plans: true } },
@@ -92,7 +95,37 @@ export default async function AdminUsersPage() {
 
       <section className="space-y-2">
         <h2 className="font-display text-lg uppercase tracking-wide">Подопечные · Тренажёрный зал</h2>
-        {gymClients.length ? <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{gymClients.map((client) => <li key={client.id}><Link href={`/gym/athletes/${client.id}/plans`} className="block rounded-lg border border-border bg-surface p-3 transition-colors hover:border-accent"><p className="font-medium">{client.displayName ?? client.user?.name ?? client.user?.email ?? 'Без имени'}</p><p className="text-xs text-text-secondary">{client.inviteEmail ?? client.user?.email ?? 'Без аккаунта'}</p><p className="mt-1 text-xs text-text-secondary">Тренер: {client.coach?.name ?? client.coach?.email ?? 'не назначен'} · планов: {client._count.plans}</p></Link></li>)}</ul> : <p className="text-sm text-text-secondary">Подопечных тренажёрного зала пока нет.</p>}
+        {gymClients.length ? (
+          <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {gymClients.map((client) => {
+              const name = client.displayName ?? client.user?.name ?? client.user?.email ?? 'Без имени'
+              return (
+                <li key={client.id} className="flex items-start gap-2 rounded-lg border border-border bg-surface p-3 transition-colors hover:border-accent">
+                  <Link href={`/gym/athletes/${client.id}/plans`} className="min-w-0 flex-1">
+                    <p className="truncate font-medium">{name}</p>
+                    <p className="truncate text-xs text-text-secondary">{client.inviteEmail ?? client.user?.email ?? 'Без аккаунта'}</p>
+                    <p className="mt-1 text-xs text-text-secondary">Тренер: {client.coach?.name ?? client.coach?.email ?? 'не назначен'} · планов: {client._count.plans}</p>
+                  </Link>
+                  <div className="flex shrink-0 gap-2">
+                    <EditGymClientButton
+                      clientId={client.id}
+                      displayName={client.displayName}
+                      patchUrl={`/api/admin/gym-clients/${client.id}`}
+                    />
+                    <DeleteGymClientButton
+                      clientId={client.id}
+                      clientName={name}
+                      accepted={!!client.userId}
+                      deleteUrl={`/api/admin/gym-clients/${client.id}`}
+                    />
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        ) : (
+          <p className="text-sm text-text-secondary">Подопечных тренажёрного зала пока нет.</p>
+        )}
       </section>
 
       {pendingInvitesWithPlans.length > 0 && (

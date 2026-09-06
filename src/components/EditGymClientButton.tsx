@@ -9,12 +9,18 @@ import { wardNoun } from '@/lib/gender'
 type Props = {
   clientId: string
   displayName: string | null
+  // Override the coach-scoped endpoint — used by the admin panel, which can
+  // rename any gym client, not just the signed-in coach's own.
+  patchUrl?: string
+  // Called with the saved name instead of router.refresh() — the admin
+  // panel keeps its own list state (mirrors AdminPendingInvites).
+  onSaved?: (name: string) => void
 }
 
 // Lets the coach rename a gym client, regardless of invite status — the
 // PATCH route only gated inviteEmail behind "not yet accepted", displayName
 // was always editable there, this just adds the missing UI for it.
-export function EditGymClientButton({ clientId, displayName }: Props) {
+export function EditGymClientButton({ clientId, displayName, patchUrl, onSaved }: Props) {
   const router = useRouter()
   const toast = useToast()
   const [open, setOpen] = useState(false)
@@ -29,7 +35,7 @@ export function EditGymClientButton({ clientId, displayName }: Props) {
     }
     setLoading(true)
     try {
-      const res = await fetch(`/api/gym/clients/${clientId}`, {
+      const res = await fetch(patchUrl ?? `/api/gym/clients/${clientId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ displayName: name }),
@@ -40,7 +46,8 @@ export function EditGymClientButton({ clientId, displayName }: Props) {
       }
       toast({ title: 'Имя обновлено', variant: 'success' })
       setOpen(false)
-      router.refresh()
+      if (onSaved) onSaved(name)
+      else router.refresh()
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Ошибка'
       toast({ title: 'Не удалось сохранить', description: message, variant: 'error' })
