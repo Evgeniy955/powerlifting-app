@@ -109,6 +109,49 @@ export async function GET(request: Request) {
         data: { userId: user.id, inviteStatus: 'ACCEPTED' },
       })
     }
+  } else if (inviteToken && existing.role !== 'COACH') {
+    // A `public.User` row for this Supabase account already exists — most
+    // commonly because they'd signed in before under the old, tokenless
+    // linking (or their GymClient/AthleteProfile link was reset after being
+    // granted without ever accepting — see authorization.ts's inviteStatus
+    // check). Either way they can still be signed in without accepting
+    // anything (Supabase Auth doesn't care), but that used to mean an invite
+    // link landing on an already-known account silently did nothing —
+    // "принял приглашение" only ever ran once, for a brand-new user, in the
+    // block above. Re-run the same token-matched linking here so accepting
+    // actually takes effect for a returning account too, as long as they
+    // don't already have that profile type (userId is @unique on both
+    // models, so linking a second one via a stale query would throw).
+    const [alreadyAthlete, alreadyGymClient] = await Promise.all([
+      prisma.athleteProfile.findUnique({ where: { userId: existing.id }, select: { id: true } }),
+      prisma.gymClient.findUnique({ where: { userId: existing.id }, select: { id: true } }),
+    ])
+
+    const pendingAthleteInvite = alreadyAthlete
+      ? null
+      : await prisma.athleteProfile.findFirst({
+          where: { userId: null, inviteStatus: 'PENDING', inviteToken, inviteEmail: email },
+        })
+
+    const pendingGymClient = alreadyGymClient
+      ? null
+      : await prisma.gymClient.findFirst({
+          where: { userId: null, inviteStatus: 'PENDING', inviteToken, inviteEmail: email },
+        })
+
+    if (pendingAthleteInvite) {
+      await prisma.athleteProfile.update({
+        where: { id: pendingAthleteInvite.id },
+        data: { userId: existing.id, inviteStatus: 'ACCEPTED' },
+      })
+    }
+
+    if (pendingGymClient) {
+      await prisma.gymClient.update({
+        where: { id: pendingGymClient.id },
+        data: { userId: existing.id, inviteStatus: 'ACCEPTED' },
+      })
+    }
   }
 
   return NextResponse.redirect(`${origin}${next}`)
