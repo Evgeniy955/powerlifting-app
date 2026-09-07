@@ -6,6 +6,33 @@ import { assertGymClientBelongsToCoach } from '@/lib/authorization'
 const DAY_MS = 24 * 60 * 60 * 1000
 const WEEK_MS = 7 * DAY_MS
 
+// PATCH /api/gym/weeks/:weekId { name } — coach-only. Sets (or clears, if
+// name is blank) the week's optional custom label — weekNumber itself
+// isn't editable here, it stays purely positional (see DELETE below).
+export async function PATCH(req: Request, { params }: { params: Promise<{ weekId: string }> }) {
+  try {
+    const coach = await requireCoach()
+    const { weekId } = await params
+    const week = await prisma.gymWeek.findUnique({ where: { id: weekId }, include: { plan: true } })
+    if (!week) return NextResponse.json({ error: 'Неделя не найдена' }, { status: 404 })
+    await assertGymClientBelongsToCoach(week.plan.clientId, coach.id)
+
+    const body = await req.json() as { name?: unknown }
+    if (typeof body.name !== 'string') {
+      return NextResponse.json({ error: 'Некорректное название' }, { status: 400 })
+    }
+    const trimmed = body.name.trim().slice(0, 120)
+
+    const updated = await prisma.gymWeek.update({
+      where: { id: weekId },
+      data: { name: trimmed || null },
+    })
+    return NextResponse.json(updated)
+  } catch (e) {
+    return apiErrorResponse(e)
+  }
+}
+
 // DELETE /api/gym/weeks/:weekId — coach-only. Deletes one week from a plan,
 // cascading its workouts/exercise entries/sets via the relations declared
 // in schema.prisma.

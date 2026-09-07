@@ -1,0 +1,1 @@
+ALTER TABLE "GymWeek" ADD COLUMN "name" TEXT;

@@ -550,6 +550,12 @@ model GymWeek {
   planId     String
   plan       GymPlan      @relation(fields: [planId], references: [id], onDelete: Cascade)
   weekNumber Int
+  // Optional custom label (e.g. "Дедлайн неделя") shown alongside "Неделя
+  // N" — weekNumber stays the authoritative identity (ordering, the
+  // Sunday-23:50 visibility unlock, @@unique below), this is purely
+  // cosmetic and nullable: clearing it back to null just falls back to
+  // plain "Неделя N".
+  name       String?
   workouts   GymWorkout[]
 
   @@unique([planId, weekNumber])

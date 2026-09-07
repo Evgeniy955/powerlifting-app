@@ -8,6 +8,7 @@ import { Card, buttonVariants } from '@/components/ui'
 import { AiCoachButton } from '@/components/AiCoachButton'
 import { AddGymWeekButton } from '@/components/AddGymWeekButton'
 import { DeleteGymWeekButton } from '@/components/DeleteGymWeekButton'
+import { RenameGymWeekButton } from '@/components/RenameGymWeekButton'
 import { CopyLastTwoGymWeeksButton } from '@/components/CopyLastTwoGymWeeksButton'
 import { currentWeekNumber, isMicrocycleVisibleToAthlete } from '@/lib/weekAccess'
 
@@ -135,13 +136,23 @@ export default async function GymPlanPage({ params }: { params: Promise<{ planId
                 <span className="inline-block rounded-full bg-accent px-2.5 py-0.5 text-xs font-bold uppercase tracking-wide text-on-accent">
                   Текущая неделя
                 </span>
-                <h2 className="mt-1 font-display uppercase">Неделя {currentWeek.weekNumber}</h2>
+                <h2 className="mt-1 font-display uppercase">
+                  Неделя {currentWeek.weekNumber}
+                  {currentWeek.name && <span className="normal-case"> — {currentWeek.name}</span>}
+                </h2>
                 {formatGymWeekDateRange(currentWeek.workouts) && (
                   <p className="mt-1 text-xs text-text-secondary">{formatGymWeekDateRange(currentWeek.workouts)}</p>
                 )}
               </Link>
               {user.role === 'COACH' && (
-                <DeleteGymWeekButton weekId={currentWeek.id} weekNumber={currentWeek.weekNumber} />
+                <div className="flex shrink-0 items-center gap-1">
+                  <RenameGymWeekButton
+                    weekId={currentWeek.id}
+                    weekNumber={currentWeek.weekNumber}
+                    currentName={currentWeek.name}
+                  />
+                  <DeleteGymWeekButton weekId={currentWeek.id} weekNumber={currentWeek.weekNumber} />
+                </div>
               )}
             </div>
             <GymDayLinks
@@ -158,12 +169,20 @@ export default async function GymPlanPage({ params }: { params: Promise<{ planId
           <Card key={w.id}>
             <div className="mb-1 flex items-start justify-between gap-2">
               <Link href={`/gym/weeks/${w.id}`} className="min-w-0 block hover:text-accent">
-                <h2 className="font-display uppercase">Неделя {w.weekNumber}</h2>
+                <h2 className="font-display uppercase">
+                  Неделя {w.weekNumber}
+                  {w.name && <span className="normal-case"> — {w.name}</span>}
+                </h2>
                 {formatGymWeekDateRange(w.workouts) && (
                   <p className="mt-1 text-xs text-text-secondary">{formatGymWeekDateRange(w.workouts)}</p>
                 )}
               </Link>
-              {user.role === 'COACH' && <DeleteGymWeekButton weekId={w.id} weekNumber={w.weekNumber} />}
+              {user.role === 'COACH' && (
+                <div className="flex shrink-0 items-center gap-1">
+                  <RenameGymWeekButton weekId={w.id} weekNumber={w.weekNumber} currentName={w.name} />
+                  <DeleteGymWeekButton weekId={w.id} weekNumber={w.weekNumber} />
+                </div>
+              )}
             </div>
             <GymDayLinks
               workouts={w.workouts}

@@ -6,6 +6,7 @@ import { getGymWeekForDisplay, formatGymWeekDateRange } from '@/lib/gym'
 import { assertGymClientAccessible } from '@/lib/authorization'
 import { isMicrocycleVisibleToAthlete } from '@/lib/weekAccess'
 import { AiCoachButton } from '@/components/AiCoachButton'
+import { RenameGymWeekButton } from '@/components/RenameGymWeekButton'
 import { GymWeekView } from '@/components/GymWeekView'
 
 export default async function GymWeekPage({ params }: { params: Promise<{ weekId: string }> }) {
@@ -51,12 +52,15 @@ export default async function GymWeekPage({ params }: { params: Promise<{ weekId
           </Link>
           <div className="flex items-center gap-2">
             {user.role === 'COACH' && (
-              <AiCoachButton
-                scope="mesocycle"
-                athleteId={week.plan.clientId}
-                contextName={`Неделя ${week.weekNumber}`}
-                endpoint="gym"
-              />
+              <>
+                <AiCoachButton
+                  scope="mesocycle"
+                  athleteId={week.plan.clientId}
+                  contextName={`Неделя ${week.weekNumber}`}
+                  endpoint="gym"
+                />
+                <RenameGymWeekButton weekId={week.id} weekNumber={week.weekNumber} currentName={week.name} />
+              </>
             )}
             <Link
               href={`/gym/weeks/${week.id}/export`}
@@ -82,7 +86,10 @@ export default async function GymWeekPage({ params }: { params: Promise<{ weekId
             ) : (
               <span className="h-8 w-8 shrink-0" />
             )}
-            <h1 className="font-display text-xl uppercase tracking-wide">Неделя {week.weekNumber}</h1>
+            <h1 className="font-display text-xl uppercase tracking-wide">
+              Неделя {week.weekNumber}
+              {week.name && <span className="normal-case"> — {week.name}</span>}
+            </h1>
             {week.nextWeek && nextWeekVisible ? (
               <Link
                 href={`/gym/weeks/${week.nextWeek.id}`}
