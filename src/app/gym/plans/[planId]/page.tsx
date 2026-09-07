@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { History } from 'lucide-react'
+import { FileDown, History } from 'lucide-react'
 import { prisma } from '@/lib/prisma'
 import { requireUser } from '@/lib/session'
 import { assertGymPlanAccess, formatGymWeekDateRange } from '@/lib/gym'
@@ -143,16 +143,26 @@ export default async function GymPlanPage({ params }: { params: Promise<{ planId
                   <p className="mt-1 text-xs text-text-secondary">{formatGymWeekDateRange(currentWeek.workouts)}</p>
                 )}
               </Link>
-              {user.role === 'COACH' && (
-                <div className="flex shrink-0 items-center gap-1">
-                  <RenameGymWeekButton
-                    weekId={currentWeek.id}
-                    weekNumber={currentWeek.weekNumber}
-                    currentName={currentWeek.name}
-                  />
-                  <DeleteGymWeekButton weekId={currentWeek.id} weekNumber={currentWeek.weekNumber} />
-                </div>
-              )}
+              <div className="flex shrink-0 items-center gap-1">
+                <Link
+                  href={`/gym/weeks/${currentWeek.id}/export`}
+                  title="Экспорт в PDF"
+                  aria-label="Экспорт в PDF"
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-2 hover:text-accent"
+                >
+                  <FileDown className="h-4 w-4" />
+                </Link>
+                {user.role === 'COACH' && (
+                  <>
+                    <RenameGymWeekButton
+                      weekId={currentWeek.id}
+                      weekNumber={currentWeek.weekNumber}
+                      currentName={currentWeek.name}
+                    />
+                    <DeleteGymWeekButton weekId={currentWeek.id} weekNumber={currentWeek.weekNumber} />
+                  </>
+                )}
+              </div>
             </div>
             <GymDayLinks
               workouts={currentWeek.workouts}
