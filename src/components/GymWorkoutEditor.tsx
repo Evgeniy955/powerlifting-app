@@ -1,6 +1,6 @@
 'use client'
 import { useMemo, useState, type ReactNode } from 'react'
-import { Plus, Trash2, X } from 'lucide-react'
+import { Flame, Plus, Trash2, X } from 'lucide-react'
 import { Button, Card, Input, Select } from '@/components/ui'
 
 type Set = { id: string; setNumber: number; weight: number; reps: number; toFailure: boolean }
@@ -70,6 +70,15 @@ export function GymWorkoutEditor({ workoutId, entries, canEdit, initialCompact, 
       {canEdit && (
         <Card className="space-y-3">
           <h2 className="font-display text-sm uppercase">Добавить упражнение</h2>
+          {/* min-w-0 on every grid item: without it, a grid child's default
+              min-width:auto refuses to shrink below its own content's
+              intrinsic width — once loadCatalog() (fired on focusing either
+              field below) fills the Select with the full exercise list, its
+              longest option name can exceed the 1fr track's available
+              width, and the grid can't compress it back down. That pushed
+              the weight/reps inputs and the Добавить button out of their
+              tracks (wrapping or overflowing) right as you clicked into
+              "Поиск упражнения" — the button visibly "crawling away". */}
           <div className="grid gap-2 md:grid-cols-[1fr_1fr_8rem_8rem_auto]">
             <Input
               placeholder="Поиск упражнения"
@@ -79,11 +88,13 @@ export function GymWorkoutEditor({ workoutId, entries, canEdit, initialCompact, 
                 setQuery(e.target.value)
                 setExerciseId('')
               }}
+              className="min-w-0"
             />
             <Select
               value={exerciseId}
               onFocus={() => void loadCatalog()}
               onChange={(e) => setExerciseId(e.target.value)}
+              className="min-w-0"
             >
               <option value="">Выберите упражнение</option>
               {options.map((exercise) => (
@@ -100,8 +111,16 @@ export function GymWorkoutEditor({ workoutId, entries, canEdit, initialCompact, 
               value={workingWeight}
               onChange={(e) => setWorkingWeight(e.target.value)}
               aria-label="Рабочий вес"
+              className="min-w-0"
             />
-            <Input type="number" min="1" value={reps} onChange={(e) => setReps(e.target.value)} aria-label="Повторы" />
+            <Input
+              type="number"
+              min="1"
+              value={reps}
+              onChange={(e) => setReps(e.target.value)}
+              aria-label="Повторы"
+              className="min-w-0"
+            />
             <Button onClick={() => void addExercise()} disabled={adding || !exerciseId}>
               {adding ? 'Добавляю…' : 'Добавить'}
             </Button>
@@ -190,49 +209,42 @@ export function GymWorkoutEditor({ workoutId, entries, canEdit, initialCompact, 
                     Подходы
                   </th>
                   {canEdit && <th className="px-1 py-1" />}
+                  <th className="px-1.5 py-1 text-right font-bold">ПМ</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((entry) => (
                   <tr key={entry.id} className="border-b border-border last:border-b-0">
                     <td className="sticky left-0 z-10 w-72 max-w-[20rem] bg-surface px-2 py-1 align-top">
-                      <div className="flex flex-col items-start gap-1">
-                        {canEdit ? (
-                          <Select
-                            className="w-full max-w-[20rem] whitespace-normal font-medium"
-                            value=""
-                            onFocus={() => void loadCatalog()}
-                            onChange={(e) => void replaceExercise(entry.id, e.target.value)}
-                            aria-label={`Заменить упражнение «${entry.exercise.name}»`}
-                          >
-                            <option value="">{entry.exercise.name}</option>
-                            {catalog
-                              .filter((exercise) => exercise.id !== entry.exercise.id)
-                              .map((exercise) => (
-                                <option key={exercise.id} value={exercise.id}>
-                                  {exercise.name}
-                                  {exercise.category ? ` · ${exercise.category}` : ''}
-                                </option>
-                              ))}
-                          </Select>
-                        ) : (
-                          <span className="font-medium">{entry.exercise.name}</span>
-                        )}
-                        {canEdit ? (
-                          <label className="flex items-center gap-1 text-[10px] text-text-secondary">
-                            ПМ, кг
-                            <input
-                              type="number"
-                              min="0.5"
-                              step="0.5"
-                              defaultValue={entry.oneRepMax ?? ''}
-                              onBlur={(e) => void saveMax(entry.id, e.target.value)}
-                              className="w-14 min-w-0 rounded border border-border bg-surface-2 px-1 py-0.5 text-center text-xs outline-none focus:border-accent focus:ring-1 focus:ring-accent"
-                            />
-                          </label>
-                        ) : (
-                          <span className="text-[10px] text-text-secondary">ПМ: {entry.oneRepMax ?? '—'} кг</span>
-                        )}
+                      {/* Name/select on the left, delete pinned to the right
+                          via the min-w-0 flex-1 wrapper — was a third block
+                          stacked below the ПМ input, now sits next to the
+                          name it deletes instead of at the bottom of an
+                          unrelated column. */}
+                      <div className="flex items-start gap-1">
+                        <div className="min-w-0 flex-1">
+                          {canEdit ? (
+                            <Select
+                              className="w-full min-w-0 whitespace-normal font-medium"
+                              value=""
+                              onFocus={() => void loadCatalog()}
+                              onChange={(e) => void replaceExercise(entry.id, e.target.value)}
+                              aria-label={`Заменить упражнение «${entry.exercise.name}»`}
+                            >
+                              <option value="">{entry.exercise.name}</option>
+                              {catalog
+                                .filter((exercise) => exercise.id !== entry.exercise.id)
+                                .map((exercise) => (
+                                  <option key={exercise.id} value={exercise.id}>
+                                    {exercise.name}
+                                    {exercise.category ? ` · ${exercise.category}` : ''}
+                                  </option>
+                                ))}
+                            </Select>
+                          ) : (
+                            <span className="font-medium">{entry.exercise.name}</span>
+                          )}
+                        </div>
                         {canEdit && (
                           <Button
                             variant="ghost"
@@ -240,6 +252,7 @@ export function GymWorkoutEditor({ workoutId, entries, canEdit, initialCompact, 
                             aria-label="Удалить упражнение"
                             title="Удалить упражнение из тренировки"
                             onClick={() => void removeExercise(entry.id)}
+                            className="shrink-0"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
@@ -261,71 +274,94 @@ export function GymWorkoutEditor({ workoutId, entries, canEdit, initialCompact, 
                               <X className="h-3 w-3" />
                             </button>
                           )}
-                          <div className="flex flex-col items-center gap-0.5">
-                            <span className="flex h-4 w-16 items-center justify-center rounded border border-border bg-surface-2 text-[10px] font-medium text-text-secondary">
-                              {i + 1}
-                            </span>
-                            <input
-                              disabled={!canEdit}
-                              type="number"
-                              inputMode="decimal"
-                              min="0"
-                              step="0.5"
-                              value={set.weight || ''}
-                              onChange={(e) =>
-                                setRows((current) =>
-                                  current.map((row) =>
-                                    row.id === entry.id
-                                      ? {
-                                          ...row,
-                                          sets: row.sets.map((item) =>
-                                            item.id === set.id
-                                              ? { ...item, weight: Number(e.target.value) || 0 }
-                                              : item
-                                          ),
-                                        }
-                                      : row
-                                  )
-                                )
-                              }
-                              onBlur={(e) => void saveSet(entry.id, set.id, { weight: Number(e.target.value) || 0 })}
-                              className="w-16 min-w-0 rounded border border-border bg-surface-2 px-0.5 py-0.5 text-center text-sm font-bold text-accent outline-none focus:border-accent focus:ring-1 focus:ring-accent disabled:cursor-not-allowed disabled:opacity-50"
-                            />
-                            <input
-                              disabled={!canEdit || set.toFailure}
-                              type="number"
-                              inputMode="numeric"
-                              min="0"
-                              value={set.reps || ''}
-                              onChange={(e) =>
-                                setRows((current) =>
-                                  current.map((row) =>
-                                    row.id === entry.id
-                                      ? {
-                                          ...row,
-                                          sets: row.sets.map((item) =>
-                                            item.id === set.id
-                                              ? { ...item, reps: Number(e.target.value) || 0 }
-                                              : item
-                                          ),
-                                        }
-                                      : row
-                                  )
-                                )
-                              }
-                              onBlur={(e) => void saveSet(entry.id, set.id, { reps: Number(e.target.value) || 0 })}
-                              className="w-16 min-w-0 rounded border border-border bg-surface-2 px-0.5 py-0.5 text-center text-sm text-text-secondary outline-none focus:border-accent focus:ring-1 focus:ring-accent disabled:cursor-not-allowed disabled:opacity-50"
-                            />
-                            <span className="text-xs text-accent">{percentOfMax(set.weight, entry.oneRepMax)}</span>
-                            <label className="flex items-center gap-0.5 text-[9px] text-text-secondary">
+                          {/* Weight/reps stay their own stacked column on
+                              the left; %ПМ and "до отказа" move to a second,
+                              narrower column to their right (отказ on top,
+                              % below) instead of two more stacked rows below
+                              reps — cuts each set cell from 5 rows tall to 3,
+                              so a whole day's sets fit with far less
+                              scrolling. */}
+                          <div className="flex items-start gap-1">
+                            <div className="flex flex-col items-center gap-0.5">
+                              <span className="flex h-4 w-16 items-center justify-center rounded border border-border bg-surface-2 text-[10px] font-medium text-text-secondary">
+                                {i + 1}
+                              </span>
                               <input
-                                type="checkbox"
                                 disabled={!canEdit}
-                                checked={set.toFailure}
-                                onChange={(e) => void toggleToFailure(entry.id, set.id, e.target.checked)}
+                                type="number"
+                                inputMode="decimal"
+                                min="0"
+                                step="0.5"
+                                value={set.weight || ''}
+                                onChange={(e) =>
+                                  setRows((current) =>
+                                    current.map((row) =>
+                                      row.id === entry.id
+                                        ? {
+                                            ...row,
+                                            sets: row.sets.map((item) =>
+                                              item.id === set.id
+                                                ? { ...item, weight: Number(e.target.value) || 0 }
+                                                : item
+                                            ),
+                                          }
+                                        : row
+                                    )
+                                  )
+                                }
+                                onBlur={(e) => void saveSet(entry.id, set.id, { weight: Number(e.target.value) || 0 })}
+                                className="w-16 min-w-0 rounded border border-border bg-surface-2 px-0.5 py-0.5 text-center text-sm font-bold text-accent outline-none focus:border-accent focus:ring-1 focus:ring-accent disabled:cursor-not-allowed disabled:opacity-50"
                               />
-                              отказ
-                            </label>
+                              <input
+                                disabled={!canEdit || set.toFailure}
+                                type="number"
+                                inputMode="numeric"
+                                min="0"
+                                value={set.reps || ''}
+                                onChange={(e) =>
+                                  setRows((current) =>
+                                    current.map((row) =>
+                                      row.id === entry.id
+                                        ? {
+                                            ...row,
+                                            sets: row.sets.map((item) =>
+                                              item.id === set.id
+                                                ? { ...item, reps: Number(e.target.value) || 0 }
+                                                : item
+                                            ),
+                                          }
+                                        : row
+                                    )
+                                  )
+                                }
+                                onBlur={(e) => void saveSet(entry.id, set.id, { reps: Number(e.target.value) || 0 })}
+                                className="w-16 min-w-0 rounded border border-border bg-surface-2 px-0.5 py-0.5 text-center text-sm text-text-secondary outline-none focus:border-accent focus:ring-1 focus:ring-accent disabled:cursor-not-allowed disabled:opacity-50"
+                              />
+                            </div>
+                            <div className="mt-[1.375rem] flex flex-col items-center gap-1">
+                              <button
+                                type="button"
+                                disabled={!canEdit}
+                                onClick={() => void toggleToFailure(entry.id, set.id, !set.toFailure)}
+                                aria-pressed={set.toFailure}
+                                aria-label={
+                                  set.toFailure
+                                    ? 'Подход до отказа — нажмите, чтобы снять отметку'
+                                    : 'Отметить подход как выполненный до отказа'
+                                }
+                                title="До отказа"
+                                className={`flex h-4 w-8 shrink-0 items-center justify-center rounded border transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                                  set.toFailure
+                                    ? 'border-accent bg-accent text-on-accent'
+                                    : 'border-border bg-surface-2 text-text-secondary hover:border-accent hover:text-accent'
+                                }`}
+                              >
+                                <Flame className="h-3 w-3" />
+                              </button>
+                              <span className="w-8 text-center text-[10px] text-accent">
+                                {percentOfMax(set.weight, entry.oneRepMax)}
+                              </span>
+                            </div>
                           </div>
                         </td>
                       )
@@ -343,11 +379,32 @@ export function GymWorkoutEditor({ workoutId, entries, canEdit, initialCompact, 
                         </button>
                       </td>
                     )}
+                    {/* ПМ moved out here — its own trailing column, same as
+                        the powerlifting side's WeekDayTableRow — instead of
+                        stacked inside the narrow exercise-name column. */}
+                    <td className="px-1.5 py-1 text-right align-top">
+                      {canEdit ? (
+                        <input
+                          type="number"
+                          min="0.5"
+                          step="0.5"
+                          defaultValue={entry.oneRepMax ?? ''}
+                          onBlur={(e) => void saveMax(entry.id, e.target.value)}
+                          aria-label={`Максимум ПМ для «${entry.exercise.name}», кг`}
+                          className="w-16 min-w-0 rounded border border-border bg-surface-2 px-1 py-0.5 text-center text-sm font-bold text-accent outline-none focus:border-accent focus:ring-1 focus:ring-accent"
+                        />
+                      ) : (
+                        <span className="text-sm font-bold text-accent">{entry.oneRepMax ?? '—'}</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
                 {rows.length === 0 && (
                   <tr>
-                    <td colSpan={maxSets + 1 + (canEdit ? 1 : 0)} className="px-2 py-2 text-center text-text-secondary">
+                    <td
+                      colSpan={maxSets + 2 + (canEdit ? 1 : 0)}
+                      className="px-2 py-2 text-center text-text-secondary"
+                    >
                       В тренировке пока нет упражнений.
                     </td>
                   </tr>
