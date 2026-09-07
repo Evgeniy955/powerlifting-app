@@ -16,7 +16,7 @@ export default async function GymPlansPage({ params }: { params: Promise<{ athle
   const plans = await prisma.gymPlan.findMany({
     where: { clientId },
     orderBy: { startDate: 'desc' },
-    include: { weeksData: { select: { id: true } } },
+    include: { weeksData: { include: { workouts: { select: { scheduledDate: true } } } } },
   })
   // No displayName is the only case wardNoun can't guess a gender for — falls
   // back to the masculine "Подопечный" there, same as elsewhere.
@@ -56,13 +56,25 @@ export default async function GymPlansPage({ params }: { params: Promise<{ athle
 
       {plans.length > 0 && (
         <GymPlansList
-          plans={plans.map((plan) => ({
-            id: plan.id,
-            name: plan.name,
-            startDate: plan.startDate.toISOString(),
-            weeks: plan.weeks,
-            weekCount: plan.weeksData.length,
-          }))}
+          plans={plans.map((plan) => {
+            const workoutDates = plan.weeksData.flatMap((week) =>
+              week.workouts.map((workout) => workout.scheduledDate.getTime())
+            )
+            // Falls back to startDate for the (currently impossible in
+            // practice) case of a plan with no workouts at all, so a brand
+            // new empty plan still reads as "upcoming"/"active" rather than
+            // crashing on Math.max of an empty array.
+            const lastWorkoutDate = workoutDates.length
+              ? new Date(Math.max(...workoutDates))
+              : plan.startDate
+            return {
+              id: plan.id,
+              name: plan.name,
+              startDate: plan.startDate.toISOString(),
+              lastWorkoutDate: lastWorkoutDate.toISOString(),
+              weekCount: plan.weeksData.length,
+            }
+          })}
           canManage={user.role === 'COACH'}
         />
       )}
