@@ -1,6 +1,6 @@
 'use client'
 import { useMemo, useState, type ReactNode } from 'react'
-import { Minus, Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, X } from 'lucide-react'
 import { Button, Card, Input, Select } from '@/components/ui'
 
 type Set = { id: string; setNumber: number; weight: number; reps: number; toFailure: boolean }
@@ -41,5 +41,322 @@ export function GymWorkoutEditor({ workoutId, entries, canEdit, initialCompact, 
   // the powerlifting side's exercise-entry delete.
   async function removeExercise(entryId: string) { const entry = rows.find((row) => row.id === entryId); if (entry && !window.confirm(`Убрать «${entry.exercise.name}» из тренировки вместе со всеми подходами?`)) return; try { await request(`/api/gym/entries/${entryId}`, { method: 'DELETE' }); setRows((current) => current.filter((row) => row.id !== entryId)) } catch (e) { setError(e instanceof Error ? e.message : 'Не удалось удалить упражнение') } }
   async function toggleCompact() { const next = !compact; setCompact(next); try { await request('/api/user/compact-view', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ compact: next }) }) } catch (e) { setCompact(!next); setError(e instanceof Error ? e.message : 'Не удалось сохранить настройку') } }
-  return <div className="mx-auto max-w-5xl space-y-4 px-4"><div className="flex flex-wrap items-center justify-between gap-3">{header ?? <div><h1 className="font-display text-xl uppercase">Тренировка</h1><p className="text-sm text-text-secondary">Вес · подходы · повторы · % от максимума · максимум ПМ</p></div>}<label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={compact} onChange={() => void toggleCompact()}/> Компактный режим</label></div>{error && <p className="text-sm text-danger">{error}</p>}{canEdit && <Card className="space-y-3"><h2 className="font-display text-sm uppercase">Добавить упражнение</h2><div className="grid gap-2 md:grid-cols-[1fr_1fr_8rem_8rem_auto]"><Input placeholder="Поиск упражнения" value={query} onFocus={() => void loadCatalog()} onChange={(e) => { setQuery(e.target.value); setExerciseId('') }}/><Select value={exerciseId} onFocus={() => void loadCatalog()} onChange={(e) => setExerciseId(e.target.value)}><option value="">Выберите упражнение</option>{options.map((exercise) => <option key={exercise.id} value={exercise.id}>{exercise.name}{exercise.category ? ` · ${exercise.category}` : ''}</option>)}</Select><Input type="number" min="0.5" step="0.5" value={workingWeight} onChange={(e) => setWorkingWeight(e.target.value)} aria-label="Рабочий вес"/><Input type="number" min="1" value={reps} onChange={(e) => setReps(e.target.value)} aria-label="Повторы"/><Button onClick={() => void addExercise()} disabled={adding || !exerciseId}>{adding ? 'Добавляю…' : 'Добавить'}</Button></div><p className="text-xs text-text-secondary">При первом добавлении максимум ПМ оценивается по рабочему весу и повторам и сохраняется для клиента.</p></Card>}{rows.map((entry) => <Card key={entry.id} className="overflow-x-auto"><div className="mb-3 flex flex-wrap items-center justify-between gap-2">{canEdit ? <Select className="w-auto max-w-[16rem] font-medium" value="" onFocus={() => void loadCatalog()} onChange={(e) => void replaceExercise(entry.id, e.target.value)} aria-label={`Заменить упражнение «${entry.exercise.name}»`}><option value="">{entry.exercise.name}</option>{catalog.filter((exercise) => exercise.id !== entry.exercise.id).map((exercise) => <option key={exercise.id} value={exercise.id}>{exercise.name}{exercise.category ? ` · ${exercise.category}` : ''}</option>)}</Select> : <h2 className="font-medium">{entry.exercise.name}</h2>}<div className="ml-auto flex items-center gap-3">{canEdit ? <label className="flex items-center gap-2 text-xs text-text-secondary">Максимум ПМ, кг <Input className="w-24" type="number" min="0.5" step="0.5" defaultValue={entry.oneRepMax ?? ''} onBlur={(e) => void saveMax(entry.id, e.target.value)}/></label> : <span className="text-xs text-text-secondary">Максимум ПМ: {entry.oneRepMax ?? '—'} кг</span>}{canEdit && <Button variant="ghost" size="icon" aria-label="Удалить упражнение" title="Удалить упражнение из тренировки" onClick={() => void removeExercise(entry.id)}><Trash2 className="h-4 w-4"/></Button>}</div></div>{compact ? <div className="flex flex-wrap gap-2">{compactSets(entry.sets).map((set, index) => <span key={`${set.weight}-${set.reps}-${set.toFailure}-${index}`} className="rounded border border-border bg-surface-2 px-3 py-2 text-sm">{set.weight} кг {set.count} × {set.toFailure ? 'до отказа' : set.reps} <span className="text-accent">{percentOfMax(set.weight, entry.oneRepMax)}</span></span>)}</div> : <div className="grid min-w-[36rem] grid-cols-[3rem_1fr_1fr_1fr_5.5rem_2rem] gap-2 text-sm"><span className="text-text-secondary">№</span><span>Вес, кг</span><span>Повторы</span><span>% ПМ</span><span>До отказа</span><span></span>{entry.sets.map((set, index) => <div className="contents" key={set.id}><span className="py-2 text-text-secondary">{index + 1}</span><Input disabled={!canEdit} type="number" min="0" step="0.5" value={set.weight} onChange={(e) => setRows((current) => current.map((row) => row.id === entry.id ? { ...row, sets: row.sets.map((item) => item.id === set.id ? { ...item, weight: Number(e.target.value) || 0 } : item) } : row))} onBlur={(e) => void saveSet(entry.id, set.id, { weight: Number(e.target.value) || 0 })}/><Input disabled={!canEdit || set.toFailure} type="number" min="0" value={set.reps} onChange={(e) => setRows((current) => current.map((row) => row.id === entry.id ? { ...row, sets: row.sets.map((item) => item.id === set.id ? { ...item, reps: Number(e.target.value) || 0 } : item) } : row))} onBlur={(e) => void saveSet(entry.id, set.id, { reps: Number(e.target.value) || 0 })}/><span className="py-2 text-accent">{percentOfMax(set.weight, entry.oneRepMax)}</span><label className="flex items-center gap-1.5 py-2 text-xs text-text-secondary"><input type="checkbox" disabled={!canEdit} checked={set.toFailure} onChange={(e) => void toggleToFailure(entry.id, set.id, e.target.checked)}/> до отказа</label>{canEdit ? <Button variant="ghost" size="icon" aria-label="Удалить подход" title="Удалить подход" onClick={() => void removeSet(entry.id, set.id)} disabled={entry.sets.length <= 1}><Minus className="h-4 w-4"/></Button> : <span/>}</div>)}</div>}{canEdit && !compact && <Button className="mt-3" variant="outline" size="sm" onClick={() => void addSet(entry.id)}><Plus className="h-4 w-4"/> Подход</Button>}</Card>)}{!rows.length && <Card><p className="text-sm text-text-secondary">В тренировке пока нет упражнений.</p></Card>}</div>
+  // Same "sets as narrow columns, one row per exercise" spreadsheet layout
+  // as the powerlifting side's WeekDayTable/WeekDayTableRow (padded to the
+  // day's own max set count, same Math.max(1, ...) floor) instead of each
+  // exercise's sets stacking as separate full-width rows — lets a coach scan
+  // (or edit) a whole day of gym sets without the vertical scroll a per-set
+  // row list required.
+  const maxSets = Math.max(1, ...rows.map((entry) => entry.sets.length))
+
+  return (
+    <div className="mx-auto max-w-5xl space-y-4 px-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {header ?? (
+          <div>
+            <h1 className="font-display text-xl uppercase">Тренировка</h1>
+            <p className="text-sm text-text-secondary">
+              Вес · подходы · повторы · % от максимума · максимум ПМ
+            </p>
+          </div>
+        )}
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={compact} onChange={() => void toggleCompact()} /> Компактный режим
+        </label>
+      </div>
+
+      {error && <p className="text-sm text-danger">{error}</p>}
+
+      {canEdit && (
+        <Card className="space-y-3">
+          <h2 className="font-display text-sm uppercase">Добавить упражнение</h2>
+          <div className="grid gap-2 md:grid-cols-[1fr_1fr_8rem_8rem_auto]">
+            <Input
+              placeholder="Поиск упражнения"
+              value={query}
+              onFocus={() => void loadCatalog()}
+              onChange={(e) => {
+                setQuery(e.target.value)
+                setExerciseId('')
+              }}
+            />
+            <Select
+              value={exerciseId}
+              onFocus={() => void loadCatalog()}
+              onChange={(e) => setExerciseId(e.target.value)}
+            >
+              <option value="">Выберите упражнение</option>
+              {options.map((exercise) => (
+                <option key={exercise.id} value={exercise.id}>
+                  {exercise.name}
+                  {exercise.category ? ` · ${exercise.category}` : ''}
+                </option>
+              ))}
+            </Select>
+            <Input
+              type="number"
+              min="0.5"
+              step="0.5"
+              value={workingWeight}
+              onChange={(e) => setWorkingWeight(e.target.value)}
+              aria-label="Рабочий вес"
+            />
+            <Input type="number" min="1" value={reps} onChange={(e) => setReps(e.target.value)} aria-label="Повторы" />
+            <Button onClick={() => void addExercise()} disabled={adding || !exerciseId}>
+              {adding ? 'Добавляю…' : 'Добавить'}
+            </Button>
+          </div>
+          <p className="text-xs text-text-secondary">
+            При первом добавлении максимум ПМ оценивается по рабочему весу и повторам и сохраняется для клиента.
+          </p>
+        </Card>
+      )}
+
+      {compact ? (
+        rows.map((entry) => (
+          <Card key={entry.id} className="overflow-x-auto">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              {canEdit ? (
+                <Select
+                  className="w-auto max-w-[16rem] font-medium"
+                  value=""
+                  onFocus={() => void loadCatalog()}
+                  onChange={(e) => void replaceExercise(entry.id, e.target.value)}
+                  aria-label={`Заменить упражнение «${entry.exercise.name}»`}
+                >
+                  <option value="">{entry.exercise.name}</option>
+                  {catalog
+                    .filter((exercise) => exercise.id !== entry.exercise.id)
+                    .map((exercise) => (
+                      <option key={exercise.id} value={exercise.id}>
+                        {exercise.name}
+                        {exercise.category ? ` · ${exercise.category}` : ''}
+                      </option>
+                    ))}
+                </Select>
+              ) : (
+                <h2 className="font-medium">{entry.exercise.name}</h2>
+              )}
+              <div className="ml-auto flex items-center gap-3">
+                {canEdit ? (
+                  <label className="flex items-center gap-2 text-xs text-text-secondary">
+                    Максимум ПМ, кг{' '}
+                    <Input
+                      className="w-24"
+                      type="number"
+                      min="0.5"
+                      step="0.5"
+                      defaultValue={entry.oneRepMax ?? ''}
+                      onBlur={(e) => void saveMax(entry.id, e.target.value)}
+                    />
+                  </label>
+                ) : (
+                  <span className="text-xs text-text-secondary">Максимум ПМ: {entry.oneRepMax ?? '—'} кг</span>
+                )}
+                {canEdit && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Удалить упражнение"
+                    title="Удалить упражнение из тренировки"
+                    onClick={() => void removeExercise(entry.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {compactSets(entry.sets).map((set, index) => (
+                <span
+                  key={`${set.weight}-${set.reps}-${set.toFailure}-${index}`}
+                  className="rounded border border-border bg-surface-2 px-3 py-2 text-sm"
+                >
+                  {set.weight} кг {set.count} × {set.toFailure ? 'до отказа' : set.reps}{' '}
+                  <span className="text-accent">{percentOfMax(set.weight, entry.oneRepMax)}</span>
+                </span>
+              ))}
+            </div>
+          </Card>
+        ))
+      ) : (
+        <div className="overflow-hidden rounded-xl border border-border bg-surface">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-max border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-border bg-surface-2 text-text-secondary">
+                  <th className="sticky left-0 z-10 bg-surface-2 px-2 py-1 text-left font-bold">Упражнение</th>
+                  <th colSpan={maxSets} className="px-1 py-1 text-center font-bold">
+                    Подходы
+                  </th>
+                  {canEdit && <th className="px-1 py-1" />}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((entry) => (
+                  <tr key={entry.id} className="border-b border-border last:border-b-0">
+                    <td className="sticky left-0 z-10 w-48 max-w-[12rem] bg-surface px-2 py-1 align-top">
+                      <div className="flex flex-col items-start gap-1">
+                        {canEdit ? (
+                          <Select
+                            className="w-full max-w-[12rem] font-medium"
+                            value=""
+                            onFocus={() => void loadCatalog()}
+                            onChange={(e) => void replaceExercise(entry.id, e.target.value)}
+                            aria-label={`Заменить упражнение «${entry.exercise.name}»`}
+                          >
+                            <option value="">{entry.exercise.name}</option>
+                            {catalog
+                              .filter((exercise) => exercise.id !== entry.exercise.id)
+                              .map((exercise) => (
+                                <option key={exercise.id} value={exercise.id}>
+                                  {exercise.name}
+                                  {exercise.category ? ` · ${exercise.category}` : ''}
+                                </option>
+                              ))}
+                          </Select>
+                        ) : (
+                          <span className="font-medium">{entry.exercise.name}</span>
+                        )}
+                        {canEdit ? (
+                          <label className="flex items-center gap-1 text-[10px] text-text-secondary">
+                            ПМ, кг
+                            <input
+                              type="number"
+                              min="0.5"
+                              step="0.5"
+                              defaultValue={entry.oneRepMax ?? ''}
+                              onBlur={(e) => void saveMax(entry.id, e.target.value)}
+                              className="w-14 min-w-0 rounded border border-border bg-surface-2 px-1 py-0.5 text-center text-xs outline-none focus:border-accent focus:ring-1 focus:ring-accent"
+                            />
+                          </label>
+                        ) : (
+                          <span className="text-[10px] text-text-secondary">ПМ: {entry.oneRepMax ?? '—'} кг</span>
+                        )}
+                        {canEdit && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label="Удалить упражнение"
+                            title="Удалить упражнение из тренировки"
+                            onClick={() => void removeExercise(entry.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                    {Array.from({ length: maxSets }).map((_, i) => {
+                      const set = entry.sets[i]
+                      if (!set) return <td key={i} className="px-0.5 py-0.5" />
+                      return (
+                        <td key={set.id} className="group relative px-0.5 py-0.5 align-top">
+                          {canEdit && entry.sets.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => void removeSet(entry.id, set.id)}
+                              aria-label="Удалить подход"
+                              className="absolute right-0 top-0 hidden text-text-secondary hover:text-danger group-hover:block"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          )}
+                          <div className="flex flex-col items-center gap-0.5">
+                            <span className="flex h-4 w-16 items-center justify-center rounded border border-border bg-surface-2 text-[10px] font-medium text-text-secondary">
+                              {i + 1}
+                            </span>
+                            <input
+                              disabled={!canEdit}
+                              type="number"
+                              inputMode="decimal"
+                              min="0"
+                              step="0.5"
+                              value={set.weight || ''}
+                              onChange={(e) =>
+                                setRows((current) =>
+                                  current.map((row) =>
+                                    row.id === entry.id
+                                      ? {
+                                          ...row,
+                                          sets: row.sets.map((item) =>
+                                            item.id === set.id
+                                              ? { ...item, weight: Number(e.target.value) || 0 }
+                                              : item
+                                          ),
+                                        }
+                                      : row
+                                  )
+                                )
+                              }
+                              onBlur={(e) => void saveSet(entry.id, set.id, { weight: Number(e.target.value) || 0 })}
+                              className="w-16 min-w-0 rounded border border-border bg-surface-2 px-0.5 py-0.5 text-center text-sm font-bold text-accent outline-none focus:border-accent focus:ring-1 focus:ring-accent disabled:cursor-not-allowed disabled:opacity-50"
+                            />
+                            <input
+                              disabled={!canEdit || set.toFailure}
+                              type="number"
+                              inputMode="numeric"
+                              min="0"
+                              value={set.reps || ''}
+                              onChange={(e) =>
+                                setRows((current) =>
+                                  current.map((row) =>
+                                    row.id === entry.id
+                                      ? {
+                                          ...row,
+                                          sets: row.sets.map((item) =>
+                                            item.id === set.id
+                                              ? { ...item, reps: Number(e.target.value) || 0 }
+                                              : item
+                                          ),
+                                        }
+                                      : row
+                                  )
+                                )
+                              }
+                              onBlur={(e) => void saveSet(entry.id, set.id, { reps: Number(e.target.value) || 0 })}
+                              className="w-16 min-w-0 rounded border border-border bg-surface-2 px-0.5 py-0.5 text-center text-sm text-text-secondary outline-none focus:border-accent focus:ring-1 focus:ring-accent disabled:cursor-not-allowed disabled:opacity-50"
+                            />
+                            <span className="text-xs text-accent">{percentOfMax(set.weight, entry.oneRepMax)}</span>
+                            <label className="flex items-center gap-0.5 text-[9px] text-text-secondary">
+                              <input
+                                type="checkbox"
+                                disabled={!canEdit}
+                                checked={set.toFailure}
+                                onChange={(e) => void toggleToFailure(entry.id, set.id, e.target.checked)}
+                              />
+                              отказ
+                            </label>
+                          </div>
+                        </td>
+                      )
+                    })}
+                    {canEdit && (
+                      <td className="px-0.5 py-0.5 align-top">
+                        <button
+                          type="button"
+                          onClick={() => void addSet(entry.id)}
+                          aria-label="Добавить подход"
+                          title="Добавить подход"
+                          className="mt-1 text-text-secondary transition-colors hover:text-accent"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+                {rows.length === 0 && (
+                  <tr>
+                    <td colSpan={maxSets + 1 + (canEdit ? 1 : 0)} className="px-2 py-2 text-center text-text-secondary">
+                      В тренировке пока нет упражнений.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
