@@ -497,14 +497,13 @@ function GymExerciseTableRow({
   return (
     <>
     <tr ref={setNodeRef} style={style} className={rowClassName}>
-      <td className="sticky left-0 z-10 w-40 max-w-[11rem] bg-surface px-2 py-1 align-top">
-        {/* Narrow on purpose — was w-72/max-w-[20rem] and included the
-            per-exercise comment textarea inline, which made this column
-            (and the whole row) very wide. The comment now lives in its own
-            full-width row below (see the second <tr> at the end of this
-            component), so this column only needs to fit the drag handle +
-            skip toggle + number + exercise name. */}
-        <div className="flex items-start gap-1">
+      <td className="sticky left-0 z-10 w-56 max-w-[14rem] bg-surface px-2 py-1 align-top">
+        {/* Drag handle + skip toggle + number stay on their own top row;
+            the exercise name/select moved to a full-width row underneath
+            instead of squeezing into whatever's left next to those icons
+            — that squeeze was making the name hard to read at this
+            column's narrower width. */}
+        <div className="flex items-center gap-1">
           {canManageExercises && (
             <button
               type="button"
@@ -513,7 +512,7 @@ function GymExerciseTableRow({
               aria-label="Перетащить, чтобы изменить порядок"
               title="Перетащить, чтобы изменить порядок"
               style={{ touchAction: 'none' }}
-              className="mt-0.5 flex h-4 w-4 shrink-0 cursor-grab items-center justify-center text-text-secondary transition-colors hover:text-accent active:cursor-grabbing"
+              className="flex h-4 w-4 shrink-0 cursor-grab items-center justify-center text-text-secondary transition-colors hover:text-accent active:cursor-grabbing"
             >
               <GripVertical className="h-3 w-3" />
             </button>
@@ -524,7 +523,7 @@ function GymExerciseTableRow({
               onClick={() => onToggleSkipped(entry.id)}
               aria-pressed={entry.skipped}
               title={entry.skipped ? 'Отметить как выполненное' : 'Отметить как пропущенное'}
-              className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors ${
+              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors ${
                 entry.skipped
                   ? 'border-danger bg-danger text-on-danger'
                   : 'border-border bg-surface-2 text-text-secondary hover:border-danger hover:text-danger'
@@ -533,31 +532,31 @@ function GymExerciseTableRow({
               <Ban className="h-2.5 w-2.5" />
             </button>
           )}
-          <span className="mt-0.5 shrink-0 text-xs text-text-secondary">{index + 1}.</span>
-          <div className="min-w-0 flex-1">
-            {canManageExercises ? (
-              <Select
-                className={`w-full min-w-0 whitespace-normal font-medium ${entry.skipped ? 'line-through' : ''}`}
-                value=""
-                onFocus={onLoadCatalog}
-                onChange={(e) => onReplaceExercise(entry.id, e.target.value)}
-                aria-label={`Заменить упражнение «${entry.exercise.name}»`}
-              >
-                <option value="">{entry.exercise.name}</option>
-                {catalog
-                  .filter((exercise) => exercise.id !== entry.exercise.id)
-                  .map((exercise) => (
-                    <option key={exercise.id} value={exercise.id}>
-                      {exercise.name}
-                      {exercise.category ? ` · ${exercise.category}` : ''}
-                    </option>
-                  ))}
-              </Select>
-            ) : (
-              <span className={`font-medium ${entry.skipped ? 'line-through' : ''}`}>{entry.exercise.name}</span>
-            )}
-            {entry.skipped && <span className="text-[10px] text-danger">Пропущено</span>}
-          </div>
+          <span className="shrink-0 text-xs text-text-secondary">{index + 1}.</span>
+        </div>
+        <div className="mt-1 min-w-0">
+          {canManageExercises ? (
+            <Select
+              className={`w-full min-w-0 whitespace-normal font-medium ${entry.skipped ? 'line-through' : ''}`}
+              value=""
+              onFocus={onLoadCatalog}
+              onChange={(e) => onReplaceExercise(entry.id, e.target.value)}
+              aria-label={`Заменить упражнение «${entry.exercise.name}»`}
+            >
+              <option value="">{entry.exercise.name}</option>
+              {catalog
+                .filter((exercise) => exercise.id !== entry.exercise.id)
+                .map((exercise) => (
+                  <option key={exercise.id} value={exercise.id}>
+                    {exercise.name}
+                    {exercise.category ? ` · ${exercise.category}` : ''}
+                  </option>
+                ))}
+            </Select>
+          ) : (
+            <span className={`font-medium ${entry.skipped ? 'line-through' : ''}`}>{entry.exercise.name}</span>
+          )}
+          {entry.skipped && <span className="text-[10px] text-danger">Пропущено</span>}
         </div>
       </td>
       {Array.from({ length: setSlots }).map((_, i) => {
