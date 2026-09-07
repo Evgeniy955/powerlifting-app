@@ -338,10 +338,16 @@ export function GymWorkoutEditor({
               <thead>
                 <tr className="border-b border-border bg-surface-2 text-text-secondary">
                   <th className="sticky left-0 z-10 bg-surface-2 px-2 py-1 text-left font-bold">Упражнение</th>
-                  <th colSpan={maxSets} className="px-1 py-1 text-center font-bold">
+                  {/* +1 reserved slot (only when canEdit) so the exercise
+                      with the most sets in the day still has somewhere to
+                      put its own "+ Добавить подход" — see
+                      GymExerciseTableRow, which now renders that button
+                      inline right after each exercise's own last set
+                      instead of in a separate trailing column shared by
+                      every row. */}
+                  <th colSpan={maxSets + (canEdit ? 1 : 0)} className="px-1 py-1 text-center font-bold">
                     Подходы
                   </th>
-                  {canEdit && <th className="px-1 py-1" />}
                   <th className="px-1.5 py-1 text-right font-bold">ПМ</th>
                 </tr>
               </thead>
@@ -479,19 +485,25 @@ function GymExerciseTableRow({
     disabled: !canManageExercises,
   })
   const style = { transform: CSS.Transform.toString(transform), transition }
+  // One extra slot beyond this day's own maxSets (only when canEdit) so
+  // every exercise — including whichever one already has maxSets sets —
+  // has somewhere to render its own "+ Добавить подход" inline, right
+  // after its last set, instead of a separate trailing column shared by
+  // every row regardless of how many sets that particular exercise has.
+  const setSlots = maxSets + (canEdit ? 1 : 0)
+  const totalCols = 2 + setSlots
+  const rowClassName = `border-b border-border last:border-b-0 ${isDragging ? 'relative z-20 bg-surface-2 shadow-lg' : ''} ${entry.skipped ? 'opacity-60' : ''}`
 
   return (
-    <tr
-      ref={setNodeRef}
-      style={style}
-      className={`border-b border-border last:border-b-0 ${isDragging ? 'relative z-20 bg-surface-2 shadow-lg' : ''} ${entry.skipped ? 'opacity-60' : ''}`}
-    >
-      <td className="sticky left-0 z-10 w-72 max-w-[20rem] bg-surface px-2 py-1 align-top">
-        {/* Drag handle + number + name/select all in one row — ПМ and the
-            delete button both moved to the trailing column instead, so
-            "remove this exercise" lives in exactly one place next to the
-            number it's about to make obsolete, not split across two
-            corners of the row. */}
+    <>
+    <tr ref={setNodeRef} style={style} className={rowClassName}>
+      <td className="sticky left-0 z-10 w-40 max-w-[11rem] bg-surface px-2 py-1 align-top">
+        {/* Narrow on purpose — was w-72/max-w-[20rem] and included the
+            per-exercise comment textarea inline, which made this column
+            (and the whole row) very wide. The comment now lives in its own
+            full-width row below (see the second <tr> at the end of this
+            component), so this column only needs to fit the drag handle +
+            skip toggle + number + exercise name. */}
         <div className="flex items-start gap-1">
           {canManageExercises && (
             <button
@@ -547,21 +559,33 @@ function GymExerciseTableRow({
             {entry.skipped && <span className="text-[10px] text-danger">Пропущено</span>}
           </div>
         </div>
-        {canManageExercises ? (
-          <textarea
-            defaultValue={entry.notes ?? ''}
-            onBlur={(e) => onSaveNotes(entry.id, e.target.value)}
-            placeholder="Комментарий (необязательно)"
-            rows={2}
-            className="mt-1 w-full resize-none rounded border border-border bg-surface-2 px-1.5 py-1 text-[11px] text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent"
-          />
-        ) : (
-          entry.notes && <p className="mt-1 text-[11px] italic text-text-secondary">{entry.notes}</p>
-        )}
       </td>
-      {Array.from({ length: maxSets }).map((_, i) => {
+      {Array.from({ length: setSlots }).map((_, i) => {
         const set = entry.sets[i]
-        if (!set) return <td key={i} className="px-0.5 py-0.5" />
+        if (!set) {
+          // First empty slot right after this exercise's own last set —
+          // that's where its "+ Добавить подход" goes now, instead of a
+          // separate column at the far right shared by every row (which
+          // put the button several empty cells away from an exercise's
+          // actual last set whenever another exercise that day had more
+          // sets than this one).
+          if (canEdit && i === entry.sets.length) {
+            return (
+              <td key={i} className="px-0.5 py-0.5 align-top">
+                <button
+                  type="button"
+                  onClick={() => onAddSet(entry.id)}
+                  aria-label="Добавить подход"
+                  title="Добавить подход"
+                  className="mt-1 text-text-secondary transition-colors hover:text-accent"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+              </td>
+            )
+          }
+          return <td key={i} className="px-0.5 py-0.5" />
+        }
         return (
           <td key={set.id} className="group relative px-0.5 py-0.5 align-top">
             {canEdit && entry.sets.length > 1 && (
@@ -645,19 +669,6 @@ function GymExerciseTableRow({
           </td>
         )
       })}
-      {canEdit && (
-        <td className="px-0.5 py-0.5 align-top">
-          <button
-            type="button"
-            onClick={() => onAddSet(entry.id)}
-            aria-label="Добавить подход"
-            title="Добавить подход"
-            className="mt-1 text-text-secondary transition-colors hover:text-accent"
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </button>
-        </td>
-      )}
       {/* ПМ and delete-exercise grouped together on the right — used to be
           split (delete pinned inside the sticky name column, ПМ as a
           separate trailing column), which put "remove this exercise" and
@@ -691,5 +702,29 @@ function GymExerciseTableRow({
         </div>
       </td>
     </tr>
+    {/* Comment moved out of the narrow sticky name column above into its
+        own full-width row right under the exercise — same info, just no
+        longer forcing that column (and the whole table) wide. Only
+        rendered when there's something to show: a coach always gets the
+        input (to add one), a client only sees the row when a note already
+        exists. */}
+    {(canManageExercises || entry.notes) && (
+      <tr style={style} className={rowClassName}>
+        <td colSpan={totalCols} className="px-2 py-1 align-top">
+          {canManageExercises ? (
+            <textarea
+              defaultValue={entry.notes ?? ''}
+              onBlur={(e) => onSaveNotes(entry.id, e.target.value)}
+              placeholder="Комментарий к упражнению (необязательно)"
+              rows={1}
+              className="w-full resize-none rounded border border-border bg-surface-2 px-1.5 py-1 text-[11px] text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent"
+            />
+          ) : (
+            entry.notes && <p className="text-[11px] italic text-text-secondary">{entry.notes}</p>
+          )}
+        </td>
+      </tr>
+    )}
+    </>
   )
 }
