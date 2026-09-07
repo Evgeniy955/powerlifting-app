@@ -62,7 +62,14 @@ export async function assertGymClientAccessible(clientId: string, user: SessionU
 export async function assertGymCanAccessSet(setId: string, user: SessionUser) {
   const set = await prisma.gymSetEntry.findUnique({
     where: { id: setId },
-    include: { entry: { include: { workout: { include: { week: { include: { plan: { include: { client: true } } } } } } } } },
+    include: {
+      entry: {
+        include: {
+          exercise: true,
+          workout: { include: { week: { include: { plan: { include: { client: true } } } } } },
+        },
+      },
+    },
   })
   if (!set) throw new NotFoundError('Подход не найден')
   const client = set.entry.workout.week.plan.client

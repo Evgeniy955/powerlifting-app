@@ -265,6 +265,7 @@ model GymClient {
   maxes         GymClientMax[]
   healthProfile GymClientHealthProfile?
   assessments   GymClientAssessment[]
+  changeLogs    GymChangeLog[]
 
   @@index([coachId])
 }
@@ -537,8 +538,9 @@ model GymPlan {
   name      String
   startDate DateTime
   weeks     Int
-  createdAt DateTime  @default(now())
-  weeksData GymWeek[]
+  createdAt  DateTime       @default(now())
+  weeksData  GymWeek[]
+  changeLogs GymChangeLog[]
 
   @@index([clientId, startDate])
 }
@@ -591,4 +593,53 @@ model GymSetEntry {
   toFailure Boolean          @default(false)
 
   @@index([entryId])
+}
+
+// Gym-side counterpart to ChangeLog — same shape, FK'd to GymClient/GymPlan
+// instead of AthleteProfile/Cycle since gym mode's ids live in a separate
+// space. Recorded only for client-made edits (set weight/reps/toFailure
+// update, set removal — the only actions a gym client can make; exercise-
+// level changes stay coach-only and aren't logged, same as the powerlifting
+// side never logs a coach's own edits). Read by the plan's "История" screen
+// and the workout view's unseen-change dot, via seenByCoach.
+model GymChangeLog {
+  id       String    @id @default(uuid())
+  clientId String
+  client   GymClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  // Which plan this edit happened in — scoped per-plan (not client-wide),
+  // same reasoning as ChangeLog.cycleId: a coach juggling several plans for
+  // one client shouldn't have to guess which plan a change belongs to.
+  planId String?
+  plan   GymPlan? @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  workoutId       String?
+  workoutDate     DateTime?
+  weekNumber      Int?
+  dayNumber       Int?
+  exerciseEntryId String?
+  exerciseName    String
+
+  // "set-updated" | "set-removed" — gym never logs "exercise-added"/
+  // "exercise-removed" since only the coach can add/remove exercises.
+  kind        String
+  setEntryId  String?
+  setNumber   Int?
+  // "weight" | "reps" — only set when kind is "set-updated"
+  field       String?
+  beforeValue Float?
+  afterValue  Float?
+
+  actorId   String
+  // "COACH" | "ATHLETE" — always "ATHLETE" today, kept generic in case that
+  // changes, same as ChangeLog.actorRole.
+  actorRole String
+
+  seenByCoach Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([clientId, createdAt])
+  @@index([planId, createdAt])
+  @@index([workoutId])
+  @@index([exerciseEntryId, setEntryId])
 }

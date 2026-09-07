@@ -1,10 +1,14 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import { History } from 'lucide-react'
 import { prisma } from '@/lib/prisma'
 import { requireUser } from '@/lib/session'
 import { assertGymPlanAccess, formatGymWeekDateRange } from '@/lib/gym'
-import { Card } from '@/components/ui'
+import { Card, buttonVariants } from '@/components/ui'
 import { AiCoachButton } from '@/components/AiCoachButton'
+import { AddGymWeekButton } from '@/components/AddGymWeekButton'
+import { DeleteGymWeekButton } from '@/components/DeleteGymWeekButton'
+import { CopyLastTwoGymWeeksButton } from '@/components/CopyLastTwoGymWeeksButton'
 import { currentWeekNumber } from '@/lib/weekAccess'
 
 export default async function GymPlanPage({ params }: { params: Promise<{ planId: string }> }) {
@@ -16,6 +20,34 @@ export default async function GymPlanPage({ params }: { params: Promise<{ planId
   })
   if (!plan) notFound()
   await assertGymPlanAccess(planId, user)
+
+  // Unseen-changes count for the "История" button badge — scoped by planId
+  // (not the whole client), same reasoning as the powerlifting side's cycle
+  // page: several plans per client shouldn't share one blended count.
+  const unseenCount =
+    user.role === 'COACH'
+      ? await prisma.gymChangeLog.count({ where: { planId: plan.id, seenByCoach: false } })
+      : 0
+
+  // Which days (workouts) in this plan have client edits the coach hasn't
+  // seen yet — drives the colored dot on "День N" below. Coach-only, same
+  // ChangeLog signal as the "История" badge above.
+  const daysWithUnseenChanges =
+    user.role === 'COACH'
+      ? new Set(
+          (
+            await prisma.gymChangeLog.findMany({
+              where: {
+                planId: plan.id,
+                seenByCoach: false,
+                workoutId: { in: plan.weeksData.flatMap((w) => w.workouts.map((wo) => wo.id)) },
+              },
+              select: { workoutId: true },
+              distinct: ['workoutId'],
+            })
+          ).map((c) => c.workoutId)
+        )
+      : new Set<string | null>()
 
   // Same "pull the in-progress week out and highlight it" treatment as the
   // powerlifting side's cycle overview (src/app/cycles/[cycleId]/page.tsx) —
@@ -53,6 +85,22 @@ export default async function GymPlanPage({ params }: { params: Promise<{ planId
         )}
       </div>
 
+      <div className="flex flex-wrap gap-2">
+        <Link
+          href={`/gym/plans/${plan.id}/history`}
+          className={`relative ${buttonVariants({ variant: 'outline', size: 'sm' })}`}
+        >
+          <History className="h-4 w-4" /> История
+          {unseenCount > 0 && (
+            <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1 text-xs font-bold text-on-danger">
+              {unseenCount > 9 ? '9+' : unseenCount}
+            </span>
+          )}
+        </Link>
+        <CopyLastTwoGymWeeksButton planId={plan.id} role={user.role} />
+        {user.role === 'COACH' && <AddGymWeekButton planId={plan.id} />}
+      </div>
+
       {/* Pulled out above the grid and visually called out — accent border/
           tint + a "Текущая неделя" pill — same recipe as the "Текущий
           микроцикл" callout on the powerlifting side, so the week actually
@@ -63,21 +111,29 @@ export default async function GymPlanPage({ params }: { params: Promise<{ planId
             padding="sm"
             className="w-full border-2 border-accent bg-accent/10 shadow-elevated sm:max-w-lg"
           >
-            {/* Week title and day badges are separate links (not one nested
-                inside the other, which used to make every day badge just
-                navigate to the week — clicking a day now opens that
-                workout directly, same pattern as GymWeekView and the
-                powerlifting side's cycle overview). */}
-            <Link href={`/gym/weeks/${currentWeek.id}`} className="block hover:text-accent">
-              <span className="inline-block rounded-full bg-accent px-2.5 py-0.5 text-xs font-bold uppercase tracking-wide text-on-accent">
-                Текущая неделя
-              </span>
-              <h2 className="mt-1 font-display uppercase">Неделя {currentWeek.weekNumber}</h2>
-              {formatGymWeekDateRange(currentWeek.workouts) && (
-                <p className="mt-1 text-xs text-text-secondary">{formatGymWeekDateRange(currentWeek.workouts)}</p>
+            {/* Week title/date and the delete button are siblings, not one
+                nested inside the other (same reasoning as GymDayLinks below:
+                a button inside a Link makes the whole card navigate on any
+                click within it). */}
+            <div className="mb-1 flex items-start justify-between gap-2">
+              <Link href={`/gym/weeks/${currentWeek.id}`} className="min-w-0 block hover:text-accent">
+                <span className="inline-block rounded-full bg-accent px-2.5 py-0.5 text-xs font-bold uppercase tracking-wide text-on-accent">
+                  Текущая неделя
+                </span>
+                <h2 className="mt-1 font-display uppercase">Неделя {currentWeek.weekNumber}</h2>
+                {formatGymWeekDateRange(currentWeek.workouts) && (
+                  <p className="mt-1 text-xs text-text-secondary">{formatGymWeekDateRange(currentWeek.workouts)}</p>
+                )}
+              </Link>
+              {user.role === 'COACH' && (
+                <DeleteGymWeekButton weekId={currentWeek.id} weekNumber={currentWeek.weekNumber} />
               )}
-            </Link>
-            <GymDayLinks workouts={currentWeek.workouts} highlightWorkoutId={highlightWorkoutId} />
+            </div>
+            <GymDayLinks
+              workouts={currentWeek.workouts}
+              highlightWorkoutId={highlightWorkoutId}
+              daysWithUnseenChanges={daysWithUnseenChanges}
+            />
           </Card>
         </div>
       )}
@@ -85,13 +141,20 @@ export default async function GymPlanPage({ params }: { params: Promise<{ planId
       <div className="grid gap-3 sm:grid-cols-2">
         {otherWeeks.map((w) => (
           <Card key={w.id}>
-            <Link href={`/gym/weeks/${w.id}`} className="block hover:text-accent">
-              <h2 className="font-display uppercase">Неделя {w.weekNumber}</h2>
-              {formatGymWeekDateRange(w.workouts) && (
-                <p className="mt-1 text-xs text-text-secondary">{formatGymWeekDateRange(w.workouts)}</p>
-              )}
-            </Link>
-            <GymDayLinks workouts={w.workouts} highlightWorkoutId={highlightWorkoutId} />
+            <div className="mb-1 flex items-start justify-between gap-2">
+              <Link href={`/gym/weeks/${w.id}`} className="min-w-0 block hover:text-accent">
+                <h2 className="font-display uppercase">Неделя {w.weekNumber}</h2>
+                {formatGymWeekDateRange(w.workouts) && (
+                  <p className="mt-1 text-xs text-text-secondary">{formatGymWeekDateRange(w.workouts)}</p>
+                )}
+              </Link>
+              {user.role === 'COACH' && <DeleteGymWeekButton weekId={w.id} weekNumber={w.weekNumber} />}
+            </div>
+            <GymDayLinks
+              workouts={w.workouts}
+              highlightWorkoutId={highlightWorkoutId}
+              daysWithUnseenChanges={daysWithUnseenChanges}
+            />
           </Card>
         ))}
       </div>
@@ -106,9 +169,13 @@ export default async function GymPlanPage({ params }: { params: Promise<{ planId
 function GymDayLinks({
   workouts,
   highlightWorkoutId,
+  daysWithUnseenChanges,
 }: {
   workouts: { id: string; dayNumber: number }[]
   highlightWorkoutId: string | null
+  // Coach-only; empty for a client viewing their own plan. Drives the small
+  // dot on a day badge that has an unseen client-made change.
+  daysWithUnseenChanges: Set<string | null>
 }) {
   return (
     <div className="mt-3 flex flex-wrap gap-2">
@@ -116,13 +183,19 @@ function GymDayLinks({
         <Link
           key={day.id}
           href={`/gym/workouts/${day.id}`}
-          className={`rounded border px-2 py-1 text-xs transition-colors ${
+          className={`relative rounded border px-2 py-1 text-xs transition-colors ${
             day.id === highlightWorkoutId
               ? 'border-accent bg-accent font-bold text-on-accent ring-2 ring-accent ring-offset-1 ring-offset-bg'
               : 'border-border hover:border-accent hover:text-accent'
           }`}
         >
           День {day.dayNumber}
+          {daysWithUnseenChanges.has(day.id) && (
+            <span
+              title="Есть непросмотренные изменения от подопечного"
+              className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-danger"
+            />
+          )}
         </Link>
       ))}
     </div>
