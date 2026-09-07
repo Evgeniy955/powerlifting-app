@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { estimateGymOneRepMax } from '@/lib/gym'
+import { estimateGymOneRepMax, mondayOnOrBefore } from '@/lib/gym'
 import { requireCoach, apiErrorResponse } from '@/lib/session'
 import { assertGymClientBelongsToCoach } from '@/lib/authorization'
 import { gymExerciseNameKey } from '@/lib/gymExerciseMatch'
@@ -75,9 +75,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ athlete
     const planName = body.planName?.trim().slice(0, 120) || parsedPlan.name
 
     // The document's own earliest training date, when it had date
-    // headers — falls back to today only for a plain undated paste (a
-    // single day's exercises with no "15.06.26"-style header at all).
-    const startDate = workouts.find((workout) => workout.date)?.date ?? new Date()
+    // headers — falls back to the Monday on/before today only for a plain
+    // undated paste (a single day's exercises with no "15.06.26"-style
+    // header at all), so an undated import still lands on a calendar
+    // Monday instead of whatever weekday it happened to be imported on.
+    const startDate = workouts.find((workout) => workout.date)?.date ?? mondayOnOrBefore(new Date())
 
     const planId = randomUUID()
 
