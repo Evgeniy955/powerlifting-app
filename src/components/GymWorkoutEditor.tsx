@@ -104,23 +104,32 @@ export function GymWorkoutEditor({ workoutId, entries, canEdit, initialCompact, 
                 </option>
               ))}
             </Select>
-            <Input
-              type="number"
-              min="0.5"
-              step="0.5"
-              value={workingWeight}
-              onChange={(e) => setWorkingWeight(e.target.value)}
-              aria-label="Рабочий вес"
-              className="min-w-0"
-            />
-            <Input
-              type="number"
-              min="1"
-              value={reps}
-              onChange={(e) => setReps(e.target.value)}
-              aria-label="Повторы"
-              className="min-w-0"
-            />
+            {/* Plain unlabeled "20"/"10" number fields read as two
+                identical, unexplained boxes — labeling each (instead of
+                just an aria-label only screen readers could see) is what
+                actually tells a sighted coach which one is the working
+                weight and which is reps. */}
+            <label className="flex min-w-0 flex-col gap-0.5">
+              <span className="text-[10px] uppercase tracking-wide text-text-secondary">Вес, кг</span>
+              <Input
+                type="number"
+                min="0.5"
+                step="0.5"
+                value={workingWeight}
+                onChange={(e) => setWorkingWeight(e.target.value)}
+                className="min-w-0"
+              />
+            </label>
+            <label className="flex min-w-0 flex-col gap-0.5">
+              <span className="text-[10px] uppercase tracking-wide text-text-secondary">Повторы</span>
+              <Input
+                type="number"
+                min="1"
+                value={reps}
+                onChange={(e) => setReps(e.target.value)}
+                className="min-w-0"
+              />
+            </label>
             <Button onClick={() => void addExercise()} disabled={adding || !exerciseId}>
               {adding ? 'Добавляю…' : 'Добавить'}
             </Button>
