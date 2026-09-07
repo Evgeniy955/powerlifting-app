@@ -13,10 +13,11 @@ import { recordGymChangeLog } from '@/lib/gymChangeLog'
 export async function PATCH(req: Request, { params }: { params: Promise<{ setId: string }> }) {
   try {
     const user = await requireUser(); const { setId } = await params; const set = await assertGymCanAccessSet(setId, user)
-    const body = await req.json() as { weight?: unknown; reps?: unknown; toFailure?: unknown }; const data: { weight?: number; reps?: number; toFailure?: boolean } = {}
+    const body = await req.json() as { weight?: unknown; reps?: unknown; toFailure?: unknown; completed?: unknown }; const data: { weight?: number; reps?: number; toFailure?: boolean; completed?: boolean } = {}
     if (body.weight !== undefined) { const weight = Number(body.weight); if (!Number.isFinite(weight) || weight < 0 || weight > 2000) return NextResponse.json({ error: 'Некорректный вес' }, { status: 400 }); data.weight = weight }
     if (body.reps !== undefined) { const reps = Number(body.reps); if (!Number.isInteger(reps) || reps < 0 || reps > 100) return NextResponse.json({ error: 'Некорректное число повторов' }, { status: 400 }); data.reps = reps }
     if (body.toFailure !== undefined) { if (typeof body.toFailure !== 'boolean') return NextResponse.json({ error: 'Некорректное значение «до отказа»' }, { status: 400 }); data.toFailure = body.toFailure }
+    if (body.completed !== undefined) { if (typeof body.completed !== 'boolean') return NextResponse.json({ error: 'Некорректное значение отметки выполнения' }, { status: 400 }); data.completed = body.completed }
     if (!Object.keys(data).length) return NextResponse.json({ error: 'Нет данных для обновления' }, { status: 400 })
     const updated = await prisma.gymSetEntry.update({ where: { id: set.id }, data })
 

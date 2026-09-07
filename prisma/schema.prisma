@@ -588,6 +588,9 @@ model GymExerciseEntry {
   // light weight", etc.) — visible to the client, editable coach-only, same
   // permission split as replacing the exercise or editing ПМ.
   notes      String?
+  // Client/coach didn't get to this exercise — same "skipped" flag and
+  // reasoning as ExerciseEntry.skipped on the powerlifting side.
+  skipped    Boolean            @default(false)
   sets       GymSetEntry[]
 
   @@index([workoutId])
