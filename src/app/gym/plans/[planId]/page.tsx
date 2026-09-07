@@ -137,8 +137,7 @@ export default async function GymPlanPage({ params }: { params: Promise<{ planId
                   Текущая неделя
                 </span>
                 <h2 className="mt-1 font-display uppercase">
-                  Неделя {currentWeek.weekNumber}
-                  {currentWeek.name && <span className="normal-case"> — {currentWeek.name}</span>}
+                  {currentWeek.name || `Неделя ${currentWeek.weekNumber}`}
                 </h2>
                 {formatGymWeekDateRange(currentWeek.workouts) && (
                   <p className="mt-1 text-xs text-text-secondary">{formatGymWeekDateRange(currentWeek.workouts)}</p>
@@ -169,10 +168,7 @@ export default async function GymPlanPage({ params }: { params: Promise<{ planId
           <Card key={w.id}>
             <div className="mb-1 flex items-start justify-between gap-2">
               <Link href={`/gym/weeks/${w.id}`} className="min-w-0 block hover:text-accent">
-                <h2 className="font-display uppercase">
-                  Неделя {w.weekNumber}
-                  {w.name && <span className="normal-case"> — {w.name}</span>}
-                </h2>
+                <h2 className="font-display uppercase">{w.name || `Неделя ${w.weekNumber}`}</h2>
                 {formatGymWeekDateRange(w.workouts) && (
                   <p className="mt-1 text-xs text-text-secondary">{formatGymWeekDateRange(w.workouts)}</p>
                 )}

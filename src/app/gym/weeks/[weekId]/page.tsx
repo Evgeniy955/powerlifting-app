@@ -87,8 +87,7 @@ export default async function GymWeekPage({ params }: { params: Promise<{ weekId
               <span className="h-8 w-8 shrink-0" />
             )}
             <h1 className="font-display text-xl uppercase tracking-wide">
-              Неделя {week.weekNumber}
-              {week.name && <span className="normal-case"> — {week.name}</span>}
+              {week.name || `Неделя ${week.weekNumber}`}
             </h1>
             {week.nextWeek && nextWeekVisible ? (
               <Link
