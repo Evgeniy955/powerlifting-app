@@ -1,9 +1,10 @@
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { ArrowLeft, ArrowRight, FileDown } from 'lucide-react'
 import { requireUser } from '@/lib/session'
 import { getGymWeekForDisplay, formatGymWeekDateRange } from '@/lib/gym'
 import { assertGymClientAccessible } from '@/lib/authorization'
+import { isMicrocycleVisibleToAthlete } from '@/lib/weekAccess'
 import { AiCoachButton } from '@/components/AiCoachButton'
 import { GymWeekView } from '@/components/GymWeekView'
 
@@ -13,6 +14,16 @@ export default async function GymWeekPage({ params }: { params: Promise<{ weekId
   const week = await getGymWeekForDisplay(weekId)
   if (!week) notFound()
   await assertGymClientAccessible(week.plan.clientId, user)
+
+  // Same current/past-only rule as the plan page's week list — block direct
+  // URL access to a week that hasn't unlocked yet for this client.
+  if (user.role === 'ATHLETE' && !isMicrocycleVisibleToAthlete(week.plan.startDate, week.weekNumber)) {
+    redirect(`/gym/plans/${week.planId}`)
+  }
+  const nextWeekVisible =
+    user.role === 'COACH' ||
+    (week.nextWeek && isMicrocycleVisibleToAthlete(week.plan.startDate, week.nextWeek.weekNumber))
+
   const dateRange = formatGymWeekDateRange(week.workouts)
   // assertGymClientAccessible above already restricted access to the coach
   // or this plan's own client — anyone rendering past it may edit their own
@@ -72,7 +83,7 @@ export default async function GymWeekPage({ params }: { params: Promise<{ weekId
               <span className="h-8 w-8 shrink-0" />
             )}
             <h1 className="font-display text-xl uppercase tracking-wide">Неделя {week.weekNumber}</h1>
-            {week.nextWeek ? (
+            {week.nextWeek && nextWeekVisible ? (
               <Link
                 href={`/gym/weeks/${week.nextWeek.id}`}
                 aria-label={`Неделя ${week.nextWeek.weekNumber}`}

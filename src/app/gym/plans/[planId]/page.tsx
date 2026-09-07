@@ -9,7 +9,7 @@ import { AiCoachButton } from '@/components/AiCoachButton'
 import { AddGymWeekButton } from '@/components/AddGymWeekButton'
 import { DeleteGymWeekButton } from '@/components/DeleteGymWeekButton'
 import { CopyLastTwoGymWeeksButton } from '@/components/CopyLastTwoGymWeeksButton'
-import { currentWeekNumber } from '@/lib/weekAccess'
+import { currentWeekNumber, isMicrocycleVisibleToAthlete } from '@/lib/weekAccess'
 
 export default async function GymPlanPage({ params }: { params: Promise<{ planId: string }> }) {
   const user = await requireUser()
@@ -49,22 +49,37 @@ export default async function GymPlanPage({ params }: { params: Promise<{ planId
         )
       : new Set<string | null>()
 
+  // A client only ever sees the current and past weeks of their plan (plus
+  // the coming week once it unlocks) — the coach can program ahead without
+  // it showing up early. Coaches always see every week. Same
+  // isMicrocycleVisibleToAthlete used on the powerlifting side's cycle page
+  // — it only needs a start date and a week number, so it applies here
+  // unchanged (GymPlan/GymWeek mirror Cycle/Microcycle exactly).
+  const visibleWeeks =
+    user.role === 'COACH'
+      ? plan.weeksData
+      : plan.weeksData.filter((w) => isMicrocycleVisibleToAthlete(plan.startDate, w.weekNumber))
+
   // Same "pull the in-progress week out and highlight it" treatment as the
   // powerlifting side's cycle overview (src/app/cycles/[cycleId]/page.tsx) —
   // GymPlan/GymWeek/GymWorkout mirror Cycle/Microcycle/Workout's shape
   // exactly, so the same Monday-anchored week math applies unchanged.
   const thisWeekNumber = currentWeekNumber(plan.startDate)
-  const currentWeek = plan.weeksData.find((w) => w.weekNumber === thisWeekNumber) ?? null
+  const currentWeek = visibleWeeks.find((w) => w.weekNumber === thisWeekNumber) ?? null
   const otherWeeks = currentWeek
-    ? plan.weeksData.filter((w) => w.id !== currentWeek.id)
-    : plan.weeksData
+    ? visibleWeeks.filter((w) => w.id !== currentWeek.id)
+    : visibleWeeks
 
   // Which single day badge gets the "highlighted" look across the whole
   // plan: today's own session if there is one, otherwise the soonest
   // upcoming one — same fallback as the powerlifting side so a rest day
-  // still points at what's next instead of highlighting nothing.
+  // still points at what's next instead of highlighting nothing. Scoped to
+  // visibleWeeks only (not the whole plan) since that's exactly what's on
+  // screen — a client's next real session could technically sit in a
+  // not-yet-unlocked future week, in which case there's nothing visible to
+  // point at and none of the rendered days light up.
   const todayStr = new Date().toISOString().slice(0, 10)
-  const workoutsByDate = plan.weeksData
+  const workoutsByDate = visibleWeeks
     .flatMap((w) => w.workouts)
     .slice()
     .sort((a, b) => a.scheduledDate.getTime() - b.scheduledDate.getTime())

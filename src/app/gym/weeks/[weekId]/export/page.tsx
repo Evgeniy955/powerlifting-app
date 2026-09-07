@@ -1,11 +1,15 @@
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { requireUser } from '@/lib/session'
 import { assertGymClientAccessible } from '@/lib/authorization'
+import { isMicrocycleVisibleToAthlete } from '@/lib/weekAccess'
 import { GymExportView, type GymExportDay } from '@/components/GymExportView'
 
 // PDF export of a single microcycle ("Неделя") — read-only mirror of
 // /gym/weeks/:weekId rendered client-side to a PDF (html2canvas + jsPDF).
+// Same access rules as the live week page (ownership + client current/
+// past-only visibility) since it exposes the same underlying data, just
+// laid out for a document instead of editing.
 export default async function GymWeekExportPage({ params }: { params: Promise<{ weekId: string }> }) {
   const user = await requireUser()
   const { weekId } = await params
@@ -28,6 +32,10 @@ export default async function GymWeekExportPage({ params }: { params: Promise<{ 
   if (!week) notFound()
 
   await assertGymClientAccessible(week.plan.clientId, user)
+
+  if (user.role === 'ATHLETE' && !isMicrocycleVisibleToAthlete(week.plan.startDate, week.weekNumber)) {
+    redirect(`/gym/plans/${week.planId}`)
+  }
 
   const clientName = week.plan.client.displayName ?? week.plan.client.user?.name ?? 'Подопечный'
 

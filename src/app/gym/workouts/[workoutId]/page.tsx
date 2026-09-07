@@ -1,9 +1,10 @@
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { ArrowLeft, ArrowRight, FileDown } from 'lucide-react'
 import { requireUser } from '@/lib/session'
 import { getGymWorkoutForDisplay } from '@/lib/gym'
 import { assertGymClientAccessible } from '@/lib/authorization'
+import { isMicrocycleVisibleToAthlete } from '@/lib/weekAccess'
 import { GymWorkoutEditor } from '@/components/GymWorkoutEditor'
 
 export default async function GymWorkoutPage({ params }: { params: Promise<{ workoutId: string }> }) {
@@ -12,6 +13,16 @@ export default async function GymWorkoutPage({ params }: { params: Promise<{ wor
   const workout = await getGymWorkoutForDisplay(workoutId)
   if (!workout) notFound()
   await assertGymClientAccessible(workout.week.plan.clientId, user)
+
+  // Same current/past-only rule as the plan page's week list — block direct
+  // URL access to a day inside a week that hasn't unlocked yet for this client.
+  if (
+    user.role === 'ATHLETE' &&
+    !isMicrocycleVisibleToAthlete(workout.week.plan.startDate, workout.week.weekNumber)
+  ) {
+    redirect(`/gym/plans/${workout.week.planId}`)
+  }
+
   const dateLabel = workout.scheduledDate.toISOString().slice(0, 10)
   // assertGymClientAccessible above already restricted access to the coach
   // or this workout's own client — anyone rendering past it may edit their

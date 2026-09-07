@@ -1,12 +1,14 @@
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { requireUser } from '@/lib/session'
 import { assertGymClientAccessible } from '@/lib/authorization'
+import { isMicrocycleVisibleToAthlete } from '@/lib/weekAccess'
 import { GymExportView, type GymExportDay } from '@/components/GymExportView'
 
 // PDF export of a single training day — read-only mirror of
 // /gym/workouts/:workoutId rendered client-side to a PDF (html2canvas +
-// jsPDF).
+// jsPDF). Same access rules as the live day page (ownership + client
+// current/past-only visibility) since it exposes the same underlying data.
 export default async function GymWorkoutExportPage({ params }: { params: Promise<{ workoutId: string }> }) {
   const user = await requireUser()
   const { workoutId } = await params
@@ -24,6 +26,13 @@ export default async function GymWorkoutExportPage({ params }: { params: Promise
   if (!workout) notFound()
 
   await assertGymClientAccessible(workout.week.plan.clientId, user)
+
+  if (
+    user.role === 'ATHLETE' &&
+    !isMicrocycleVisibleToAthlete(workout.week.plan.startDate, workout.week.weekNumber)
+  ) {
+    redirect(`/gym/plans/${workout.week.planId}`)
+  }
 
   const clientName = workout.week.plan.client.displayName ?? workout.week.plan.client.user?.name ?? 'Подопечный'
 
