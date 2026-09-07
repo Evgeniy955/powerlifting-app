@@ -5,14 +5,7 @@ import { requireCoach, requireUser, apiErrorResponse } from '@/lib/session'
 // exercises (soft-deleted, still referenced by existing history) are
 // excluded here so they can't be picked for new entries, while staying
 // resolvable via the relation wherever they're already used.
-// No `take` cap here (unlike /api/exercises' take: 20) — the powerlifting
-// catalog's autocomplete can afford to truncate an empty-query browse since
-// a coach is expected to type to narrow it down, but this endpoint also
-// backs the gym admin page's own unlimited list (GymExerciseAdmin), so a
-// coach opening the picker with an empty search box needs to see the whole
-// catalog, not just the first page of it — a cap here previously made the
-// dropdown look like it had fewer exercises than the admin page did.
-export async function GET(req: Request) { try { await requireUser(); const url = new URL(req.url); const q = url.searchParams.get('q')?.trim() ?? ''; const exercises = await prisma.gymExerciseCatalog.findMany({ where: { archivedAt: null, ...(q ? { name: { contains: q, mode: 'insensitive' as const } } : {}) }, orderBy: { name: 'asc' } }); return NextResponse.json(exercises) } catch (error) { return apiErrorResponse(error) } }
+export async function GET(req: Request) { try { await requireUser(); const url = new URL(req.url); const q = url.searchParams.get('q')?.trim() ?? ''; const exercises = await prisma.gymExerciseCatalog.findMany({ where: { archivedAt: null, ...(q ? { name: { contains: q, mode: 'insensitive' as const } } : {}) }, orderBy: { name: 'asc' }, take: 30 }); return NextResponse.json(exercises) } catch (error) { return apiErrorResponse(error) } }
 // Get-or-create: a straight unique-constraint failure here almost always
 // means a genuine race, not user error — the import review screen's
 // exact-match check ran against the catalog as it stood when preview was
