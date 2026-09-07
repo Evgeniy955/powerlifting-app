@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireCoach, apiErrorResponse } from '@/lib/session'
-import { assertGymClientBelongsToCoach } from '@/lib/authorization'
+import { requireCoach, requireUser, apiErrorResponse } from '@/lib/session'
+import { assertGymClientBelongsToCoach, assertGymCanAccessEntry } from '@/lib/authorization'
 
 // PATCH { oneRepMax } — sets this entry's (and the client's tracked) 1RM
 // for its exercise.
@@ -12,15 +12,29 @@ import { assertGymClientBelongsToCoach } from '@/lib/authorization'
 // PATCH { notes } — sets (or clears, if blank) the coach's note on this
 // exercise — visible to the client, editable coach-only like everything
 // else this route handles.
+// PATCH { skipped } — client/coach didn't get to this exercise. Coach-or-
+// client, same as PATCH /api/exercise-entries/:entryId on the powerlifting
+// side — checked separately below via assertGymCanAccessEntry rather than
+// requireCoach, since a client marking their own skipped exercise is the
+// whole point of the flag.
 export async function PATCH(req: Request, { params }: { params: Promise<{ entryId: string }> }) {
   try {
-    const coach = await requireCoach()
     const { entryId } = await params
+    const body = await req.json() as { oneRepMax?: unknown; exerciseId?: string; notes?: unknown; skipped?: unknown }
+
+    if (body.skipped !== undefined) {
+      const user = await requireUser()
+      await assertGymCanAccessEntry(entryId, user)
+      if (typeof body.skipped !== 'boolean') return NextResponse.json({ error: 'Некорректное значение' }, { status: 400 })
+      const updated = await prisma.gymExerciseEntry.update({ where: { id: entryId }, data: { skipped: body.skipped } })
+      return NextResponse.json(updated)
+    }
+
+    const coach = await requireCoach()
     const entry = await prisma.gymExerciseEntry.findUnique({ where: { id: entryId }, include: { workout: { include: { week: { include: { plan: true } } } } } })
     if (!entry) return NextResponse.json({ error: 'Упражнение не найдено' }, { status: 404 })
     const clientId = entry.workout.week.plan.clientId
     await assertGymClientBelongsToCoach(clientId, coach.id)
-    const body = await req.json() as { oneRepMax?: unknown; exerciseId?: string; notes?: unknown }
 
     if (body.exerciseId !== undefined) {
       const exercise = await prisma.gymExerciseCatalog.findUnique({ where: { id: body.exerciseId } })

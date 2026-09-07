@@ -1,6 +1,6 @@
 'use client'
 import { useMemo, useState, type ReactNode } from 'react'
-import { Flame, GripVertical, Plus, Trash2, X } from 'lucide-react'
+import { Ban, Check, Flame, GripVertical, Plus, Trash2, X } from 'lucide-react'
 import {
   DndContext,
   type DragEndEvent,
@@ -14,8 +14,17 @@ import { CSS } from '@dnd-kit/utilities'
 import { Button, Card, Input, Select } from '@/components/ui'
 import { LockToggle } from '@/components/LockToggle'
 
-type Set = { id: string; setNumber: number; weight: number; reps: number; toFailure: boolean }
-type Entry = { id: string; oneRepMax: number | null; notes: string | null; exercise: { id: string; name: string }; sets: Set[] }
+type Set = { id: string; setNumber: number; weight: number; reps: number; toFailure: boolean; completed: boolean }
+type Entry = {
+  id: string
+  oneRepMax: number | null
+  notes: string | null
+  // Client/coach didn't get to this exercise — mirrors ExerciseEntry.skipped
+  // on the powerlifting side.
+  skipped: boolean
+  exercise: { id: string; name: string }
+  sets: Set[]
+}
 type CatalogExercise = { id: string; name: string; category: string | null }
 const percentOfMax = (weight: number, max: number | null) => max && max > 0 ? `${Math.round((weight / max) * 100)}%` : '—'
 // "До отказа" sets are only grouped together in compact view when they
@@ -98,8 +107,29 @@ export function GymWorkoutEditor({
     )
   }
   async function request(url: string, init: RequestInit) { const response = await fetch(url, init); const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.error ?? 'Не удалось сохранить изменения'); return body }
-  async function saveSet(entryId: string, setId: string, data: Partial<Pick<Set, 'weight' | 'reps' | 'toFailure'>>) { try { await request(`/api/gym/sets/${setId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }) } catch (e) { setError(e instanceof Error ? e.message : 'Ошибка сохранения') } }
+  async function saveSet(entryId: string, setId: string, data: Partial<Pick<Set, 'weight' | 'reps' | 'toFailure' | 'completed'>>) { try { await request(`/api/gym/sets/${setId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }) } catch (e) { setError(e instanceof Error ? e.message : 'Ошибка сохранения') } }
   async function toggleToFailure(entryId: string, setId: string, toFailure: boolean) { setRows((current) => current.map((row) => row.id === entryId ? { ...row, sets: row.sets.map((item) => item.id === setId ? { ...item, toFailure } : item) } : row)); await saveSet(entryId, setId, { toFailure }) }
+  // Checked off by the client/coach once the set has actually been performed
+  // — mirrors SetRow's completed toggle on the powerlifting side, including
+  // staying clickable while the day is locked (see pointer-events-auto on
+  // the button below).
+  async function toggleCompleted(entryId: string, setId: string, completed: boolean) { setRows((current) => current.map((row) => row.id === entryId ? { ...row, sets: row.sets.map((item) => item.id === setId ? { ...item, completed } : item) } : row)); await saveSet(entryId, setId, { completed }) }
+  // Client/coach didn't get to this exercise — mirrors ExerciseCard's
+  // toggleSkipped on the powerlifting side. Unlike toggleCompleted above,
+  // this stays inside the lock-gated wrapper (exercise-level, not a
+  // mid-set action), same as the powerlifting side's skip toggle.
+  async function toggleSkipped(entryId: string) {
+    const entry = rows.find((row) => row.id === entryId)
+    if (!entry) return
+    const next = !entry.skipped
+    setRows((current) => current.map((row) => (row.id === entryId ? { ...row, skipped: next } : row)))
+    try {
+      await request(`/api/gym/entries/${entryId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ skipped: next }) })
+    } catch (e) {
+      setRows((current) => current.map((row) => (row.id === entryId ? { ...row, skipped: !next } : row)))
+      setError(e instanceof Error ? e.message : 'Ошибка сохранения')
+    }
+  }
   async function saveMax(entryId: string, value: string) { const oneRepMax = Number(value); if (!Number.isFinite(oneRepMax) || oneRepMax <= 0) return setError('Введите максимум ПМ больше нуля'); try { await request(`/api/gym/entries/${entryId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ oneRepMax }) }); setRows((current) => current.map((entry) => entry.id === entryId ? { ...entry, oneRepMax } : entry)) } catch (e) { setError(e instanceof Error ? e.message : 'Ошибка сохранения') } }
   async function addSet(entryId: string) { try { const set = await request(`/api/gym/entries/${entryId}/sets`, { method: 'POST' }) as Set; setRows((current) => current.map((entry) => entry.id === entryId ? { ...entry, sets: [...entry.sets, set] } : entry)) } catch (e) { setError(e instanceof Error ? e.message : 'Ошибка сохранения') } }
   async function removeSet(entryId: string, setId: string) { try { await request(`/api/gym/sets/${setId}`, { method: 'DELETE' }); setRows((current) => current.map((entry) => entry.id === entryId ? { ...entry, sets: entry.sets.filter((set) => set.id !== setId) } : entry)) } catch (e) { setError(e instanceof Error ? e.message : 'Ошибка сохранения') } }
@@ -240,13 +270,28 @@ export function GymWorkoutEditor({
 
       {compact ? (
         rows.map((entry, entryIndex) => (
-          <Card key={entry.id} className="overflow-x-auto">
+          <Card key={entry.id} className={`overflow-x-auto ${entry.skipped ? 'opacity-60' : ''}`}>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               {canManageExercises ? (
                 <div className="flex min-w-0 items-center gap-1.5">
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onClick={() => void toggleSkipped(entry.id)}
+                      aria-pressed={entry.skipped}
+                      title={entry.skipped ? 'Отметить как выполненное' : 'Отметить как пропущенное'}
+                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors ${
+                        entry.skipped
+                          ? 'border-danger bg-danger text-on-danger'
+                          : 'border-border bg-surface-2 text-text-secondary hover:border-danger hover:text-danger'
+                      }`}
+                    >
+                      <Ban className="h-3 w-3" />
+                    </button>
+                  )}
                   <span className="shrink-0 text-sm text-text-secondary">{entryIndex + 1}.</span>
                   <Select
-                    className="w-auto max-w-[28rem] font-medium"
+                    className={`w-auto max-w-[28rem] font-medium ${entry.skipped ? 'line-through' : ''}`}
                     value=""
                     onFocus={() => void loadCatalog()}
                     onChange={(e) => void replaceExercise(entry.id, e.target.value)}
@@ -264,11 +309,29 @@ export function GymWorkoutEditor({
                   </Select>
                 </div>
               ) : (
-                <h2 className="font-medium">
-                  {entryIndex + 1}. {entry.exercise.name}
+                <h2 className="flex min-w-0 items-center gap-1.5 font-medium">
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onClick={() => void toggleSkipped(entry.id)}
+                      aria-pressed={entry.skipped}
+                      title={entry.skipped ? 'Отметить как выполненное' : 'Отметить как пропущенное'}
+                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors ${
+                        entry.skipped
+                          ? 'border-danger bg-danger text-on-danger'
+                          : 'border-border bg-surface-2 text-text-secondary hover:border-danger hover:text-danger'
+                      }`}
+                    >
+                      <Ban className="h-3 w-3" />
+                    </button>
+                  )}
+                  <span className={entry.skipped ? 'line-through' : ''}>
+                    {entryIndex + 1}. {entry.exercise.name}
+                  </span>
                 </h2>
               )}
               <div className="ml-auto flex items-center gap-3">
+                {entry.skipped && <span className="text-xs text-danger">Пропущено</span>}
                 {canManageExercises ? (
                   <label className="flex items-center gap-2 text-xs text-text-secondary">
                     Максимум ПМ, кг{' '}
@@ -357,6 +420,8 @@ export function GymWorkoutEditor({
                         onUpdateSetLocal={updateSetLocal}
                         onSaveSet={saveSet}
                         onToggleToFailure={toggleToFailure}
+                        onToggleCompleted={toggleCompleted}
+                        onToggleSkipped={toggleSkipped}
                       />
                     ))}
                   </SortableContext>
@@ -427,6 +492,8 @@ function GymExerciseTableRow({
   onUpdateSetLocal,
   onSaveSet,
   onToggleToFailure,
+  onToggleCompleted,
+  onToggleSkipped,
 }: {
   entry: Entry
   index: number
@@ -442,8 +509,10 @@ function GymExerciseTableRow({
   onAddSet: (entryId: string) => void
   onRemoveSet: (entryId: string, setId: string) => void
   onUpdateSetLocal: (entryId: string, setId: string, patch: Partial<Pick<Set, 'weight' | 'reps'>>) => void
-  onSaveSet: (entryId: string, setId: string, data: Partial<Pick<Set, 'weight' | 'reps' | 'toFailure'>>) => void
+  onSaveSet: (entryId: string, setId: string, data: Partial<Pick<Set, 'weight' | 'reps' | 'toFailure' | 'completed'>>) => void
   onToggleToFailure: (entryId: string, setId: string, toFailure: boolean) => void
+  onToggleCompleted: (entryId: string, setId: string, completed: boolean) => void
+  onToggleSkipped: (entryId: string) => void
 }) {
   // Reordering is exercise-level (canManageExercises), same as add/replace/
   // remove — disabled for a client the same way those already are.
@@ -457,7 +526,7 @@ function GymExerciseTableRow({
     <tr
       ref={setNodeRef}
       style={style}
-      className={`border-b border-border last:border-b-0 ${isDragging ? 'relative z-20 bg-surface-2 shadow-lg' : ''}`}
+      className={`border-b border-border last:border-b-0 ${isDragging ? 'relative z-20 bg-surface-2 shadow-lg' : ''} ${entry.skipped ? 'opacity-60' : ''}`}
     >
       <td className="sticky left-0 z-10 w-72 max-w-[20rem] bg-surface px-2 py-1 align-top">
         {/* Drag handle + number + name/select all in one row — ПМ and the
@@ -479,11 +548,26 @@ function GymExerciseTableRow({
               <GripVertical className="h-3 w-3" />
             </button>
           )}
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => onToggleSkipped(entry.id)}
+              aria-pressed={entry.skipped}
+              title={entry.skipped ? 'Отметить как выполненное' : 'Отметить как пропущенное'}
+              className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors ${
+                entry.skipped
+                  ? 'border-danger bg-danger text-on-danger'
+                  : 'border-border bg-surface-2 text-text-secondary hover:border-danger hover:text-danger'
+              }`}
+            >
+              <Ban className="h-2.5 w-2.5" />
+            </button>
+          )}
           <span className="mt-0.5 shrink-0 text-xs text-text-secondary">{index + 1}.</span>
           <div className="min-w-0 flex-1">
             {canManageExercises ? (
               <Select
-                className="w-full min-w-0 whitespace-normal font-medium"
+                className={`w-full min-w-0 whitespace-normal font-medium ${entry.skipped ? 'line-through' : ''}`}
                 value=""
                 onFocus={onLoadCatalog}
                 onChange={(e) => onReplaceExercise(entry.id, e.target.value)}
@@ -500,8 +584,9 @@ function GymExerciseTableRow({
                   ))}
               </Select>
             ) : (
-              <span className="font-medium">{entry.exercise.name}</span>
+              <span className={`font-medium ${entry.skipped ? 'line-through' : ''}`}>{entry.exercise.name}</span>
             )}
+            {entry.skipped && <span className="text-[10px] text-danger">Пропущено</span>}
           </div>
         </div>
         {canManageExercises ? (
@@ -532,10 +617,26 @@ function GymExerciseTableRow({
               </button>
             )}
             <div className="flex items-start gap-1">
-              <div className="flex flex-col items-center gap-0.5">
-                <span className="flex h-4 w-16 items-center justify-center rounded border border-border bg-surface-2 text-[10px] font-medium text-text-secondary">
-                  {i + 1}
-                </span>
+              <div className={`flex flex-col items-center gap-0.5 ${set.completed ? 'opacity-70' : ''}`}>
+                {/* pointer-events-auto exempts this from the day-level lock
+                    (see the pointer-events-none wrapper in
+                    GymWorkoutEditor) — mirrors SetRow's completed toggle on
+                    the powerlifting side, so a set can be checked off
+                    mid-session without unlocking weight/reps editing. */}
+                <button
+                  type="button"
+                  disabled={!canEdit}
+                  onClick={() => onToggleCompleted(entry.id, set.id, !set.completed)}
+                  aria-pressed={set.completed}
+                  aria-label={`Подход ${i + 1}${set.completed ? ' выполнен, нажмите чтобы снять отметку' : ', нажмите чтобы отметить выполненным'}`}
+                  className={`pointer-events-auto flex h-4 w-16 shrink-0 items-center justify-center rounded border text-[10px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                    set.completed
+                      ? 'border-accent bg-accent text-on-accent'
+                      : 'border-border bg-surface-2 text-text-secondary hover:border-accent hover:text-accent'
+                  }`}
+                >
+                  {set.completed ? <Check className="h-3 w-3" /> : i + 1}
+                </button>
                 <input
                   disabled={!canEdit}
                   type="number"

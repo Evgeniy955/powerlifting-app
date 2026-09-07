@@ -7,8 +7,15 @@ import { CalendarMinus, CalendarPlus, ChevronRight, FileDown, Plus } from 'lucid
 import { Button, Card, Dialog, Input } from '@/components/ui'
 import { GymWorkoutEditor } from '@/components/GymWorkoutEditor'
 
-type Set = { id: string; setNumber: number; weight: number; reps: number; toFailure: boolean }
-type Entry = { id: string; oneRepMax: number | null; notes: string | null; exercise: { id: string; name: string }; sets: Set[] }
+type Set = { id: string; setNumber: number; weight: number; reps: number; toFailure: boolean; completed: boolean }
+type Entry = {
+  id: string
+  oneRepMax: number | null
+  notes: string | null
+  skipped: boolean
+  exercise: { id: string; name: string }
+  sets: Set[]
+}
 type Workout = { id: string; dayNumber: number; scheduledDate: string | Date; notes: string | null; entries: Entry[] }
 
 // Whole-week view for gym mode: every day (GymWorkout) of a week rendered on
