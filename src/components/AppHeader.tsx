@@ -6,6 +6,7 @@ import { AvatarUploader } from './AvatarUploader'
 import { SignOutButton } from './SignOutButton'
 import { ThemeToggle } from './ThemeToggle'
 import { MobileNavMenu, type MobileNavLink } from './MobileNavMenu'
+import { AthletesNavDropdown } from './AthletesNavDropdown'
 
 // Shared top bar, rendered once from layout.tsx above every page.
 //
@@ -80,19 +81,18 @@ export async function AppHeader() {
 
               {user.role === 'COACH' && (
                 <>
-                  <Link
-                    href="/athletes"
-                    className="hidden text-sm text-accent transition-colors hover:underline md:inline"
-                  >
-                    Мои спортсмены
-                  </Link>
+                  {/* Consolidates the "Мои спортсмены" (powerlifting) and
+                      "Тренажёрный зал" links that used to sit side by side —
+                      a coach running both rosters was hunting between two
+                      top-level items for what's really one concept (their
+                      athletes), just split by discipline. */}
+                  <AthletesNavDropdown athletesHref="/athletes" gymHref={gymHref} />
                   <Link
                     href="/admin/users"
                     className="hidden text-sm text-text-secondary transition-colors hover:text-accent hover:underline md:inline"
                   >
                     Админка
                   </Link>
-                  <Link href={gymHref} className="hidden text-sm text-text-secondary transition-colors hover:text-accent hover:underline md:inline">Тренажёрный зал</Link>
                 </>
               )}
               {user.role === 'ATHLETE' && athleteProfileId && (
