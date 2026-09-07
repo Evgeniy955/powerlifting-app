@@ -12,7 +12,7 @@ export type CycleListItem = {
   id: string
   name: string
   startDate: string // ISO
-  weeks: number
+  lastWorkoutDate: string // ISO — the latest scheduledDate among all this cycle's workouts
   microcycleCount: number
   // Coach-only; always 0 for an athlete viewing their own plans. Scoped to
   // this specific plan (not blended across the athlete's other plans) so
@@ -28,13 +28,21 @@ const STATUS_LABEL: Record<Exclude<Status, 'all'>, string> = {
   completed: 'Завершён',
 }
 
-const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000
-
+// Completed once the cycle's actual last scheduled workout has fully
+// passed — not a fixed startDate + weeks*7-days span (the gym side's
+// GymPlansList had the identical bug: see planStatus there). A microcycle
+// is rarely trained all 7 days, so that span almost always lands after the
+// real last workout, which left finished plans reading "Активный" for
+// hours (or longer) past their last real session. Calendar-day granularity
+// (UTC, matching every other date shown in this app) rather than exact
+// millisecond comparison, so "completed" only kicks in the day *after* the
+// last workout, not mid-way through it.
 function cycleStatus(cycle: CycleListItem, now: number): Exclude<Status, 'all'> {
   const start = new Date(cycle.startDate).getTime()
-  const end = start + cycle.weeks * MS_PER_WEEK
   if (start > now) return 'upcoming'
-  if (end < now) return 'completed'
+  const last = new Date(cycle.lastWorkoutDate)
+  const completedFrom = Date.UTC(last.getUTCFullYear(), last.getUTCMonth(), last.getUTCDate() + 1)
+  if (completedFrom <= now) return 'completed'
   return 'active'
 }
 

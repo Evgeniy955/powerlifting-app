@@ -22,7 +22,7 @@ export default async function AthleteCyclesPage(props: { params: Promise<{ athle
       user: { select: { name: true, email: true } },
       cycles: {
         orderBy: { startDate: 'desc' },
-        include: { microcycles: { select: { id: true } } },
+        include: { microcycles: { include: { workouts: { select: { scheduledDate: true } } } } },
       },
     },
   })
@@ -78,14 +78,26 @@ export default async function AthleteCyclesPage(props: { params: Promise<{ athle
 
       {athlete.cycles.length > 0 && (
         <AthleteCyclesList
-          cycles={athlete.cycles.map((cycle) => ({
-            id: cycle.id,
-            name: cycle.name,
-            startDate: cycle.startDate.toISOString(),
-            weeks: cycle.weeks,
-            microcycleCount: cycle.microcycles.length,
-            unseenChangesCount: unseenCountByCycleId.get(cycle.id) ?? 0,
-          }))}
+          cycles={athlete.cycles.map((cycle) => {
+            const workoutDates = cycle.microcycles.flatMap((mc) =>
+              mc.workouts.map((workout) => workout.scheduledDate.getTime())
+            )
+            // Falls back to startDate for the (currently impossible in
+            // practice) case of a cycle with no workouts at all, so a brand
+            // new empty cycle still reads as "upcoming"/"active" rather than
+            // crashing on Math.max of an empty array.
+            const lastWorkoutDate = workoutDates.length
+              ? new Date(Math.max(...workoutDates))
+              : cycle.startDate
+            return {
+              id: cycle.id,
+              name: cycle.name,
+              startDate: cycle.startDate.toISOString(),
+              lastWorkoutDate: lastWorkoutDate.toISOString(),
+              microcycleCount: cycle.microcycles.length,
+              unseenChangesCount: unseenCountByCycleId.get(cycle.id) ?? 0,
+            }
+          })}
           canManage={user.role === 'COACH'}
         />
       )}
