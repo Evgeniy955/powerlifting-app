@@ -146,11 +146,11 @@ export function GymWeekView({
                     <Link
                       href={`/gym/workouts/${workout.id}`}
                       title="Открыть день"
-                      className="flex min-w-0 flex-1 items-center justify-between gap-2 rounded-lg px-2 py-1 -mx-2 transition-colors hover:bg-surface-2"
+                      className="flex min-w-0 flex-1 items-center justify-between gap-2 rounded-lg px-2 py-1 -mx-2 transition hover:scale-[1.01] hover:bg-surface-2"
                     >
                       <span>
                         <span className="flex items-baseline gap-2">
-                          <h2 className="font-display text-lg uppercase">День {workout.dayNumber}</h2>
+                          <h2 className="font-display text-lg uppercase text-accent">День {workout.dayNumber}</h2>
                         </span>
                         <p className="text-sm text-text-secondary">
                           {new Date(workout.scheduledDate).toISOString().slice(0, 10)}
