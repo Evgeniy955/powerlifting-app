@@ -1,5 +1,5 @@
 'use client'
-import { useMemo, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Ban, Check, Flame, GripVertical, Plus, Trash2, X } from 'lucide-react'
 import {
   DndContext,
@@ -13,6 +13,7 @@ import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } 
 import { CSS } from '@dnd-kit/utilities'
 import { Button, Card, Input, Select } from '@/components/ui'
 import { LockToggle } from '@/components/LockToggle'
+import { GymExerciseAutocomplete } from '@/components/GymExerciseAutocomplete'
 
 type Set = { id: string; setNumber: number; weight: number; reps: number; toFailure: boolean; completed: boolean }
 type Entry = {
@@ -66,7 +67,7 @@ export function GymWorkoutEditor({
   initialNotes: string | null
   header?: ReactNode
 }) {
-  const [rows, setRows] = useState(entries); const [compact, setCompact] = useState(initialCompact); const [catalog, setCatalog] = useState<CatalogExercise[]>([]); const [query, setQuery] = useState(''); const [exerciseId, setExerciseId] = useState(''); const [workingWeight, setWorkingWeight] = useState('20'); const [reps, setReps] = useState('10'); const [adding, setAdding] = useState(false); const [error, setError] = useState<string | null>(null)
+  const [rows, setRows] = useState(entries); const [compact, setCompact] = useState(initialCompact); const [catalog, setCatalog] = useState<CatalogExercise[]>([]); const [error, setError] = useState<string | null>(null)
   const [workoutNotes, setWorkoutNotes] = useState(initialNotes)
   // Locked by default for a client (same "prevent a stray tap in the gym"
   // safety net the powerlifting side's LockToggle already documents) — but
@@ -75,7 +76,6 @@ export function GymWorkoutEditor({
   // reliable "this is the coach" signal here (only the coach ever gets it),
   // so the toggle itself is hidden for them too — there's nothing to lock.
   const [locked, setLocked] = useState(!canManageExercises)
-  const options = useMemo(() => catalog.filter((exercise) => exercise.name.toLocaleLowerCase().includes(query.toLocaleLowerCase())), [catalog, query])
   // Requires an 8px pointer move before a drag starts — without this, the
   // handle's own click/tap could register as a zero-distance drag and
   // reorder nothing while still eating the tap. Same threshold as the
@@ -134,7 +134,27 @@ export function GymWorkoutEditor({
   async function addSet(entryId: string) { try { const set = await request(`/api/gym/entries/${entryId}/sets`, { method: 'POST' }) as Set; setRows((current) => current.map((entry) => entry.id === entryId ? { ...entry, sets: [...entry.sets, set] } : entry)) } catch (e) { setError(e instanceof Error ? e.message : 'Ошибка сохранения') } }
   async function removeSet(entryId: string, setId: string) { try { await request(`/api/gym/sets/${setId}`, { method: 'DELETE' }); setRows((current) => current.map((entry) => entry.id === entryId ? { ...entry, sets: entry.sets.filter((set) => set.id !== setId) } : entry)) } catch (e) { setError(e instanceof Error ? e.message : 'Ошибка сохранения') } }
   async function loadCatalog() { try { setCatalog(await request('/api/admin/gym-exercises', {}) as CatalogExercise[]) } catch (e) { setError(e instanceof Error ? e.message : 'Не удалось загрузить упражнения') } }
-  async function addExercise() { setError(null); setAdding(true); try { const entry = await request(`/api/gym/workouts/${workoutId}/entries`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ exerciseId, workingWeight: Number(workingWeight), reps: Number(reps) }) }) as Entry; setRows((current) => [...current, entry]); setExerciseId(''); setQuery('') } catch (e) { setError(e instanceof Error ? e.message : 'Ошибка добавления упражнения') } finally { setAdding(false) } }
+  // Adds the exercise the moment it's picked from the autocomplete — no
+  // separate form/button, same immediate-add flow as WorkoutView's
+  // handleAddExercise on the powerlifting side. Starts with 0 sets and
+  // whatever 1RM is already tracked for the client (or null, same "1ПМ не
+  // задан" state ExerciseCard shows) — the coach/client adds sets and sets
+  // the max afterward via "+ Добавить подход"/the ПМ field, instead of the
+  // old flow which required typing a working weight+reps upfront just to
+  // estimate a starting max.
+  async function addExercise(exerciseId: string) {
+    setError(null)
+    try {
+      const entry = (await request(`/api/gym/workouts/${workoutId}/entries`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ exerciseId }),
+      })) as Entry
+      setRows((current) => [...current, entry])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Ошибка добавления упражнения')
+    }
+  }
   // Swap which catalog exercise this entry points to — sets stay as-is, only
   // the exercise (and its 1ПМ, re-priced off the client's tracked max for
   // the new exercise) changes. Mirrors the powerlifting side's exerciseId
@@ -195,79 +215,6 @@ export function GymWorkoutEditor({
           the coach, `locked` starts (and stays, no toggle rendered) false,
           so this wrapper never dims or blocks anything for them. */}
       <div className={locked ? 'pointer-events-none select-none opacity-70' : ''}>
-      {canManageExercises && (
-        <Card className="space-y-3">
-          <h2 className="font-display text-sm uppercase">Добавить упражнение</h2>
-          {/* min-w-0 on every grid item: without it, a grid child's default
-              min-width:auto refuses to shrink below its own content's
-              intrinsic width — once loadCatalog() (fired on focusing either
-              field below) fills the Select with the full exercise list, its
-              longest option name can exceed the 1fr track's available
-              width, and the grid can't compress it back down. That pushed
-              the weight/reps inputs and the Добавить button out of their
-              tracks (wrapping or overflowing) right as you clicked into
-              "Поиск упражнения" — the button visibly "crawling away". */}
-          <div className="grid gap-2 md:grid-cols-[1fr_1fr_8rem_8rem_auto]">
-            <Input
-              placeholder="Поиск упражнения"
-              value={query}
-              onFocus={() => void loadCatalog()}
-              onChange={(e) => {
-                setQuery(e.target.value)
-                setExerciseId('')
-              }}
-              className="min-w-0"
-            />
-            <Select
-              value={exerciseId}
-              onFocus={() => void loadCatalog()}
-              onChange={(e) => setExerciseId(e.target.value)}
-              className="min-w-0"
-            >
-              <option value="">Выберите упражнение</option>
-              {options.map((exercise) => (
-                <option key={exercise.id} value={exercise.id}>
-                  {exercise.name}
-                  {exercise.category ? ` · ${exercise.category}` : ''}
-                </option>
-              ))}
-            </Select>
-            {/* Plain unlabeled "20"/"10" number fields read as two
-                identical, unexplained boxes — labeling each (instead of
-                just an aria-label only screen readers could see) is what
-                actually tells a sighted coach which one is the working
-                weight and which is reps. */}
-            <label className="flex min-w-0 flex-col gap-0.5">
-              <span className="text-[10px] uppercase tracking-wide text-text-secondary">Вес, кг</span>
-              <Input
-                type="number"
-                min="0.5"
-                step="0.5"
-                value={workingWeight}
-                onChange={(e) => setWorkingWeight(e.target.value)}
-                className="min-w-0"
-              />
-            </label>
-            <label className="flex min-w-0 flex-col gap-0.5">
-              <span className="text-[10px] uppercase tracking-wide text-text-secondary">Повторы</span>
-              <Input
-                type="number"
-                min="1"
-                value={reps}
-                onChange={(e) => setReps(e.target.value)}
-                className="min-w-0"
-              />
-            </label>
-            <Button onClick={() => void addExercise()} disabled={adding || !exerciseId}>
-              {adding ? 'Добавляю…' : 'Добавить'}
-            </Button>
-          </div>
-          <p className="text-xs text-text-secondary">
-            При первом добавлении максимум ПМ оценивается по рабочему весу и повторам и сохраняется для клиента.
-          </p>
-        </Card>
-      )}
-
       {compact ? (
         rows.map((entry, entryIndex) => (
           <Card key={entry.id} className={`overflow-x-auto ${entry.skipped ? 'opacity-60' : ''}`}>
@@ -440,6 +387,17 @@ export function GymWorkoutEditor({
             </table>
           </div>
         </div>
+      )}
+
+      {/* Moved below the exercise list (was above it) and pared down to
+          just the autocomplete, adding the exercise the instant it's
+          picked — same position and immediate-add flow as WorkoutView's
+          own "Добавить упражнение" card on the powerlifting side. */}
+      {canManageExercises && (
+        <Card className="mt-4 space-y-2">
+          <p className="text-sm text-text-secondary">Добавить упражнение</p>
+          <GymExerciseAutocomplete onSelect={(exercise) => void addExercise(exercise.id)} canCreate />
+        </Card>
       )}
       </div>
 
