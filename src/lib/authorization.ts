@@ -55,6 +55,35 @@ export async function assertGymClientAccessible(clientId: string, user: SessionU
   return client
 }
 
+// Walks gymSetEntry -> entry -> workout -> week -> plan -> client and checks
+// ownership (coach-of-client or the client themselves) — same coach-or-self
+// shape as assertCanAccessSet on the powerlifting side, letting a gym client
+// edit their own sets (weight/reps/toFailure) directly, not just their coach.
+export async function assertGymCanAccessSet(setId: string, user: SessionUser) {
+  const set = await prisma.gymSetEntry.findUnique({
+    where: { id: setId },
+    include: { entry: { include: { workout: { include: { week: { include: { plan: { include: { client: true } } } } } } } } },
+  })
+  if (!set) throw new NotFoundError('Подход не найден')
+  const client = set.entry.workout.week.plan.client
+  if (!ownsGymClient(client, user)) throw new ForbiddenError('Нет доступа к этому подходу')
+  return set
+}
+
+// Same coach-or-self ownership check, scoped to a GymExerciseEntry — used by
+// the "add a set" endpoint (a set-level action, unlike editing the entry's
+// exercise/ПМ, which stays coach-only).
+export async function assertGymCanAccessEntry(entryId: string, user: SessionUser) {
+  const entry = await prisma.gymExerciseEntry.findUnique({
+    where: { id: entryId },
+    include: { workout: { include: { week: { include: { plan: { include: { client: true } } } } } } },
+  })
+  if (!entry) throw new NotFoundError('Упражнение не найдено')
+  const client = entry.workout.week.plan.client
+  if (!ownsGymClient(client, user)) throw new ForbiddenError('Нет доступа к этому упражнению')
+  return entry
+}
+
 // Walks workoutId -> microcycle -> cycle -> athlete and checks ownership. Returns
 // the resolved chain so callers (e.g. the change-notification queue) can reuse it
 // instead of re-querying.

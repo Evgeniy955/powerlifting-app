@@ -2,6 +2,7 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { Flame, Plus, Trash2, X } from 'lucide-react'
 import { Button, Card, Input, Select } from '@/components/ui'
+import { LockToggle } from '@/components/LockToggle'
 
 type Set = { id: string; setNumber: number; weight: number; reps: number; toFailure: boolean }
 type Entry = { id: string; oneRepMax: number | null; exercise: { id: string; name: string }; sets: Set[] }
@@ -18,8 +19,38 @@ function compactSets(sets: Set[]) { return sets.reduce<{ weight: number; reps: n
 // replace the default "Тренировка" title instead of stacking a redundant
 // one — the standalone /gym/workouts/:id page doesn't pass it and keeps the
 // original heading.
-export function GymWorkoutEditor({ workoutId, entries, canEdit, initialCompact, header }: { workoutId: string; entries: Entry[]; canEdit: boolean; initialCompact: boolean; header?: ReactNode }) {
+//
+// Two separate permissions, not one: `canEdit` is set-level (weight, reps,
+// "до отказа", adding/removing a set) — true for the coach OR the client
+// this workout belongs to, same as the powerlifting side lets an athlete
+// log their own sets. `canManageExercises` is exercise-level (add/replace/
+// remove an exercise, edit ПМ) and stays coach-only — a client changing
+// what's programmed or their own tracked max would undermine the coach's
+// %ПМ-based programming, same reasoning as the powerlifting side keeping
+// Базовые/СФП 1RM edits coach-only.
+export function GymWorkoutEditor({
+  workoutId,
+  entries,
+  canEdit,
+  canManageExercises,
+  initialCompact,
+  header,
+}: {
+  workoutId: string
+  entries: Entry[]
+  canEdit: boolean
+  canManageExercises: boolean
+  initialCompact: boolean
+  header?: ReactNode
+}) {
   const [rows, setRows] = useState(entries); const [compact, setCompact] = useState(initialCompact); const [catalog, setCatalog] = useState<CatalogExercise[]>([]); const [query, setQuery] = useState(''); const [exerciseId, setExerciseId] = useState(''); const [workingWeight, setWorkingWeight] = useState('20'); const [reps, setReps] = useState('10'); const [adding, setAdding] = useState(false); const [error, setError] = useState<string | null>(null)
+  // Defaults locked for everyone (coach included) — same "prevent a stray
+  // tap in the gym" default as the powerlifting side's LockToggle, not a
+  // permission gate. Anyone with canEdit or canManageExercises can tap it to
+  // unlock; a pure viewer (shouldn't reach this component at all — every
+  // caller is already gated to the coach or this workout's own client)
+  // never sees the toggle and stays effectively locked either way.
+  const [locked, setLocked] = useState(true)
   const options = useMemo(() => catalog.filter((exercise) => exercise.name.toLocaleLowerCase().includes(query.toLocaleLowerCase())), [catalog, query])
   async function request(url: string, init: RequestInit) { const response = await fetch(url, init); const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.error ?? 'Не удалось сохранить изменения'); return body }
   async function saveSet(entryId: string, setId: string, data: Partial<Pick<Set, 'weight' | 'reps' | 'toFailure'>>) { try { await request(`/api/gym/sets/${setId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }) } catch (e) { setError(e instanceof Error ? e.message : 'Ошибка сохранения') } }
@@ -60,14 +91,27 @@ export function GymWorkoutEditor({ workoutId, entries, canEdit, initialCompact, 
             </p>
           </div>
         )}
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={compact} onChange={() => void toggleCompact()} /> Компактный режим
-        </label>
+        <div className="flex items-center gap-2">
+          {(canEdit || canManageExercises) && (
+            <LockToggle locked={locked} onToggle={() => setLocked((l) => !l)} />
+          )}
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={compact} onChange={() => void toggleCompact()} /> Компактный режим
+          </label>
+        </div>
       </div>
 
       {error && <p className="text-sm text-danger">{error}</p>}
 
-      {canEdit && (
+      {/* Everything editable lives inside this one lock-gated wrapper —
+          mirrors the powerlifting side's WeekDayTable, which wraps its
+          whole table (sets AND the add-exercise autocomplete) in the same
+          locked ? 'pointer-events-none ... opacity-70' : '' toggle instead
+          of gating by role. Locking isn't a permission check (canEdit/
+          canManageExercises already are) — it's a shared safety default so
+          an accidental tap mid-set doesn't change a number. */}
+      <div className={locked ? 'pointer-events-none select-none opacity-70' : ''}>
+      {canManageExercises && (
         <Card className="space-y-3">
           <h2 className="font-display text-sm uppercase">Добавить упражнение</h2>
           {/* min-w-0 on every grid item: without it, a grid child's default
@@ -135,7 +179,7 @@ export function GymWorkoutEditor({ workoutId, entries, canEdit, initialCompact, 
         rows.map((entry) => (
           <Card key={entry.id} className="overflow-x-auto">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              {canEdit ? (
+              {canManageExercises ? (
                 <Select
                   className="w-auto max-w-[28rem] font-medium"
                   value=""
@@ -157,7 +201,7 @@ export function GymWorkoutEditor({ workoutId, entries, canEdit, initialCompact, 
                 <h2 className="font-medium">{entry.exercise.name}</h2>
               )}
               <div className="ml-auto flex items-center gap-3">
-                {canEdit ? (
+                {canManageExercises ? (
                   <label className="flex items-center gap-2 text-xs text-text-secondary">
                     Максимум ПМ, кг{' '}
                     <Input
@@ -172,7 +216,7 @@ export function GymWorkoutEditor({ workoutId, entries, canEdit, initialCompact, 
                 ) : (
                   <span className="text-xs text-text-secondary">Максимум ПМ: {entry.oneRepMax ?? '—'} кг</span>
                 )}
-                {canEdit && (
+                {canManageExercises && (
                   <Button
                     variant="ghost"
                     size="icon"
@@ -223,7 +267,7 @@ export function GymWorkoutEditor({ workoutId, entries, canEdit, initialCompact, 
                           unrelated column. */}
                       <div className="flex items-start gap-1">
                         <div className="min-w-0 flex-1">
-                          {canEdit ? (
+                          {canManageExercises ? (
                             <Select
                               className="w-full min-w-0 whitespace-normal font-medium"
                               value=""
@@ -245,7 +289,7 @@ export function GymWorkoutEditor({ workoutId, entries, canEdit, initialCompact, 
                             <span className="font-medium">{entry.exercise.name}</span>
                           )}
                         </div>
-                        {canEdit && (
+                        {canManageExercises && (
                           <Button
                             variant="ghost"
                             size="icon"
@@ -383,7 +427,7 @@ export function GymWorkoutEditor({ workoutId, entries, canEdit, initialCompact, 
                         the powerlifting side's WeekDayTableRow — instead of
                         stacked inside the narrow exercise-name column. */}
                     <td className="px-1.5 py-1 text-right align-top">
-                      {canEdit ? (
+                      {canManageExercises ? (
                         <input
                           type="number"
                           min="0.5"
@@ -414,6 +458,7 @@ export function GymWorkoutEditor({ workoutId, entries, canEdit, initialCompact, 
           </div>
         </div>
       )}
+      </div>
     </div>
   )
 }

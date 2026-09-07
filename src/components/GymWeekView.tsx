@@ -22,11 +22,17 @@ export function GymWeekView({
   weekId,
   workouts,
   canEdit,
+  canManageExercises,
   initialCompact,
 }: {
   weekId: string
   workouts: Workout[]
+  // Set-level (weight/reps/toFailure/add-remove-set) — coach or this week's
+  // own client. Threaded straight into each day's GymWorkoutEditor.
   canEdit: boolean
+  // Exercise- and structure-level: add/remove exercises, edit ПМ, and (here,
+  // week-wide) add/remove a whole training day — coach-only.
+  canManageExercises: boolean
   initialCompact: boolean
 }) {
   const router = useRouter()
@@ -77,7 +83,7 @@ export function GymWeekView({
   return (
     <>
       <div className="flex flex-wrap justify-end gap-2">
-        {canEdit && (
+        {canManageExercises && (
           <>
             <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
               <Plus className="h-4 w-4" /> Добавить день
@@ -119,6 +125,7 @@ export function GymWeekView({
                 workoutId={workout.id}
                 entries={workout.entries}
                 canEdit={canEdit}
+                canManageExercises={canManageExercises}
                 initialCompact={initialCompact}
                 header={
                   <div className="flex min-w-0 flex-1 items-center gap-2">

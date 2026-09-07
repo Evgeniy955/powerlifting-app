@@ -14,6 +14,12 @@ export default async function GymWeekPage({ params }: { params: Promise<{ weekId
   if (!week) notFound()
   await assertGymClientAccessible(week.plan.clientId, user)
   const dateRange = formatGymWeekDateRange(week.workouts)
+  // assertGymClientAccessible above already restricted access to the coach
+  // or this plan's own client — anyone rendering past it may edit their own
+  // sets (canEdit). Exercise-/structure-level actions (add/remove exercises
+  // or days, edit ПМ) stay coach-only (canManageExercises).
+  const canEdit = true
+  const canManageExercises = user.role === 'COACH'
 
   return (
     <main className="mx-auto min-h-[calc(100vh-3.5rem)] max-w-6xl space-y-5 bg-bg p-6 text-text-primary">
@@ -85,7 +91,8 @@ export default async function GymWeekPage({ params }: { params: Promise<{ weekId
       <GymWeekView
         weekId={week.id}
         workouts={week.workouts}
-        canEdit={user.role === 'COACH'}
+        canEdit={canEdit}
+        canManageExercises={canManageExercises}
         initialCompact={user.compactView}
       />
     </main>
