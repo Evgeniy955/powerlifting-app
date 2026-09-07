@@ -13,6 +13,20 @@ export function estimateGymOneRepMax(weight: number, reps: number) {
   return Math.round(estimate * 2) / 2
 }
 
+// The Monday on/before `date` (UTC calendar day, getUTCDay()-indexed:
+// 0 = Sunday — same convention as weekAccess.ts's own mondayOnOrBefore on
+// the powerlifting side), normalized to UTC midnight. Used whenever a gym
+// plan is created without an explicit day-of-week choice from the coach —
+// the quick "+ План" button, and an import with no date headers of its own
+// to anchor to — so week 1 lands on a calendar Monday instead of whatever
+// weekday the plan happened to get created on. Not applied when the coach
+// (or an imported document) picks a specific date on purpose — duplicating
+// a plan, or an import with real date headers, keeps that date as-is.
+export function mondayOnOrBefore(date: Date): Date {
+  const daysSinceMonday = (date.getUTCDay() + 6) % 7
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() - daysSinceMonday))
+}
+
 export async function assertGymPlanAccess(planId: string, user: SessionUser) {
   const plan = await prisma.gymPlan.findUnique({ where: { id: planId }, include: { client: true } })
   if (!plan) return null
