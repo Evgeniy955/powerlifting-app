@@ -118,7 +118,7 @@ export function GymWorkoutEditor({ workoutId, entries, canEdit, initialCompact, 
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               {canEdit ? (
                 <Select
-                  className="w-auto max-w-[16rem] font-medium"
+                  className="w-auto max-w-[28rem] font-medium"
                   value=""
                   onFocus={() => void loadCatalog()}
                   onChange={(e) => void replaceExercise(entry.id, e.target.value)}
@@ -195,11 +195,11 @@ export function GymWorkoutEditor({ workoutId, entries, canEdit, initialCompact, 
               <tbody>
                 {rows.map((entry) => (
                   <tr key={entry.id} className="border-b border-border last:border-b-0">
-                    <td className="sticky left-0 z-10 w-48 max-w-[12rem] bg-surface px-2 py-1 align-top">
+                    <td className="sticky left-0 z-10 w-72 max-w-[20rem] bg-surface px-2 py-1 align-top">
                       <div className="flex flex-col items-start gap-1">
                         {canEdit ? (
                           <Select
-                            className="w-full max-w-[12rem] font-medium"
+                            className="w-full max-w-[20rem] whitespace-normal font-medium"
                             value=""
                             onFocus={() => void loadCatalog()}
                             onChange={(e) => void replaceExercise(entry.id, e.target.value)}
