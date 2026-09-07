@@ -567,6 +567,10 @@ model GymWorkout {
   week          GymWeek            @relation(fields: [weekId], references: [id], onDelete: Cascade)
   scheduledDate DateTime
   dayNumber     Int
+  // Coach-authored, free-form instructions shown at the end of the whole
+  // workout (e.g. stretching/cooldown) — not tied to any one exercise, so
+  // it lives on the workout itself rather than on a GymExerciseEntry.
+  notes         String?
   entries       GymExerciseEntry[]
 
   @@index([weekId])
@@ -580,6 +584,10 @@ model GymExerciseEntry {
   exercise   GymExerciseCatalog @relation(fields: [exerciseId], references: [id])
   orderIndex Int                @default(0)
   oneRepMax  Float?
+  // Coach-authored note on this specific exercise (technique cue, "use
+  // light weight", etc.) — visible to the client, editable coach-only, same
+  // permission split as replacing the exercise or editing ПМ.
+  notes      String?
   sets       GymSetEntry[]
 
   @@index([workoutId])

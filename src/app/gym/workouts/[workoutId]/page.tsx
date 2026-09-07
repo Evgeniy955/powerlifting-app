@@ -82,6 +82,7 @@ export default async function GymWorkoutPage({ params }: { params: Promise<{ wor
         canEdit={canEdit}
         canManageExercises={canManageExercises}
         initialCompact={user.compactView}
+        initialNotes={workout.notes}
       />
     </main>
   )

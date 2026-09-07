@@ -5,7 +5,7 @@ import { Button, Card, Input, Select } from '@/components/ui'
 import { LockToggle } from '@/components/LockToggle'
 
 type Set = { id: string; setNumber: number; weight: number; reps: number; toFailure: boolean }
-type Entry = { id: string; oneRepMax: number | null; exercise: { id: string; name: string }; sets: Set[] }
+type Entry = { id: string; oneRepMax: number | null; notes: string | null; exercise: { id: string; name: string }; sets: Set[] }
 type CatalogExercise = { id: string; name: string; category: string | null }
 const percentOfMax = (weight: number, max: number | null) => max && max > 0 ? `${Math.round((weight / max) * 100)}%` : '—'
 // "До отказа" sets are only grouped together in compact view when they
@@ -34,6 +34,7 @@ export function GymWorkoutEditor({
   canEdit,
   canManageExercises,
   initialCompact,
+  initialNotes,
   header,
 }: {
   workoutId: string
@@ -41,16 +42,20 @@ export function GymWorkoutEditor({
   canEdit: boolean
   canManageExercises: boolean
   initialCompact: boolean
+  // Coach-authored closing instructions for the whole workout (stretching,
+  // cooldown, etc.) — null until a coach sets one.
+  initialNotes: string | null
   header?: ReactNode
 }) {
   const [rows, setRows] = useState(entries); const [compact, setCompact] = useState(initialCompact); const [catalog, setCatalog] = useState<CatalogExercise[]>([]); const [query, setQuery] = useState(''); const [exerciseId, setExerciseId] = useState(''); const [workingWeight, setWorkingWeight] = useState('20'); const [reps, setReps] = useState('10'); const [adding, setAdding] = useState(false); const [error, setError] = useState<string | null>(null)
-  // Defaults locked for everyone (coach included) — same "prevent a stray
-  // tap in the gym" default as the powerlifting side's LockToggle, not a
-  // permission gate. Anyone with canEdit or canManageExercises can tap it to
-  // unlock; a pure viewer (shouldn't reach this component at all — every
-  // caller is already gated to the coach or this workout's own client)
-  // never sees the toggle and stays effectively locked either way.
-  const [locked, setLocked] = useState(true)
+  const [workoutNotes, setWorkoutNotes] = useState(initialNotes)
+  // Locked by default for a client (same "prevent a stray tap in the gym"
+  // safety net the powerlifting side's LockToggle already documents) — but
+  // never for the coach, who isn't the one standing in the gym mid-set and
+  // shouldn't need an extra tap before every edit. canManageExercises is a
+  // reliable "this is the coach" signal here (only the coach ever gets it),
+  // so the toggle itself is hidden for them too — there's nothing to lock.
+  const [locked, setLocked] = useState(!canManageExercises)
   const options = useMemo(() => catalog.filter((exercise) => exercise.name.toLocaleLowerCase().includes(query.toLocaleLowerCase())), [catalog, query])
   async function request(url: string, init: RequestInit) { const response = await fetch(url, init); const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.error ?? 'Не удалось сохранить изменения'); return body }
   async function saveSet(entryId: string, setId: string, data: Partial<Pick<Set, 'weight' | 'reps' | 'toFailure'>>) { try { await request(`/api/gym/sets/${setId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }) } catch (e) { setError(e instanceof Error ? e.message : 'Ошибка сохранения') } }
@@ -72,6 +77,13 @@ export function GymWorkoutEditor({
   // the powerlifting side's exercise-entry delete.
   async function removeExercise(entryId: string) { const entry = rows.find((row) => row.id === entryId); if (entry && !window.confirm(`Убрать «${entry.exercise.name}» из тренировки вместе со всеми подходами?`)) return; try { await request(`/api/gym/entries/${entryId}`, { method: 'DELETE' }); setRows((current) => current.filter((row) => row.id !== entryId)) } catch (e) { setError(e instanceof Error ? e.message : 'Не удалось удалить упражнение') } }
   async function toggleCompact() { const next = !compact; setCompact(next); try { await request('/api/user/compact-view', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ compact: next }) }) } catch (e) { setCompact(!next); setError(e instanceof Error ? e.message : 'Не удалось сохранить настройку') } }
+  // Coach-only note on one exercise (technique cue, "используй лёгкий вес",
+  // etc.) — visible to the client as read-only text, same permission split
+  // as replaceExercise/saveMax above.
+  async function saveEntryNotes(entryId: string, value: string) { const notes = value.trim(); setRows((current) => current.map((entry) => entry.id === entryId ? { ...entry, notes: notes || null } : entry)); try { await request(`/api/gym/entries/${entryId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notes }) }) } catch (e) { setError(e instanceof Error ? e.message : 'Ошибка сохранения') } }
+  // Coach-only closing instructions for the whole workout (stretching,
+  // cooldown, etc.) — not tied to any exercise, shown at the end of the day.
+  async function saveWorkoutNotes(value: string) { const notes = value.trim(); setWorkoutNotes(notes || null); try { await request(`/api/gym/workouts/${workoutId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notes }) }) } catch (e) { setError(e instanceof Error ? e.message : 'Ошибка сохранения') } }
   // Same "sets as narrow columns, one row per exercise" spreadsheet layout
   // as the powerlifting side's WeekDayTable/WeekDayTableRow (padded to the
   // day's own max set count, same Math.max(1, ...) floor) instead of each
@@ -92,7 +104,7 @@ export function GymWorkoutEditor({
           </div>
         )}
         <div className="flex items-center gap-2">
-          {(canEdit || canManageExercises) && (
+          {canEdit && !canManageExercises && (
             <LockToggle locked={locked} onToggle={() => setLocked((l) => !l)} />
           )}
           <label className="flex items-center gap-2 text-sm">
@@ -107,9 +119,11 @@ export function GymWorkoutEditor({
           mirrors the powerlifting side's WeekDayTable, which wraps its
           whole table (sets AND the add-exercise autocomplete) in the same
           locked ? 'pointer-events-none ... opacity-70' : '' toggle instead
-          of gating by role. Locking isn't a permission check (canEdit/
-          canManageExercises already are) — it's a shared safety default so
-          an accidental tap mid-set doesn't change a number. */}
+          of gating by role. For a client this stays a shared safety default
+          (not a permission check — canEdit/canManageExercises already are
+          that) so an accidental tap mid-set doesn't change a number; for
+          the coach, `locked` starts (and stays, no toggle rendered) false,
+          so this wrapper never dims or blocks anything for them. */}
       <div className={locked ? 'pointer-events-none select-none opacity-70' : ''}>
       {canManageExercises && (
         <Card className="space-y-3">
@@ -238,6 +252,17 @@ export function GymWorkoutEditor({
                 )}
               </div>
             </div>
+            {canManageExercises ? (
+              <textarea
+                defaultValue={entry.notes ?? ''}
+                onBlur={(e) => void saveEntryNotes(entry.id, e.target.value)}
+                placeholder="Комментарий к упражнению (необязательно)"
+                rows={2}
+                className="mb-2 w-full resize-none rounded border border-border bg-surface-2 px-2 py-1 text-xs text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent"
+              />
+            ) : (
+              entry.notes && <p className="mb-2 text-xs italic text-text-secondary">{entry.notes}</p>
+            )}
             <div className="flex flex-wrap gap-2">
               {compactSets(entry.sets).map((set, index) => (
                 <span
@@ -311,6 +336,19 @@ export function GymWorkoutEditor({
                           </Button>
                         )}
                       </div>
+                      {canManageExercises ? (
+                        <textarea
+                          defaultValue={entry.notes ?? ''}
+                          onBlur={(e) => void saveEntryNotes(entry.id, e.target.value)}
+                          placeholder="Комментарий (необязательно)"
+                          rows={2}
+                          className="mt-1 w-full resize-none rounded border border-border bg-surface-2 px-1.5 py-1 text-[11px] text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent"
+                        />
+                      ) : (
+                        entry.notes && (
+                          <p className="mt-1 text-[11px] italic text-text-secondary">{entry.notes}</p>
+                        )
+                      )}
                     </td>
                     {Array.from({ length: maxSets }).map((_, i) => {
                       const set = entry.sets[i]
@@ -468,6 +506,27 @@ export function GymWorkoutEditor({
         </div>
       )}
       </div>
+
+      {/* Deliberately outside the lock-gated wrapper above — a client's
+          read-only view of the coach's closing instructions (stretching,
+          cooldown, etc.) shouldn't dim/block along with the editable sets
+          just because they haven't tapped the lock open yet. */}
+      {(canManageExercises || workoutNotes) && (
+        <Card className="space-y-2">
+          <h2 className="font-display text-sm uppercase">Дополнительные указания</h2>
+          {canManageExercises ? (
+            <textarea
+              defaultValue={workoutNotes ?? ''}
+              onBlur={(e) => void saveWorkoutNotes(e.target.value)}
+              placeholder="Например: растяжка 10 минут, заминка на дорожке лёгким шагом..."
+              rows={3}
+              className="w-full resize-y rounded-md border border-border bg-surface-2 px-3 py-2 text-sm text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent"
+            />
+          ) : (
+            <p className="whitespace-pre-wrap text-sm text-text-secondary">{workoutNotes}</p>
+          )}
+        </Card>
+      )}
     </div>
   )
 }

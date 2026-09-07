@@ -8,8 +8,8 @@ import { Button, Card, Dialog, Input } from '@/components/ui'
 import { GymWorkoutEditor } from '@/components/GymWorkoutEditor'
 
 type Set = { id: string; setNumber: number; weight: number; reps: number; toFailure: boolean }
-type Entry = { id: string; oneRepMax: number | null; exercise: { id: string; name: string }; sets: Set[] }
-type Workout = { id: string; dayNumber: number; scheduledDate: string | Date; entries: Entry[] }
+type Entry = { id: string; oneRepMax: number | null; notes: string | null; exercise: { id: string; name: string }; sets: Set[] }
+type Workout = { id: string; dayNumber: number; scheduledDate: string | Date; notes: string | null; entries: Entry[] }
 
 // Whole-week view for gym mode: every day (GymWorkout) of a week rendered on
 // one page, each with its full editor inline — mirrors how the powerlifting
@@ -127,6 +127,7 @@ export function GymWeekView({
                 canEdit={canEdit}
                 canManageExercises={canManageExercises}
                 initialCompact={initialCompact}
+                initialNotes={workout.notes}
                 header={
                   <div className="flex min-w-0 flex-1 items-center gap-2">
                     {/* Opens the standalone /gym/workouts/:id page — same
