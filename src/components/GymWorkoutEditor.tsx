@@ -36,12 +36,10 @@ type Entry = {
 type CatalogExercise = { id: string; name: string; category: string | null }
 type GroupType = 'SUPERSET' | 'DROPSET'
 const GROUP_LABEL: Record<GroupType, string> = { SUPERSET: 'Суперсет', DROPSET: 'Дропсет' }
-// Superset = accent (same "do these back to back" blue the app already uses
-// for emphasis); dropset = accent-2, an existing distinct token, so the two
-// group kinds are visually distinguishable at a glance without introducing
-// a new color.
-const GROUP_BORDER: Record<GroupType, string> = { SUPERSET: 'border-accent', DROPSET: 'border-accent-2' }
-const GROUP_TEXT: Record<GroupType, string> = { SUPERSET: 'text-accent', DROPSET: 'text-accent-2' }
+// Same orange for both group kinds — they're told apart by their icon and
+// label text instead of by color (Link2 + "Суперсет" vs Zap + "Дропсет").
+const GROUP_BORDER: Record<GroupType, string> = { SUPERSET: 'border-orange-500', DROPSET: 'border-orange-500' }
+const GROUP_TEXT: Record<GroupType, string> = { SUPERSET: 'text-orange-500', DROPSET: 'text-orange-500' }
 const percentOfMax = (weight: number, max: number | null) => max && max > 0 ? `${Math.round((weight / max) * 100)}%` : '—'
 // Where each row sits inside its (possibly absent) group — used to decide
 // whether to draw the group's top label/border on this row and whether to
