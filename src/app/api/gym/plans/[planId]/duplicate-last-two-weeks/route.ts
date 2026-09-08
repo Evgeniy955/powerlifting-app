@@ -61,8 +61,23 @@ export async function POST(_req: Request, { params }: { params: Promise<{ planId
       exerciseId: string
       orderIndex: number
       oneRepMax: number | null
+      groupId: string | null
+      groupType: string | null
     }[] = []
     const setsData: { entryId: string; setNumber: number; weight: number; reps: number; toFailure: boolean }[] = []
+    // Fresh group ids per copy, same reasoning as
+    // /api/gym/plans/:planId/duplicate — DELETE /api/gym/groups/:groupId
+    // isn't scoped to one plan/workout, so reusing the source's groupId
+    // verbatim would let ungrouping the copy also ungroup the original.
+    const groupIdMap = new Map<string, string>()
+    function remapGroupId(oldGroupId: string | null) {
+      if (!oldGroupId) return null
+      const existing = groupIdMap.get(oldGroupId)
+      if (existing) return existing
+      const fresh = randomUUID()
+      groupIdMap.set(oldGroupId, fresh)
+      return fresh
+    }
 
     for (const source of sourceWeeks) {
       const newWeekId = randomUUID()
@@ -89,6 +104,8 @@ export async function POST(_req: Request, { params }: { params: Promise<{ planId
             exerciseId: entry.exerciseId,
             orderIndex: entry.orderIndex,
             oneRepMax: currentMaxByExercise.get(entry.exerciseId) ?? entry.oneRepMax,
+            groupId: remapGroupId(entry.groupId),
+            groupType: entry.groupType,
           })
 
           for (const set of entry.sets) {

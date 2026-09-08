@@ -591,9 +591,23 @@ model GymExerciseEntry {
   // Client/coach didn't get to this exercise — same "skipped" flag and
   // reasoning as ExerciseEntry.skipped on the powerlifting side.
   skipped    Boolean            @default(false)
+  // Combines 2-3 exercise entries into one superset/dropset block — a
+  // shared random id (not an FK to its own model, there's nothing else to
+  // store per-group besides the type) links the member entries together;
+  // groupType is only meaningful when groupId is set. Weight/reps/sets stay
+  // fully independent per entry (per GymSetEntry, unchanged below) — this
+  // only affects how the workout view groups/labels rows, never the numbers
+  // logged in them. Null groupId = a normal standalone exercise (the
+  // default, and the only state before this feature existed).
+  groupId    String?
+  // "SUPERSET" | "DROPSET" — plain string, not an enum, same reasoning as
+  // GymClient.inviteStatus elsewhere in this schema (SQLite local dev
+  // doesn't support Prisma enums).
+  groupType  String?
   sets       GymSetEntry[]
 
   @@index([workoutId])
+  @@index([groupId])
 }
 
 model GymSetEntry {

@@ -1,6 +1,6 @@
 'use client'
 import { useState, type ReactNode } from 'react'
-import { Ban, Check, Flame, GripVertical, Plus, Trash2, X } from 'lucide-react'
+import { Ban, Check, Flame, GripVertical, Layers, Link2, Plus, Trash2, Unlink, X, Zap } from 'lucide-react'
 import {
   DndContext,
   type DragEndEvent,
@@ -25,9 +25,39 @@ type Entry = {
   skipped: boolean
   exercise: { id: string; name: string }
   sets: Set[]
+  // Combines this entry with 1-2 others into one superset/dropset block —
+  // null for a normal standalone exercise. See GymExerciseEntry.groupId's
+  // schema comment for the full reasoning; weight/reps stay fully
+  // independent per exercise, only the visual/logical grouping is shared.
+  groupId: string | null
+  // "SUPERSET" | "DROPSET" — only meaningful when groupId is set.
+  groupType: string | null
 }
 type CatalogExercise = { id: string; name: string; category: string | null }
+type GroupType = 'SUPERSET' | 'DROPSET'
+const GROUP_LABEL: Record<GroupType, string> = { SUPERSET: 'Суперсет', DROPSET: 'Дропсет' }
+// Superset = accent (same "do these back to back" blue the app already uses
+// for emphasis); dropset = accent-2, an existing distinct token, so the two
+// group kinds are visually distinguishable at a glance without introducing
+// a new color.
+const GROUP_BORDER: Record<GroupType, string> = { SUPERSET: 'border-accent', DROPSET: 'border-accent-2' }
+const GROUP_TEXT: Record<GroupType, string> = { SUPERSET: 'text-accent', DROPSET: 'text-accent-2' }
 const percentOfMax = (weight: number, max: number | null) => max && max > 0 ? `${Math.round((weight / max) * 100)}%` : '—'
+// Where each row sits inside its (possibly absent) group — used to decide
+// whether to draw the group's top label/border on this row and whether to
+// draw the connecting rule below it. Grouped rows are always kept
+// contiguous by the API (see POST .../groups), so "same groupId as the
+// immediate neighbor" is a reliable enough boundary check.
+function groupPosition(rows: Entry[], index: number) {
+  const entry = rows[index]
+  if (!entry.groupId) return null
+  const prev = rows[index - 1]
+  const next = rows[index + 1]
+  const isFirst = !prev || prev.groupId !== entry.groupId
+  const isLast = !next || next.groupId !== entry.groupId
+  const size = rows.filter((r) => r.groupId === entry.groupId).length
+  return { isFirst, isLast, size, groupType: (entry.groupType ?? 'SUPERSET') as GroupType }
+}
 // "До отказа" sets are only grouped together in compact view when they
 // share the flag too — otherwise a literal "12 reps" set could get merged
 // into a visually-identical "до отказа" one that happens to use the same
@@ -76,6 +106,56 @@ export function GymWorkoutEditor({
   // reliable "this is the coach" signal here (only the coach ever gets it),
   // so the toggle itself is hidden for them too — there's nothing to lock.
   const [locked, setLocked] = useState(!canManageExercises)
+  // Coach-only "pick exercises to combine" mode — off by default so the
+  // normal edit flow (weight/reps, add/remove sets) isn't cluttered with
+  // selection checkboxes most of the time. Entering it clears any stale
+  // selection from a previous pass.
+  const [groupMode, setGroupMode] = useState(false)
+  const [selected, setSelected] = useState<string[]>([])
+  function toggleGroupMode() { setGroupMode((g) => !g); setSelected([]) }
+  function toggleSelected(entryId: string) {
+    setSelected((current) =>
+      current.includes(entryId) ? current.filter((id) => id !== entryId) : current.length >= 3 ? current : [...current, entryId]
+    )
+  }
+  // Combines the 2-3 currently-selected exercises into one superset/dropset
+  // block — see POST /api/gym/workouts/:workoutId/groups. The endpoint
+  // returns the whole (re-ordered) entry list, since combining can shift
+  // other rows to keep the new group contiguous.
+  async function combineSelected(groupType: GroupType) {
+    if (selected.length < 2) return
+    try {
+      const updated = (await request(`/api/gym/workouts/${workoutId}/groups`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ exerciseIds: selected, groupType }),
+      })) as Entry[]
+      setRows(updated)
+      setSelected([])
+      setGroupMode(false)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не удалось объединить упражнения')
+    }
+  }
+  // Splits a superset/dropset back into standalone exercises — every
+  // member's own sets/ПМ/notes/order are untouched, only the shared
+  // grouping clears.
+  async function ungroup(groupId: string) {
+    try {
+      await request(`/api/gym/groups/${groupId}`, { method: 'DELETE' })
+      setRows((current) => current.map((row) => (row.groupId === groupId ? { ...row, groupId: null, groupType: null } : row)))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не удалось разгруппировать упражнения')
+    }
+  }
+  async function changeGroupType(groupId: string, groupType: GroupType) {
+    setRows((current) => current.map((row) => (row.groupId === groupId ? { ...row, groupType } : row)))
+    try {
+      await request(`/api/gym/groups/${groupId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ groupType }) })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не удалось изменить тип группы')
+    }
+  }
   // Requires an 8px pointer move before a drag starts — without this, the
   // handle's own click/tap could register as a zero-distance drag and
   // reorder nothing while still eating the tap. Same threshold as the
@@ -165,7 +245,24 @@ export function GymWorkoutEditor({
   // is untouched. No confirmation for individual sets (removeSet above),
   // but this is a bigger, harder-to-notice loss, so it asks first — same as
   // the powerlifting side's exercise-entry delete.
-  async function removeExercise(entryId: string) { const entry = rows.find((row) => row.id === entryId); if (entry && !window.confirm(`Убрать «${entry.exercise.name}» из тренировки вместе со всеми подходами?`)) return; try { await request(`/api/gym/entries/${entryId}`, { method: 'DELETE' }); setRows((current) => current.filter((row) => row.id !== entryId)) } catch (e) { setError(e instanceof Error ? e.message : 'Не удалось удалить упражнение') } }
+  async function removeExercise(entryId: string) {
+    const entry = rows.find((row) => row.id === entryId)
+    if (entry && !window.confirm(`Убрать «${entry.exercise.name}» из тренировки вместе со всеми подходами?`)) return
+    try {
+      await request(`/api/gym/entries/${entryId}`, { method: 'DELETE' })
+      const remaining = rows.filter((row) => row.id !== entryId)
+      setRows(remaining)
+      // A group that's down to its last member isn't a group anymore —
+      // clear its grouping too instead of leaving one exercise stranded
+      // with a "Суперсет"/"Дропсет" label and border around it alone.
+      if (entry?.groupId) {
+        const stillGrouped = remaining.filter((row) => row.groupId === entry.groupId)
+        if (stillGrouped.length === 1) void ungroup(entry.groupId)
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не удалось удалить упражнение')
+    }
+  }
   async function toggleCompact() { const next = !compact; setCompact(next); try { await request('/api/user/compact-view', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ compact: next }) }) } catch (e) { setCompact(!next); setError(e instanceof Error ? e.message : 'Не удалось сохранить настройку') } }
   // Coach-only note on one exercise (technique cue, "используй лёгкий вес",
   // etc.) — visible to the client as read-only text, same permission split
@@ -197,11 +294,41 @@ export function GymWorkoutEditor({
           {canEdit && !canManageExercises && (
             <LockToggle locked={locked} onToggle={() => setLocked((l) => !l)} />
           )}
+          {canManageExercises && rows.length >= 2 && (
+            <Button variant={groupMode ? 'primary' : 'ghost'} size="sm" onClick={toggleGroupMode}>
+              <Layers className="mr-1.5 h-3.5 w-3.5" />
+              {groupMode ? 'Отменить объединение' : 'Суперсет / дропсет'}
+            </Button>
+          )}
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={compact} onChange={() => void toggleCompact()} /> Компактный режим
           </label>
         </div>
       </div>
+
+      {/* Selection action bar — appears once 2+ exercises are checked while
+          groupMode is on. Same list both places can combine into (a
+          superset keeps every exercise's own working weight — walk from one
+          station to the next; a dropset is one movement done back to back
+          at dropping weights) so the coach picks the label that matches
+          what's actually happening in the gym. */}
+      {groupMode && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm">
+          <span className="text-text-secondary">
+            {selected.length === 0
+              ? 'Отметьте 2–3 упражнения, чтобы объединить их'
+              : `Выбрано: ${selected.length}`}
+          </span>
+          <div className="ml-auto flex items-center gap-2">
+            <Button size="sm" variant="primary" disabled={selected.length < 2} onClick={() => void combineSelected('SUPERSET')}>
+              <Link2 className="mr-1.5 h-3.5 w-3.5" /> Суперсет
+            </Button>
+            <Button size="sm" variant="secondary" disabled={selected.length < 2} onClick={() => void combineSelected('DROPSET')}>
+              <Zap className="mr-1.5 h-3.5 w-3.5" /> Дропсет
+            </Button>
+          </div>
+        </div>
+      )}
 
       {error && <p className="text-sm text-danger">{error}</p>}
 
@@ -214,13 +341,52 @@ export function GymWorkoutEditor({
           that) so an accidental tap mid-set doesn't change a number; for
           the coach, `locked` starts (and stays, no toggle rendered) false,
           so this wrapper never dims or blocks anything for them. */}
-      <div className={locked ? 'pointer-events-none select-none opacity-70' : ''}>
+      {/* Locked no longer dims the whole block (opacity-70) — that was
+          washing out the weight/reps numbers a client needs to read at a
+          glance mid-set, even though nothing on the page is actually
+          editable yet. Lock still blocks taps via pointer-events-none;
+          individual edit affordances (pencil/plus/remove icons, drag
+          handle) stay visually muted via their own text-text-secondary
+          styling instead of a blanket dim. */}
+      <div className={locked ? 'pointer-events-none select-none' : ''}>
       {compact ? (
-        rows.map((entry, entryIndex) => (
-          <Card key={entry.id} className={`overflow-x-auto ${entry.skipped ? 'opacity-60' : ''}`}>
+        rows.map((entry, entryIndex) => {
+          const groupInfo = groupPosition(rows, entryIndex)
+          return (
+          <Card
+            key={entry.id}
+            className={`overflow-x-auto ${entry.skipped ? 'opacity-60' : ''} ${
+              groupInfo ? `border-l-4 ${GROUP_BORDER[groupInfo.groupType]}` : ''
+            }`}
+          >
+            {groupInfo?.isFirst && (
+              <div className={`mb-2 flex items-center gap-1.5 text-xs font-bold ${GROUP_TEXT[groupInfo.groupType]}`}>
+                {groupInfo.groupType === 'SUPERSET' ? <Link2 className="h-3 w-3" /> : <Zap className="h-3 w-3" />}
+                {GROUP_LABEL[groupInfo.groupType]} · {groupInfo.size} упражнения
+                {canManageExercises && (
+                  <button
+                    type="button"
+                    onClick={() => void ungroup(entry.groupId as string)}
+                    title="Разгруппировать"
+                    aria-label="Разгруппировать"
+                    className="ml-1 text-text-secondary transition-colors hover:text-danger"
+                  >
+                    <Unlink className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+            )}
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               {canManageExercises ? (
                 <div className="flex min-w-0 items-center gap-1.5">
+                  {groupMode && (
+                    <input
+                      type="checkbox"
+                      checked={selected.includes(entry.id)}
+                      onChange={() => toggleSelected(entry.id)}
+                      aria-label={`Выбрать «${entry.exercise.name}» для объединения`}
+                    />
+                  )}
                   {canEdit && (
                     <button
                       type="button"
@@ -322,7 +488,7 @@ export function GymWorkoutEditor({
               {compactSets(entry.sets).map((set, index) => (
                 <span
                   key={`${set.weight}-${set.reps}-${set.toFailure}-${index}`}
-                  className="rounded border border-border bg-surface-2 px-3 py-2 text-sm"
+                  className="rounded border border-border bg-surface-2 px-3 py-2 text-sm font-bold text-text-primary"
                 >
                   {set.weight} кг {set.count} × {set.toFailure ? 'до отказа' : set.reps}{' '}
                   <span className="text-accent">{percentOfMax(set.weight, entry.oneRepMax)}</span>
@@ -330,7 +496,8 @@ export function GymWorkoutEditor({
               ))}
             </div>
           </Card>
-        ))
+          )
+        })
       ) : (
         <div className="overflow-hidden rounded-xl border border-border bg-surface">
           <div className="overflow-x-auto">
@@ -375,6 +542,11 @@ export function GymWorkoutEditor({
                         onToggleToFailure={toggleToFailure}
                         onToggleCompleted={toggleCompleted}
                         onToggleSkipped={toggleSkipped}
+                        groupInfo={groupPosition(rows, index)}
+                        groupMode={groupMode}
+                        selected={selected.includes(entry.id)}
+                        onToggleSelected={toggleSelected}
+                        onUngroup={ungroup}
                       />
                     ))}
                   </SortableContext>
@@ -458,6 +630,11 @@ function GymExerciseTableRow({
   onToggleToFailure,
   onToggleCompleted,
   onToggleSkipped,
+  groupInfo,
+  groupMode,
+  selected,
+  onToggleSelected,
+  onUngroup,
 }: {
   entry: Entry
   index: number
@@ -477,6 +654,13 @@ function GymExerciseTableRow({
   onToggleToFailure: (entryId: string, setId: string, toFailure: boolean) => void
   onToggleCompleted: (entryId: string, setId: string, completed: boolean) => void
   onToggleSkipped: (entryId: string) => void
+  // Where this row sits inside its (possibly absent) superset/dropset — see
+  // groupPosition's own comment. Null for a standalone exercise.
+  groupInfo: { isFirst: boolean; isLast: boolean; size: number; groupType: GroupType } | null
+  groupMode: boolean
+  selected: boolean
+  onToggleSelected: (entryId: string) => void
+  onUngroup: (groupId: string) => void
 }) {
   // Reordering is exercise-level (canManageExercises), same as add/replace/
   // remove — disabled for a client the same way those already are.
@@ -492,18 +676,46 @@ function GymExerciseTableRow({
   // every row regardless of how many sets that particular exercise has.
   const setSlots = maxSets + (canEdit ? 1 : 0)
   const totalCols = 2 + setSlots
-  const rowClassName = `border-b border-border last:border-b-0 ${isDragging ? 'relative z-20 bg-surface-2 shadow-lg' : ''} ${entry.skipped ? 'opacity-60' : ''}`
+  const rowClassName = `border-b border-border last:border-b-0 ${isDragging ? 'relative z-20 bg-surface-2 shadow-lg' : ''} ${entry.skipped ? 'opacity-60' : ''} ${
+    groupInfo ? `border-l-4 ${GROUP_BORDER[groupInfo.groupType]}` : ''
+  }`
 
   return (
     <>
     <tr ref={setNodeRef} style={style} className={rowClassName}>
       <td className="sticky left-0 z-10 w-56 max-w-[14rem] bg-surface px-2 py-1 align-top">
+        {groupInfo?.isFirst && (
+          <div className={`mb-1 flex items-center gap-1 text-[10px] font-bold ${GROUP_TEXT[groupInfo.groupType]}`}>
+            {groupInfo.groupType === 'SUPERSET' ? <Link2 className="h-2.5 w-2.5" /> : <Zap className="h-2.5 w-2.5" />}
+            {GROUP_LABEL[groupInfo.groupType]}
+            {canManageExercises && (
+              <button
+                type="button"
+                onClick={() => onUngroup(entry.groupId as string)}
+                title="Разгруппировать"
+                aria-label="Разгруппировать"
+                className="text-text-secondary transition-colors hover:text-danger"
+              >
+                <Unlink className="h-2.5 w-2.5" />
+              </button>
+            )}
+          </div>
+        )}
         {/* Drag handle + skip toggle + number stay on their own top row;
             the exercise name/select moved to a full-width row underneath
             instead of squeezing into whatever's left next to those icons
             — that squeeze was making the name hard to read at this
             column's narrower width. */}
         <div className="flex items-center gap-1">
+          {groupMode && canManageExercises && (
+            <input
+              type="checkbox"
+              checked={selected}
+              onChange={() => onToggleSelected(entry.id)}
+              aria-label={`Выбрать «${entry.exercise.name}» для объединения`}
+              className="shrink-0"
+            />
+          )}
           {canManageExercises && (
             <button
               type="button"
@@ -610,10 +822,10 @@ function GymExerciseTableRow({
                   onClick={() => onToggleCompleted(entry.id, set.id, !set.completed)}
                   aria-pressed={set.completed}
                   aria-label={`Подход ${i + 1}${set.completed ? ' выполнен, нажмите чтобы снять отметку' : ', нажмите чтобы отметить выполненным'}`}
-                  className={`pointer-events-auto flex h-4 w-16 shrink-0 items-center justify-center rounded border text-[10px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                  className={`pointer-events-auto flex h-4 w-16 shrink-0 items-center justify-center rounded border text-[10px] font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                     set.completed
                       ? 'border-accent bg-accent text-on-accent'
-                      : 'border-border bg-surface-2 text-text-secondary hover:border-accent hover:text-accent'
+                      : 'border-border bg-surface-2 text-text-primary hover:border-accent hover:text-accent'
                   }`}
                 >
                   {set.completed ? <Check className="h-3 w-3" /> : i + 1}
@@ -637,7 +849,7 @@ function GymExerciseTableRow({
                   value={set.reps || ''}
                   onChange={(e) => onUpdateSetLocal(entry.id, set.id, { reps: Number(e.target.value) || 0 })}
                   onBlur={(e) => onSaveSet(entry.id, set.id, { reps: Number(e.target.value) || 0 })}
-                  className="w-16 min-w-0 rounded border border-border bg-surface-2 px-0.5 py-0.5 text-center text-sm text-text-secondary outline-none focus:border-accent focus:ring-1 focus:ring-accent disabled:cursor-not-allowed disabled:opacity-50"
+                  className="w-16 min-w-0 rounded border border-border bg-surface-2 px-0.5 py-0.5 text-center text-sm font-bold text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent disabled:cursor-not-allowed disabled:opacity-50"
                 />
               </div>
               <div className="mt-[1.375rem] flex flex-col items-center gap-1">

@@ -15,6 +15,8 @@ type Entry = {
   skipped: boolean
   exercise: { id: string; name: string }
   sets: Set[]
+  groupId: string | null
+  groupType: string | null
 }
 type Workout = { id: string; dayNumber: number; scheduledDate: string | Date; notes: string | null; entries: Entry[] }
 

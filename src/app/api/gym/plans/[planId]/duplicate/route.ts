@@ -60,8 +60,26 @@ export async function POST(req: Request, { params }: { params: Promise<{ planId:
       exerciseId: string
       orderIndex: number
       oneRepMax: number | null
+      groupId: string | null
+      groupType: string | null
     }[] = []
     const setsData: { entryId: string; setNumber: number; weight: number; reps: number; toFailure: boolean }[] = []
+    // Superset/dropset groups get fresh ids on copy, not the source's own —
+    // reusing the source groupId verbatim would let DELETE
+    // /api/gym/groups/:groupId (which looks up members by groupId alone,
+    // not scoped to one plan/workout) ungroup the *original* plan's group
+    // too the first time a coach ungroups the copy. One map per duplicate
+    // call keeps every entry that shared a group in the source sharing a
+    // (new, but still shared) group in the copy.
+    const groupIdMap = new Map<string, string>()
+    function remapGroupId(oldGroupId: string | null) {
+      if (!oldGroupId) return null
+      const existing = groupIdMap.get(oldGroupId)
+      if (existing) return existing
+      const fresh = randomUUID()
+      groupIdMap.set(oldGroupId, fresh)
+      return fresh
+    }
 
     for (const week of source.weeksData) {
       const newWeekId = randomUUID()
@@ -84,6 +102,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ planId:
             exerciseId: entry.exerciseId,
             orderIndex: entry.orderIndex,
             oneRepMax: entry.oneRepMax,
+            groupId: remapGroupId(entry.groupId),
+            groupType: entry.groupType,
           })
 
           for (const set of entry.sets) {
