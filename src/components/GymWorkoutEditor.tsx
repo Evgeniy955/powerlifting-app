@@ -1,5 +1,5 @@
 'use client'
-import { useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { Ban, Check, Flame, GripVertical, Layers, Link2, Plus, Trash2, Unlink, X, Zap } from 'lucide-react'
 import {
   DndContext,
@@ -161,6 +161,34 @@ export function GymWorkoutEditor({
   // reorder nothing while still eating the tap. Same threshold as the
   // powerlifting side's WeekDayTable.
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
+  // Click-and-drag horizontal scroll for the table (full/non-compact) view
+  // — the set columns run wide enough that the ПМ column on the right
+  // needs a scroll, and dragging the table itself with the mouse is faster
+  // than hunting for the scrollbar. Only starts a pan when the mousedown
+  // didn't land on something already interactive (an input, the exercise
+  // Select, a button, the drag handle) so normal clicks/typing/dnd-kit
+  // reordering keep working exactly as before.
+  const tableScrollRef = useRef<HTMLDivElement>(null)
+  const [isPanning, setIsPanning] = useState(false)
+  const panStateRef = useRef<{ startX: number; scrollLeft: number } | null>(null)
+  function handleTableMouseDown(e: React.MouseEvent<HTMLDivElement>) {
+    if ((e.target as HTMLElement).closest('input, select, textarea, button, a')) return
+    const el = tableScrollRef.current
+    if (!el) return
+    panStateRef.current = { startX: e.pageX, scrollLeft: el.scrollLeft }
+    setIsPanning(true)
+  }
+  function handleTableMouseMove(e: React.MouseEvent<HTMLDivElement>) {
+    const pan = panStateRef.current
+    const el = tableScrollRef.current
+    if (!pan || !el) return
+    e.preventDefault()
+    el.scrollLeft = pan.scrollLeft - (e.pageX - pan.startX)
+  }
+  function endTablePan() {
+    panStateRef.current = null
+    setIsPanning(false)
+  }
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
     if (!over || active.id === over.id) return
@@ -500,7 +528,14 @@ export function GymWorkoutEditor({
         })
       ) : (
         <div className="overflow-hidden rounded-xl border border-border bg-surface">
-          <div className="overflow-x-auto">
+          <div
+            ref={tableScrollRef}
+            onMouseDown={handleTableMouseDown}
+            onMouseMove={handleTableMouseMove}
+            onMouseUp={endTablePan}
+            onMouseLeave={endTablePan}
+            className={`overflow-x-auto ${isPanning ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
+          >
             <table className="w-full min-w-max border-collapse text-sm">
               <thead>
                 <tr className="border-b border-border bg-surface-2 text-text-secondary">
