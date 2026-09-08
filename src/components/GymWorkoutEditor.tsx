@@ -398,15 +398,23 @@ export function GymWorkoutEditor({
           editable yet. Lock still blocks taps via pointer-events-none;
           individual edit affordances (pencil/plus/remove icons, drag
           handle) stay visually muted via their own text-text-secondary
-          styling instead of a blanket dim. */}
-      <div className={locked ? 'pointer-events-none select-none' : ''}>
+          styling instead of a blanket dim.
+
+          pointer-events-none is applied per-section below (each Card, the
+          <table> itself) rather than on one wrapper around everything —
+          putting it on a shared ancestor here used to also disable
+          horizontal touch-scroll/swipe on the table's overflow-x-auto
+          container (pointer-events:none on an ancestor blocks touch-drag
+          panning on descendants too, not just clicks), which is exactly
+          why the table stopped swiping on mobile once a day was locked. */}
+      <>
       {compact ? (
         rows.map((entry, entryIndex) => {
           const groupInfo = groupPosition(rows, entryIndex)
           return (
           <Card
             key={entry.id}
-            className={`overflow-x-auto ${entry.skipped ? 'opacity-60' : ''} ${
+            className={`overflow-x-auto ${locked ? 'pointer-events-none select-none' : ''} ${entry.skipped ? 'opacity-60' : ''} ${
               groupInfo
                 ? // Only the group's own top/bottom edge gets a (thick, orange)
                   // rule — any card in between drops its top/bottom border
@@ -567,10 +575,18 @@ export function GymWorkoutEditor({
             onMouseLeave={endTablePan}
             className={`overflow-x-auto ${isPanning ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
           >
-            <table className="w-full min-w-max border-collapse text-sm">
+            <table
+              className={`w-full min-w-max border-collapse text-sm ${locked ? 'pointer-events-none select-none' : ''}`}
+            >
               <thead>
                 <tr className="border-b border-border bg-surface-2 text-text-secondary">
-                  <th className="sticky left-0 z-10 bg-surface-2 px-2 py-1 text-left font-bold">Упражнение</th>
+                  {/* Sticky only from md up — on a phone, swiping the table
+                      should carry the exercise name along with the sets
+                      instead of pinning it while everything else slides
+                      underneath (confusing, half-scrolled look). Desktop
+                      keeps the pinned column since mouse-drag-scroll makes
+                      losing track of which row you're on more likely there. */}
+                  <th className="px-2 py-1 text-left font-bold md:sticky md:left-0 md:z-10 md:bg-surface-2">Упражнение</th>
                   {/* +1 reserved slot (only when canEdit) so the exercise
                       with the most sets in the day still has somewhere to
                       put its own "+ Добавить подход" — see
@@ -641,7 +657,7 @@ export function GymWorkoutEditor({
           <GymExerciseAutocomplete onSelect={(exercise) => void addExercise(exercise.id)} canCreate />
         </Card>
       )}
-      </div>
+      </>
 
       {/* Deliberately outside the lock-gated wrapper above — a client's
           read-only view of the coach's closing instructions (stretching,
@@ -764,7 +780,7 @@ function GymExerciseTableRow({
   return (
     <>
     <tr ref={setNodeRef} style={style} className={mainRowClassName}>
-      <td className="sticky left-0 z-10 w-56 max-w-[14rem] bg-surface px-2 py-1 align-top">
+      <td className="w-56 max-w-[14rem] bg-surface px-2 py-1 align-top md:sticky md:left-0 md:z-10">
         {groupInfo?.isFirst && (
           <div className={`mb-1 flex items-center gap-1 text-[10px] font-bold ${GROUP_TEXT[groupInfo.groupType]}`}>
             {groupInfo.groupType === 'SUPERSET' ? <Link2 className="h-2.5 w-2.5" /> : <Zap className="h-2.5 w-2.5" />}
