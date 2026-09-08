@@ -84,6 +84,7 @@ export function GymWorkoutEditor({
   initialCompact,
   initialNotes,
   header,
+  compact: compactOverride,
 }: {
   workoutId: string
   entries: Entry[]
@@ -94,8 +95,18 @@ export function GymWorkoutEditor({
   // cooldown, etc.) — null until a coach sets one.
   initialNotes: string | null
   header?: ReactNode
+  // When given, this editor's compact/table toggle is controlled by the
+  // caller instead of managed internally — GymWeekView passes one shared
+  // value down to every day's editor so a coach flips compact mode once
+  // for the whole week instead of once per day. The internal checkbox
+  // (and its own /api/user/compact-view persistence) hides itself in that
+  // case; the standalone /gym/workouts/:id page doesn't pass this, so it
+  // keeps its own self-contained checkbox exactly as before.
+  compact?: boolean
 }) {
-  const [rows, setRows] = useState(entries); const [compact, setCompact] = useState(initialCompact); const [catalog, setCatalog] = useState<CatalogExercise[]>([]); const [error, setError] = useState<string | null>(null)
+  const [rows, setRows] = useState(entries); const [ownCompact, setOwnCompact] = useState(initialCompact); const [catalog, setCatalog] = useState<CatalogExercise[]>([]); const [error, setError] = useState<string | null>(null)
+  const compactControlled = compactOverride !== undefined
+  const compact = compactControlled ? compactOverride : ownCompact
   const [workoutNotes, setWorkoutNotes] = useState(initialNotes)
   // "Дополнительные указания" auto-grows to fit its content instead of
   // clipping it behind a fixed 3-row scrollbar — on mobile a textarea's
@@ -303,7 +314,7 @@ export function GymWorkoutEditor({
       setError(e instanceof Error ? e.message : 'Не удалось удалить упражнение')
     }
   }
-  async function toggleCompact() { const next = !compact; setCompact(next); try { await request('/api/user/compact-view', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ compact: next }) }) } catch (e) { setCompact(!next); setError(e instanceof Error ? e.message : 'Не удалось сохранить настройку') } }
+  async function toggleCompact() { const next = !ownCompact; setOwnCompact(next); try { await request('/api/user/compact-view', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ compact: next }) }) } catch (e) { setOwnCompact(!next); setError(e instanceof Error ? e.message : 'Не удалось сохранить настройку') } }
   // Coach-only note on one exercise (technique cue, "используй лёгкий вес",
   // etc.) — visible to the client as read-only text, same permission split
   // as replaceExercise/saveMax above.
@@ -340,9 +351,11 @@ export function GymWorkoutEditor({
               {groupMode ? 'Отменить объединение' : 'Суперсет / дропсет'}
             </Button>
           )}
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={compact} onChange={() => void toggleCompact()} /> Компактный режим
-          </label>
+          {!compactControlled && (
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={compact} onChange={() => void toggleCompact()} /> Компактный режим
+            </label>
+          )}
         </div>
       </div>
 
@@ -396,7 +409,16 @@ export function GymWorkoutEditor({
           <Card
             key={entry.id}
             className={`overflow-x-auto ${entry.skipped ? 'opacity-60' : ''} ${
-              groupInfo ? `border-l-4 ${GROUP_BORDER[groupInfo.groupType]} ${groupInfo.isFirst ? `border-t-4 ${GROUP_BORDER[groupInfo.groupType]}` : ''} ${groupInfo.isLast ? `border-b-4 ${GROUP_BORDER[groupInfo.groupType]}` : ''}` : ''
+              groupInfo
+                ? // Only the group's own top/bottom edge gets a (thick, orange)
+                  // rule — any card in between drops its top/bottom border
+                  // entirely (Card's own `border` utility would otherwise draw
+                  // a thin line between every card, splitting the group up
+                  // visually instead of reading as one bracketed block).
+                  `border-l-4 ${GROUP_BORDER[groupInfo.groupType]} ${
+                    groupInfo.isFirst ? `border-t-4 ${GROUP_BORDER[groupInfo.groupType]}` : 'border-t-0'
+                  } ${groupInfo.isLast ? `border-b-4 ${GROUP_BORDER[groupInfo.groupType]}` : 'border-b-0'}`
+                : ''
             }`}
           >
             {groupInfo?.isFirst && (
@@ -736,8 +758,15 @@ function GymExerciseTableRow({
   }`
   const groupTopClass = groupInfo?.isFirst ? `border-t-2 ${GROUP_BORDER[groupInfo.groupType]}` : ''
   const defaultBottom = 'border-b border-border last:border-b-0'
-  const groupBottom = (isLastVisualRow: boolean) =>
-    groupInfo?.isLast && isLastVisualRow ? `border-b-2 ${GROUP_BORDER[groupInfo.groupType]}` : defaultBottom
+  // A grouped row never gets the plain per-row divider — only the row that
+  // visually ends the whole group gets a (thick, orange) bottom line, so
+  // the group reads as one bracketed block instead of a stack of
+  // individually-separated exercises. Only an ungrouped row keeps the
+  // normal divider between it and whatever comes next.
+  const groupBottom = (isLastVisualRow: boolean) => {
+    if (!groupInfo) return defaultBottom
+    return isLastVisualRow ? `border-b-2 ${GROUP_BORDER[groupInfo.groupType]}` : 'border-b-0'
+  }
   const mainRowClassName = `${sharedRowClasses} ${groupTopClass} ${groupBottom(!notesRowRenders)}`
   const notesRowClassName = `${sharedRowClasses} ${groupBottom(notesRowRenders)}`
 

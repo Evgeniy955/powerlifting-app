@@ -50,6 +50,28 @@ export function GymWeekView({
   const [removeOpen, setRemoveOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Single shared toggle for every day's GymWorkoutEditor on this page —
+  // each editor still has its own "compact" prop *plumbing* (see its
+  // compactOverride comment), but they all read from this one piece of
+  // state instead of each managing its own, so flipping it once switches
+  // the whole week between compact/table view at once instead of a coach
+  // having to toggle every day individually.
+  const [compact, setCompact] = useState(initialCompact)
+  async function toggleCompact() {
+    const next = !compact
+    setCompact(next)
+    try {
+      const response = await fetch('/api/user/compact-view', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ compact: next }),
+      })
+      if (!response.ok) throw new Error()
+    } catch {
+      setCompact(!next)
+      setError('Не удалось сохранить настройку')
+    }
+  }
   const sorted = [...workouts].sort((a, b) => a.dayNumber - b.dayNumber)
   const last = sorted[sorted.length - 1]
 
@@ -91,7 +113,10 @@ export function GymWeekView({
 
   return (
     <>
-      <div className="flex flex-wrap justify-end gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={compact} onChange={() => void toggleCompact()} /> Компактный режим (вся неделя)
+        </label>
         {canManageExercises && (
           <>
             <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
@@ -136,6 +161,7 @@ export function GymWeekView({
                 canEdit={canEdit}
                 canManageExercises={canManageExercises}
                 initialCompact={initialCompact}
+                compact={compact}
                 initialNotes={workout.notes}
                 header={
                   <div className="flex min-w-0 flex-1 items-center gap-2">
