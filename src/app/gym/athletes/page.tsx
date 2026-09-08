@@ -43,6 +43,7 @@ export default async function GymAthletesPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <p className="truncate font-medium">{name}</p>
+                      {client.userId && client.inviteStatus === 'ACCEPTED' && <Badge tone="low">Приглашение принято</Badge>}
                       {!client.userId && client.inviteStatus === 'PENDING' && <Badge tone="moderate">Приглашение отправлено</Badge>}
                       {!client.userId && client.inviteStatus === 'NONE' && <Badge tone="neutral">Не приглашён</Badge>}
                     </div>
