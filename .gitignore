@@ -8,3 +8,4 @@ prisma/migrations/**/migration.sql.bak
 .idea/
 .claude/
 .deploy-keys/
+tsconfig.tsbuildinfo
