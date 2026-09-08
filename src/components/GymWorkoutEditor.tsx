@@ -764,7 +764,7 @@ function GymExerciseTableRow({
     groupInfo ? `border-l-4 ${GROUP_BORDER[groupInfo.groupType]}` : ''
   }`
   const groupTopClass = groupInfo?.isFirst ? `border-t-2 ${GROUP_BORDER[groupInfo.groupType]}` : ''
-  const defaultBottom = 'border-b border-border last:border-b-0'
+  const defaultBottom = 'border-b-2 border-yellow-500 last:border-b-0'
   // A grouped row never gets the plain per-row divider — only the row that
   // visually ends the whole group gets a (thick, orange) bottom line, so
   // the group reads as one bracketed block instead of a stack of
