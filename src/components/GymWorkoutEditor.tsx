@@ -11,7 +11,7 @@ import {
 } from '@dnd-kit/core'
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Button, Card, Input, Select } from '@/components/ui'
+import { Button, Card, Input } from '@/components/ui'
 import { LockToggle } from '@/components/LockToggle'
 import { GymExerciseAutocomplete } from '@/components/GymExerciseAutocomplete'
 
@@ -33,7 +33,6 @@ type Entry = {
   // "SUPERSET" | "DROPSET" — only meaningful when groupId is set.
   groupType: string | null
 }
-type CatalogExercise = { id: string; name: string; category: string | null }
 type GroupType = 'SUPERSET' | 'DROPSET'
 const GROUP_LABEL: Record<GroupType, string> = { SUPERSET: 'Суперсет', DROPSET: 'Дропсет' }
 // Same orange for both group kinds — they're told apart by their icon and
@@ -104,7 +103,7 @@ export function GymWorkoutEditor({
   // keeps its own self-contained checkbox exactly as before.
   compact?: boolean
 }) {
-  const [rows, setRows] = useState(entries); const [ownCompact, setOwnCompact] = useState(initialCompact); const [catalog, setCatalog] = useState<CatalogExercise[]>([]); const [error, setError] = useState<string | null>(null)
+  const [rows, setRows] = useState(entries); const [ownCompact, setOwnCompact] = useState(initialCompact); const [error, setError] = useState<string | null>(null)
   const compactControlled = compactOverride !== undefined
   const compact = compactControlled ? compactOverride : ownCompact
   const [workoutNotes, setWorkoutNotes] = useState(initialNotes)
@@ -264,7 +263,6 @@ export function GymWorkoutEditor({
   async function saveMax(entryId: string, value: string) { const oneRepMax = Number(value); if (!Number.isFinite(oneRepMax) || oneRepMax <= 0) return setError('Введите максимум ПМ больше нуля'); try { await request(`/api/gym/entries/${entryId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ oneRepMax }) }); setRows((current) => current.map((entry) => entry.id === entryId ? { ...entry, oneRepMax } : entry)) } catch (e) { setError(e instanceof Error ? e.message : 'Ошибка сохранения') } }
   async function addSet(entryId: string) { try { const set = await request(`/api/gym/entries/${entryId}/sets`, { method: 'POST' }) as Set; setRows((current) => current.map((entry) => entry.id === entryId ? { ...entry, sets: [...entry.sets, set] } : entry)) } catch (e) { setError(e instanceof Error ? e.message : 'Ошибка сохранения') } }
   async function removeSet(entryId: string, setId: string) { try { await request(`/api/gym/sets/${setId}`, { method: 'DELETE' }); setRows((current) => current.map((entry) => entry.id === entryId ? { ...entry, sets: entry.sets.filter((set) => set.id !== setId) } : entry)) } catch (e) { setError(e instanceof Error ? e.message : 'Ошибка сохранения') } }
-  async function loadCatalog() { try { setCatalog(await request('/api/admin/gym-exercises', {}) as CatalogExercise[]) } catch (e) { setError(e instanceof Error ? e.message : 'Не удалось загрузить упражнения') } }
   // Adds the exercise the moment it's picked from the autocomplete — no
   // separate form/button, same immediate-add flow as WorkoutView's
   // handleAddExercise on the powerlifting side. Starts with 0 sets and
@@ -465,23 +463,14 @@ export function GymWorkoutEditor({
                     </button>
                   )}
                   <span className="shrink-0 text-sm text-text-secondary">{entryIndex + 1}.</span>
-                  <Select
-                    className={`w-auto max-w-[28rem] font-medium ${entry.skipped ? 'line-through' : ''}`}
-                    value=""
-                    onFocus={() => void loadCatalog()}
-                    onChange={(e) => void replaceExercise(entry.id, e.target.value)}
-                    aria-label={`Заменить упражнение «${entry.exercise.name}»`}
-                  >
-                    <option value="">{entry.exercise.name}</option>
-                    {catalog
-                      .filter((exercise) => exercise.id !== entry.exercise.id)
-                      .map((exercise) => (
-                        <option key={exercise.id} value={exercise.id}>
-                          {exercise.name}
-                          {exercise.category ? ` · ${exercise.category}` : ''}
-                        </option>
-                      ))}
-                  </Select>
+                  <div className={`w-full max-w-[28rem] ${entry.skipped ? 'line-through' : ''}`}>
+                    <GymExerciseAutocomplete
+                      key={entry.exercise.id}
+                      defaultQuery={entry.exercise.name}
+                      onSelect={(exercise) => void replaceExercise(entry.id, exercise.id)}
+                      placeholder={`Заменить «${entry.exercise.name}»...`}
+                    />
+                  </div>
                 </div>
               ) : (
                 <h2 className="flex min-w-0 items-center gap-1.5 font-medium">
@@ -598,8 +587,6 @@ export function GymWorkoutEditor({
                         maxSets={maxSets}
                         canEdit={canEdit}
                         canManageExercises={canManageExercises}
-                        catalog={catalog}
-                        onLoadCatalog={loadCatalog}
                         onReplaceExercise={replaceExercise}
                         onRemoveExercise={removeExercise}
                         onSaveMax={saveMax}
@@ -688,8 +675,6 @@ function GymExerciseTableRow({
   maxSets,
   canEdit,
   canManageExercises,
-  catalog,
-  onLoadCatalog,
   onReplaceExercise,
   onRemoveExercise,
   onSaveMax,
@@ -712,8 +697,6 @@ function GymExerciseTableRow({
   maxSets: number
   canEdit: boolean
   canManageExercises: boolean
-  catalog: CatalogExercise[]
-  onLoadCatalog: () => void
   onReplaceExercise: (entryId: string, newExerciseId: string) => void
   onRemoveExercise: (entryId: string) => void
   onSaveMax: (entryId: string, value: string) => void
@@ -838,23 +821,14 @@ function GymExerciseTableRow({
         </div>
         <div className="mt-1 min-w-0">
           {canManageExercises ? (
-            <Select
-              className={`w-full min-w-0 whitespace-normal font-medium ${entry.skipped ? 'line-through' : ''}`}
-              value=""
-              onFocus={onLoadCatalog}
-              onChange={(e) => onReplaceExercise(entry.id, e.target.value)}
-              aria-label={`Заменить упражнение «${entry.exercise.name}»`}
-            >
-              <option value="">{entry.exercise.name}</option>
-              {catalog
-                .filter((exercise) => exercise.id !== entry.exercise.id)
-                .map((exercise) => (
-                  <option key={exercise.id} value={exercise.id}>
-                    {exercise.name}
-                    {exercise.category ? ` · ${exercise.category}` : ''}
-                  </option>
-                ))}
-            </Select>
+            <div className={entry.skipped ? 'line-through' : ''}>
+              <GymExerciseAutocomplete
+                key={entry.exercise.id}
+                defaultQuery={entry.exercise.name}
+                onSelect={(exercise) => onReplaceExercise(entry.id, exercise.id)}
+                placeholder={`Заменить «${entry.exercise.name}»...`}
+              />
+            </div>
           ) : (
             <span className={`font-medium ${entry.skipped ? 'line-through' : ''}`}>{entry.exercise.name}</span>
           )}
