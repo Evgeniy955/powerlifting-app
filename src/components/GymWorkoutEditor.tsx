@@ -769,9 +769,13 @@ function GymExerciseTableRow({
   // visually ends the whole group gets a (thick, orange) bottom line, so
   // the group reads as one bracketed block instead of a stack of
   // individually-separated exercises. Only an ungrouped row keeps the
-  // normal divider between it and whatever comes next.
+  // normal divider between it and whatever comes next — and even then,
+  // only on whichever row is visually last for this exercise: when a
+  // comment row renders below the main row, the divider belongs under the
+  // comment (between this exercise+comment and the next one), not between
+  // the exercise and its own comment.
   const groupBottom = (isLastVisualRow: boolean) => {
-    if (!groupInfo) return defaultBottom
+    if (!groupInfo) return isLastVisualRow ? defaultBottom : ''
     return isLastVisualRow ? `border-b-2 ${GROUP_BORDER[groupInfo.groupType]}` : 'border-b-0'
   }
   const mainRowClassName = `${sharedRowClasses} ${groupTopClass} ${groupBottom(!notesRowRenders)}`
