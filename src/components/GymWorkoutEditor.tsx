@@ -1,5 +1,5 @@
 'use client'
-import { useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Ban, Check, Flame, GripVertical, Layers, Link2, Plus, Trash2, Unlink, X, Zap } from 'lucide-react'
 import {
   DndContext,
@@ -97,6 +97,20 @@ export function GymWorkoutEditor({
 }) {
   const [rows, setRows] = useState(entries); const [compact, setCompact] = useState(initialCompact); const [catalog, setCatalog] = useState<CatalogExercise[]>([]); const [error, setError] = useState<string | null>(null)
   const [workoutNotes, setWorkoutNotes] = useState(initialNotes)
+  // "Дополнительные указания" auto-grows to fit its content instead of
+  // clipping it behind a fixed 3-row scrollbar — on mobile a textarea's
+  // internal scroll is easy to miss entirely (no visible scrollbar until
+  // you touch it, and the resize handle isn't usable on touch), so a coach
+  // scrolling past a long note could think it was cut off. Runs on mount
+  // (for text loaded from initialNotes) and on every keystroke.
+  const workoutNotesRef = useRef<HTMLTextAreaElement>(null)
+  function autoGrowWorkoutNotes(el: HTMLTextAreaElement) {
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }
+  useEffect(() => {
+    if (workoutNotesRef.current) autoGrowWorkoutNotes(workoutNotesRef.current)
+  }, [])
   // Locked by default for a client (same "prevent a stray tap in the gym"
   // safety net the powerlifting side's LockToggle already documents) — but
   // never for the coach, who isn't the one standing in the gym mid-set and
@@ -382,7 +396,7 @@ export function GymWorkoutEditor({
           <Card
             key={entry.id}
             className={`overflow-x-auto ${entry.skipped ? 'opacity-60' : ''} ${
-              groupInfo ? `border-l-4 ${GROUP_BORDER[groupInfo.groupType]}` : ''
+              groupInfo ? `border-l-4 ${GROUP_BORDER[groupInfo.groupType]} ${groupInfo.isFirst ? `border-t-4 ${GROUP_BORDER[groupInfo.groupType]}` : ''} ${groupInfo.isLast ? `border-b-4 ${GROUP_BORDER[groupInfo.groupType]}` : ''}` : ''
             }`}
           >
             {groupInfo?.isFirst && (
@@ -621,11 +635,13 @@ export function GymWorkoutEditor({
           <h2 className="font-display text-sm uppercase">Дополнительные указания</h2>
           {canManageExercises ? (
             <textarea
+              ref={workoutNotesRef}
               defaultValue={workoutNotes ?? ''}
+              onInput={(e) => autoGrowWorkoutNotes(e.currentTarget)}
               onBlur={(e) => void saveWorkoutNotes(e.target.value)}
               placeholder="Например: растяжка 10 минут, заминка на дорожке лёгким шагом..."
               rows={3}
-              className="w-full resize-y rounded-md border border-border bg-surface-2 px-3 py-2 text-sm text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent"
+              className="w-full resize-none overflow-hidden rounded-md border border-border bg-surface-2 px-3 py-2 text-sm text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent"
             />
           ) : (
             <p className="whitespace-pre-wrap text-sm text-text-secondary">{workoutNotes}</p>
@@ -709,13 +725,25 @@ function GymExerciseTableRow({
   // every row regardless of how many sets that particular exercise has.
   const setSlots = maxSets + (canEdit ? 1 : 0)
   const totalCols = 2 + setSlots
-  const rowClassName = `border-b border-border last:border-b-0 ${isDragging ? 'relative z-20 bg-surface-2 shadow-lg' : ''} ${entry.skipped ? 'opacity-60' : ''} ${
+  // The comment row below only renders when there's something to show it
+  // (see its own comment further down) — whichever <tr> actually ends up
+  // last for this entry is the one that needs the group's bottom rule, so
+  // the top/bottom horizontal lines that bracket a whole superset/dropset
+  // block don't land on the wrong row when a coach vs. a client is viewing.
+  const notesRowRenders = canManageExercises || !!entry.notes
+  const sharedRowClasses = `${isDragging ? 'relative z-20 bg-surface-2 shadow-lg' : ''} ${entry.skipped ? 'opacity-60' : ''} ${
     groupInfo ? `border-l-4 ${GROUP_BORDER[groupInfo.groupType]}` : ''
   }`
+  const groupTopClass = groupInfo?.isFirst ? `border-t-2 ${GROUP_BORDER[groupInfo.groupType]}` : ''
+  const defaultBottom = 'border-b border-border last:border-b-0'
+  const groupBottom = (isLastVisualRow: boolean) =>
+    groupInfo?.isLast && isLastVisualRow ? `border-b-2 ${GROUP_BORDER[groupInfo.groupType]}` : defaultBottom
+  const mainRowClassName = `${sharedRowClasses} ${groupTopClass} ${groupBottom(!notesRowRenders)}`
+  const notesRowClassName = `${sharedRowClasses} ${groupBottom(notesRowRenders)}`
 
   return (
     <>
-    <tr ref={setNodeRef} style={style} className={rowClassName}>
+    <tr ref={setNodeRef} style={style} className={mainRowClassName}>
       <td className="sticky left-0 z-10 w-56 max-w-[14rem] bg-surface px-2 py-1 align-top">
         {groupInfo?.isFirst && (
           <div className={`mb-1 flex items-center gap-1 text-[10px] font-bold ${GROUP_TEXT[groupInfo.groupType]}`}>
@@ -953,7 +981,7 @@ function GymExerciseTableRow({
         input (to add one), a client only sees the row when a note already
         exists. */}
     {(canManageExercises || entry.notes) && (
-      <tr style={style} className={rowClassName}>
+      <tr style={style} className={notesRowClassName}>
         <td colSpan={totalCols} className="px-2 py-1 align-top">
           {canManageExercises ? (
             <textarea
