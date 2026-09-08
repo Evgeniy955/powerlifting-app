@@ -525,13 +525,16 @@ export function GymWorkoutEditor({
               </div>
             </div>
             {canManageExercises ? (
-              <textarea
-                defaultValue={entry.notes ?? ''}
-                onBlur={(e) => void saveEntryNotes(entry.id, e.target.value)}
-                placeholder="Комментарий к упражнению (необязательно)"
-                rows={2}
-                className="mb-2 w-full resize-none rounded border border-border bg-surface-2 px-2 py-1 text-xs text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent"
-              />
+              <div className="mb-2 flex items-start gap-1.5 rounded-md border-l-2 border-accent bg-accent/10 px-2 py-1 focus-within:ring-1 focus-within:ring-accent">
+                <MessageSquareText className="mt-1.5 h-3.5 w-3.5 shrink-0 text-accent" />
+                <textarea
+                  defaultValue={entry.notes ?? ''}
+                  onBlur={(e) => void saveEntryNotes(entry.id, e.target.value)}
+                  placeholder="Комментарий к упражнению (необязательно)"
+                  rows={2}
+                  className="w-full resize-none bg-transparent py-0.5 text-sm text-text-primary outline-none placeholder:text-text-secondary"
+                />
+              </div>
             ) : (
               entry.notes && (
                 <p className="mb-2 flex items-start gap-1.5 rounded-md border-l-2 border-accent bg-accent/10 px-2 py-1.5 text-sm text-text-primary">
@@ -992,13 +995,16 @@ function GymExerciseTableRow({
       <tr style={style} className={notesRowClassName}>
         <td colSpan={totalCols} className="px-2 py-1 align-top">
           {canManageExercises ? (
-            <textarea
-              defaultValue={entry.notes ?? ''}
-              onBlur={(e) => onSaveNotes(entry.id, e.target.value)}
-              placeholder="Комментарий к упражнению (необязательно)"
-              rows={1}
-              className="w-full resize-none rounded border border-border bg-surface-2 px-1.5 py-1 text-[11px] text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent"
-            />
+            <div className="flex items-start gap-1.5 rounded-md border-l-2 border-accent bg-accent/10 px-2 py-1 focus-within:ring-1 focus-within:ring-accent">
+              <MessageSquareText className="mt-1 h-3.5 w-3.5 shrink-0 text-accent" />
+              <textarea
+                defaultValue={entry.notes ?? ''}
+                onBlur={(e) => onSaveNotes(entry.id, e.target.value)}
+                placeholder="Комментарий к упражнению (необязательно)"
+                rows={1}
+                className="w-full resize-none bg-transparent py-0.5 text-sm text-text-primary outline-none placeholder:text-text-secondary"
+              />
+            </div>
           ) : (
             entry.notes && (
               <p className="flex items-start gap-1.5 rounded-md border-l-2 border-accent bg-accent/10 px-2 py-1.5 text-sm text-text-primary">
