@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Ban, Check, Flame, GripVertical, Layers, Link2, Plus, Trash2, Unlink, X, Zap } from 'lucide-react'
+import { Ban, Check, Flame, GripVertical, Layers, Link2, MessageSquareText, Plus, Trash2, Unlink, X, Zap } from 'lucide-react'
 import {
   DndContext,
   type DragEndEvent,
@@ -533,7 +533,12 @@ export function GymWorkoutEditor({
                 className="mb-2 w-full resize-none rounded border border-border bg-surface-2 px-2 py-1 text-xs text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent"
               />
             ) : (
-              entry.notes && <p className="mb-2 text-xs italic text-text-secondary">{entry.notes}</p>
+              entry.notes && (
+                <p className="mb-2 flex items-start gap-1.5 rounded-md border-l-2 border-accent bg-accent/10 px-2 py-1.5 text-sm text-text-primary">
+                  <MessageSquareText className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" />
+                  {entry.notes}
+                </p>
+              )
             )}
             <div className="flex flex-wrap gap-2">
               {compactSets(entry.sets).map((set, index) => (
@@ -995,7 +1000,12 @@ function GymExerciseTableRow({
               className="w-full resize-none rounded border border-border bg-surface-2 px-1.5 py-1 text-[11px] text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent"
             />
           ) : (
-            entry.notes && <p className="text-[11px] italic text-text-secondary">{entry.notes}</p>
+            entry.notes && (
+              <p className="flex items-start gap-1.5 rounded-md border-l-2 border-accent bg-accent/10 px-2 py-1.5 text-sm text-text-primary">
+                <MessageSquareText className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" />
+                {entry.notes}
+              </p>
+            )
           )}
         </td>
       </tr>

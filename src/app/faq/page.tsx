@@ -1,7 +1,15 @@
 import { requireUser } from '@/lib/session'
 import { ChevronDown, HelpCircle } from 'lucide-react'
 import { Card } from '@/components/ui'
-import { FAQ_ATHLETE, FAQ_COACH, FAQ_GENERAL, type FaqItem } from '@/lib/faqContent'
+import {
+  FAQ_ATHLETE,
+  FAQ_COACH,
+  FAQ_GENERAL,
+  FAQ_GYM_CLIENT,
+  FAQ_GYM_COACH,
+  FAQ_GYM_GENERAL,
+  type FaqItem,
+} from '@/lib/faqContent'
 
 // Plain <details>/<summary> — a native, zero-JS accordion. Keeps this page a
 // Server Component (no client bundle needed just to expand/collapse text),
@@ -51,6 +59,18 @@ export default async function FaqPage() {
       <FaqSection title="Общие вопросы" items={FAQ_GENERAL} />
       {user.role === 'COACH' && <FaqSection title="Для тренера" items={FAQ_COACH} />}
       {user.role === 'ATHLETE' && <FaqSection title="Для спортсмена" items={FAQ_ATHLETE} />}
+
+      {/* Тренажёрный зал is a separate domain (own GymClient/GymPlan
+          models, not AthleteProfile/Cycle) with its own question set below
+          the powerlifting ones — same role split as above (a COACH may run
+          both sides; an ATHLETE-role user reads the gym answers as a
+          client, same "athlete" role value the whole app already reuses
+          for that). Shown regardless of whether this person has actually
+          started using gym mode yet, same as the powerlifting sections
+          above don't check for an existing athlete/plan either. */}
+      <FaqSection title="Тренажёрный зал — общие вопросы" items={FAQ_GYM_GENERAL} />
+      {user.role === 'COACH' && <FaqSection title="Тренажёрный зал — для тренера" items={FAQ_GYM_COACH} />}
+      {user.role === 'ATHLETE' && <FaqSection title="Тренажёрный зал — для клиента" items={FAQ_GYM_CLIENT} />}
     </main>
   )
 }
