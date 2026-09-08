@@ -50,10 +50,10 @@ export function SetRow({ set, percentOf1rm, rpe, changed, onChange, onRemove, si
         onClick={() => onChange(set.id, { completed: !set.completed })}
         aria-pressed={set.completed}
         aria-label={`Подход ${set.setNumber}${set.completed ? ' выполнен, нажмите чтобы снять отметку' : ', нажмите чтобы отметить выполненным'}`}
-        className={`pointer-events-auto flex h-7 w-7 shrink-0 items-center justify-center rounded-md border text-sm font-medium transition-colors ${
+        className={`pointer-events-auto flex h-7 w-7 shrink-0 items-center justify-center rounded-md border text-sm font-bold transition-colors ${
           set.completed
             ? 'border-accent bg-accent text-on-accent shadow-[0_0_10px_-1px_var(--color-accent)]'
-            : 'border-border bg-surface-2 text-text-secondary hover:border-accent hover:text-accent'
+            : 'border-border bg-surface-2 text-text-primary hover:border-accent hover:text-accent'
         }`}
       >
         {set.completed ? <Check className="h-4 w-4" /> : set.setNumber}
@@ -89,7 +89,7 @@ export function SetRow({ set, percentOf1rm, rpe, changed, onChange, onRemove, si
             onChange={(e) => onChange(set.id, { reps: parseInt(e.target.value, 10) || 0 })}
             fieldSize="sm"
             title={changed?.reps !== undefined ? `Атлет изменил: было ${changed.reps}` : undefined}
-            className={`w-16 text-text-secondary ${
+            className={`w-16 font-bold text-text-primary ${
               changed?.reps !== undefined ? 'ring-1 ring-zone-moderate' : ''
             }`}
           />

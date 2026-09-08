@@ -235,7 +235,7 @@ export function WorkoutView({
       </div>
 
       <div
-        className={`space-y-4 lg:space-y-0 ${locked ? 'pointer-events-none select-none opacity-70' : ''}`}
+        className={`space-y-4 lg:space-y-0 ${locked ? 'pointer-events-none select-none' : ''}`}
       >
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={entries.map((e) => e.id)} strategy={rectSortingStrategy}>

@@ -245,10 +245,10 @@ export function WeekDayTableRow({
                 onClick={() => onUpdateSet(entry.id, set.id, { completed: !set.completed })}
                 aria-pressed={set.completed}
                 aria-label={`Подход ${i + 1}${set.completed ? ' выполнен, нажмите чтобы снять отметку' : ', нажмите чтобы отметить выполненным'}`}
-                className={`pointer-events-auto flex h-5 w-16 items-center justify-center rounded border text-[10px] font-medium transition-colors ${
+                className={`pointer-events-auto flex h-5 w-16 items-center justify-center rounded border text-[10px] font-bold transition-colors ${
                   set.completed
                     ? 'border-accent bg-accent text-on-accent shadow-[0_0_8px_-1px_var(--color-accent)]'
-                    : 'border-border bg-surface-2 text-text-secondary hover:border-accent hover:text-accent'
+                    : 'border-border bg-surface-2 text-text-primary hover:border-accent hover:text-accent'
                 }`}
               >
                 {set.completed ? <Check className="h-3 w-3" /> : i + 1}
@@ -270,7 +270,7 @@ export function WeekDayTableRow({
                   onChange={(e) =>
                     onUpdateSet(entry.id, set.id, { reps: parseInt(e.target.value, 10) || 0 })
                   }
-                  className={`w-16 min-w-0 rounded border px-0.5 py-0.5 text-center text-sm text-text-secondary outline-none focus:border-accent focus:ring-1 focus:ring-accent ${set.completed ? 'border-zone-low bg-surface-3' : 'border-border bg-surface-2'}`}
+                  className={`w-16 min-w-0 rounded border px-0.5 py-0.5 text-center text-sm font-bold text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent ${set.completed ? 'border-zone-low bg-surface-3' : 'border-border bg-surface-2'}`}
                 />
                 <span className={`text-xs ${pct !== null ? zoneClass(pct) : 'text-text-secondary'}`}>
                   {pct !== null ? `${Math.round(pct * 100)}%` : '—'}

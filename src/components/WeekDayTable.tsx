@@ -389,7 +389,7 @@ export function WeekDayTable({
             scroll container itself stays interactive. */}
         <div className="overflow-x-auto">
         <table
-          className={`w-full min-w-max border-collapse text-sm ${locked ? 'pointer-events-none select-none opacity-70' : ''}`}
+          className={`w-full min-w-max border-collapse text-sm ${locked ? 'pointer-events-none select-none' : ''}`}
         >
           <thead>
             <tr className="border-b border-border bg-surface-2 text-text-secondary">
@@ -485,7 +485,7 @@ export function WeekDayTable({
 
       {!simplified && (
         <div
-          className={`border-t border-border p-2 ${locked ? 'pointer-events-none select-none opacity-70' : ''}`}
+          className={`border-t border-border p-2 ${locked ? 'pointer-events-none select-none' : ''}`}
         >
           <ExerciseAutocomplete
             onSelect={handleAddExercise}
