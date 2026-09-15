@@ -1,14 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireUser, apiErrorResponse } from '@/lib/session'
+import { requireUser, requireCoach, ForbiddenError, apiErrorResponse } from '@/lib/session'
 import { assertCanAccessExerciseEntry } from '@/lib/authorization'
 import { coachEmailToNotify, queueChangeNotification } from '@/lib/email'
 import { recordChangeLog } from '@/lib/changeLog'
 
 // PATCH /api/exercise-entries/:entryId { skipped?, exerciseId?, multiplier? } —
-// toggles the "didn't get to this exercise" flag, and/or edits which catalog
-// exercise this entry points to and its "Множ" multiplier. Coach or athlete,
-// same access rule as everything else on the workout (assertCanAccessExerciseEntry).
+// toggles the "didn't get to this exercise" flag (coach or athlete, whoever
+// owns/coaches the workout — same as everything else gated by
+// assertCanAccessExerciseEntry), and/or edits which catalog exercise this
+// entry points to and its "Множ" multiplier — that second part is
+// coach-only (requireCoach below), same split as PATCH
+// /api/gym/entries/:entryId on the gym side: an athlete can log/skip their
+// own sets but shouldn't be able to swap what's programmed. The UI already
+// hides the edit affordance for an athlete (ExerciseCard/WeekDayTableRow's
+// canManageExercises), but that's cosmetic — this check is what actually
+// stops a direct API call.
 export async function PATCH(req: NextRequest, props: { params: Promise<{ entryId: string }> }) {
   const params = await props.params;
   try {
@@ -31,6 +38,9 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ entryId
       oneRepMax?: number | null
     } = {}
     if (body.skipped !== undefined) data.skipped = body.skipped
+    if (body.exerciseId !== undefined || body.multiplier !== undefined) {
+      if (user.role !== 'COACH') throw new ForbiddenError('Доступно только тренеру')
+    }
     if (body.exerciseId !== undefined) {
       data.exerciseId = body.exerciseId
       const oneRepMax = await prisma.athlete1RM.findUnique({
@@ -60,11 +70,13 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ entryId
 // DELETE /api/exercise-entries/:entryId — removes this exercise (and its logged
 // sets, via cascade) from the day's plan. This only ever touches ExerciseEntry —
 // the underlying ExerciseCatalog row (and any other day that also uses it) is
-// completely untouched.
+// completely untouched. Coach-only (requireCoach) — same split as DELETE
+// /api/gym/entries/:entryId on the gym side; an athlete can skip an
+// exercise but shouldn't be able to drop it from the plan outright.
 export async function DELETE(_req: NextRequest, props: { params: Promise<{ entryId: string }> }) {
   const params = await props.params;
   try {
-    const user = await requireUser()
+    const user = await requireCoach()
     const chain = await assertCanAccessExerciseEntry(params.entryId, user)
     await prisma.exerciseEntry.delete({ where: { id: params.entryId } })
 
