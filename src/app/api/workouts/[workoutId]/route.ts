@@ -21,18 +21,24 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ workoutI
   }
 }
 
-// PATCH /api/workouts/:workoutId { entryIds } — coach or the athlete
-// themselves (same access rule as everything else on the workout), for
-// WeekDayTable's drag-to-reorder. `entryIds` is the exercise entries of this
-// day in their new intended order; orderIndex is rewritten to match array
-// position (0, 1, 2, ...). Rejects anything that isn't exactly this
-// workout's current entry set — a client couldn't move an entry into a
-// different day's plan this way, and a stale/tampered list can't silently
-// drop or duplicate a row.
+// PATCH /api/workouts/:workoutId { entryIds } — coach-only, for
+// WeekDayTable/WorkoutView's drag-to-reorder. `entryIds` is the exercise
+// entries of this day in their new intended order; orderIndex is rewritten
+// to match array position (0, 1, 2, ...). Rejects anything that isn't
+// exactly this workout's current entry set — a client couldn't move an
+// entry into a different day's plan this way, and a stale/tampered list
+// can't silently drop or duplicate a row.
+// Coach-only rather than coach-or-athlete: an athlete may edit their own
+// weight/reps/sets and add new exercises, but reordering (in particular
+// re-sequencing Базовые/СФП lifts) is programming, not logging — same
+// reasoning as PATCH .../exercise-entries/:entryId gating exerciseId/
+// multiplier edits to the coach. The UI already hides the drag handle for
+// an athlete (ExerciseCard/WeekDayTableRow's canManageExercises), but
+// that's cosmetic — this check is what actually stops a direct API call.
 export async function PATCH(req: NextRequest, props: { params: Promise<{ workoutId: string }> }) {
   const params = await props.params;
   try {
-    const user = await requireUser()
+    const user = await requireCoach()
     await assertCanAccessWorkout(params.workoutId, user)
 
     const body = (await req.json()) as { entryIds?: string[] }
