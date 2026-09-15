@@ -433,6 +433,7 @@ export function WeekDayTable({
                       metrics={m}
                       maxSets={maxSets}
                       canEditOneRepMax={canEditOneRepMax}
+                      canManageExercises={role === 'COACH'}
                       canCreateExercise={canCreateExercise}
                       locked={locked}
                       simplified={simplified}

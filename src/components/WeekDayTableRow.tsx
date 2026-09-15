@@ -24,6 +24,11 @@ type Props = {
   metrics: ExerciseMetrics
   maxSets: number
   canEditOneRepMax: boolean
+  // Coach-only: hides the edit (replace exercise) and remove buttons —
+  // same split as the gym side's canManageExercises. An athlete can still
+  // drag-reorder and skip an exercise, just not change what's programmed
+  // or drop it from the day.
+  canManageExercises: boolean
   canCreateExercise: boolean
   // Drag-to-reorder is only meaningful (and only rendered) once the day is
   // unlocked — same gate as every other edit on this row.
@@ -66,6 +71,7 @@ export function WeekDayTableRow({
   metrics: m,
   maxSets,
   canEditOneRepMax,
+  canManageExercises,
   canCreateExercise,
   locked,
   simplified,
@@ -139,24 +145,28 @@ export function WeekDayTableRow({
               >
                 <Ban className="h-2.5 w-2.5" />
               </button>
-              <button
-                type="button"
-                onClick={() => onStartEdit(entry)}
-                aria-label="Редактировать упражнение"
-                title="Редактировать упражнение"
-                className="flex h-4 w-4 shrink-0 items-center justify-center text-text-secondary transition-colors hover:text-accent"
-              >
-                <Pencil className="h-3 w-3" />
-              </button>
-              <button
-                type="button"
-                onClick={() => onRemoveExercise(entry.id, entry.exercise.name)}
-                aria-label="Убрать упражнение из плана"
-                title="Убрать упражнение из плана"
-                className="flex h-4 w-4 shrink-0 items-center justify-center text-text-secondary transition-colors hover:text-danger"
-              >
-                <Trash2 className="h-3 w-3" />
-              </button>
+              {canManageExercises && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => onStartEdit(entry)}
+                    aria-label="Редактировать упражнение"
+                    title="Редактировать упражнение"
+                    className="flex h-4 w-4 shrink-0 items-center justify-center text-text-secondary transition-colors hover:text-accent"
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onRemoveExercise(entry.id, entry.exercise.name)}
+                    aria-label="Убрать упражнение из плана"
+                    title="Убрать упражнение из плана"
+                    className="flex h-4 w-4 shrink-0 items-center justify-center text-text-secondary transition-colors hover:text-danger"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </>
+              )}
             </div>
           )}
           {isEditing ? (

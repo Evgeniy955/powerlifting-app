@@ -44,6 +44,11 @@ type Props = {
   // Removes this exercise from the day's plan (ExerciseEntry row + its sets) —
   // not the ExerciseCatalog entry, which stays intact for every other day/athlete.
   onRemove: (entryId: string) => void
+  // Coach-only: hides the edit (replace exercise/multiplier) and remove
+  // buttons — same split as the gym side's canManageExercises. An athlete
+  // can still skip a set/exercise and log their own numbers, just not
+  // change what's programmed or drop it from the day.
+  canManageExercises: boolean
   // Coach-only: lets the edit-exercise autocomplete create a brand-new
   // ExerciseCatalog row when the search comes up empty.
   canCreateExercise?: boolean
@@ -80,6 +85,7 @@ export function ExerciseCard({
   rpeTable,
   position,
   onRemove,
+  canManageExercises,
   canCreateExercise = false,
   changedSets,
   isNewExercise = false,
@@ -280,24 +286,28 @@ export function ExerciseCard({
               <span className="text-xs text-zone-moderate">1ПМ не задан</span>
             )}
             {skipped && <span className="text-xs text-danger">Пропущено</span>}
-            <button
-              type="button"
-              onClick={startEditing}
-              aria-label="Редактировать упражнение"
-              title="Редактировать упражнение"
-              className="text-text-secondary transition-colors hover:text-accent"
-            >
-              <Pencil className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={handleRemove}
-              aria-label="Убрать упражнение из плана"
-              title="Убрать упражнение из плана"
-              className="text-text-secondary transition-colors hover:text-danger"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
+            {canManageExercises && (
+              <>
+                <button
+                  type="button"
+                  onClick={startEditing}
+                  aria-label="Редактировать упражнение"
+                  title="Редактировать упражнение"
+                  className="text-text-secondary transition-colors hover:text-accent"
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRemove}
+                  aria-label="Убрать упражнение из плана"
+                  title="Убрать упражнение из плана"
+                  className="text-text-secondary transition-colors hover:text-danger"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>

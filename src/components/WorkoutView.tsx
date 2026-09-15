@@ -25,6 +25,10 @@ type Props = {
   workoutId: string
   initialEntries: ExerciseEntryData[]
   rpeTable: RpePoint[]
+  // Coach-only: hides each card's edit/remove-exercise buttons — same split
+  // as the gym side's canManageExercises. An athlete can still skip a set/
+  // exercise and log their own numbers, just not change what's programmed.
+  canManageExercises: boolean
   // Coach-only: lets the add-exercise / edit-exercise autocompletes create a
   // brand-new ExerciseCatalog row when the search comes up empty.
   canCreateExercise?: boolean
@@ -67,6 +71,7 @@ export function WorkoutView({
   workoutId,
   initialEntries,
   rpeTable,
+  canManageExercises,
   canCreateExercise = false,
   weekNumber,
   dayNumber,
@@ -247,6 +252,7 @@ export function WorkoutView({
                   rpeTable={rpeTable}
                   position={index + 1}
                   onRemove={handleRemoveExercise}
+                  canManageExercises={canManageExercises}
                   canCreateExercise={canCreateExercise}
                   changedSets={changedSets}
                   isNewExercise={newExerciseEntryIdSet.has(entry.id)}

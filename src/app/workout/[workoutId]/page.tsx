@@ -93,6 +93,7 @@ export default async function WorkoutPage(props: { params: Promise<{ workoutId: 
         workoutId={workout.id}
         initialEntries={workout.exerciseEntries}
         rpeTable={rpeTable}
+        canManageExercises={user.role === 'COACH'}
         canCreateExercise={user.role === 'COACH'}
         weekNumber={workout.weekNumber}
         dayNumber={workout.dayNumber}
