@@ -44,10 +44,12 @@ type Props = {
   // Removes this exercise from the day's plan (ExerciseEntry row + its sets) —
   // not the ExerciseCatalog entry, which stays intact for every other day/athlete.
   onRemove: (entryId: string) => void
-  // Coach-only: hides the edit (replace exercise/multiplier) and remove
-  // buttons — same split as the gym side's canManageExercises. An athlete
-  // can still skip a set/exercise and log their own numbers, just not
-  // change what's programmed or drop it from the day.
+  // Coach-only: hides the edit (replace exercise/multiplier), remove and
+  // drag-to-reorder controls — same split as the gym side's
+  // canManageExercises. An athlete can still skip a set/exercise, log
+  // their own weight/reps/sets, and add new exercises, just not change
+  // what's programmed, reorder (in particular the Базовые/СФП lifts), or
+  // drop an exercise from the day.
   canManageExercises: boolean
   // Coach-only: lets the edit-exercise autocomplete create a brand-new
   // ExerciseCatalog row when the search comes up empty.
@@ -112,9 +114,14 @@ export function ExerciseCard({
   // ref/transform lands on a plain wrapper div around it instead of on Card
   // directly. Locking is handled by the parent (WorkoutView) disabling
   // pointer-events on the whole entries grid — no separate `disabled` flag
-  // needed here.
+  // needed here. Coach-only (canManageExercises): re-sequencing exercises
+  // — in particular the Базовые/СФП lifts — is programming, not logging,
+  // same split as the edit/remove buttons below. `disabled` here is
+  // defense in depth; the handle itself is also not rendered for an
+  // athlete, see below.
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: entry.id,
+    disabled: !canManageExercises,
   })
   const sortableStyle = {
     transform: CSS.Transform.toString(transform),
@@ -234,20 +241,22 @@ export function ExerciseCard({
         <div className="flex min-w-0 items-start gap-2">
           {!simplified && (
             <>
-              {/* touch-action:none is required by dnd-kit's pointer sensor —
-                  without it, a touch-drag on this handle gets eaten by the
-                  browser's own scroll gesture instead. */}
-              <button
-                type="button"
-                {...attributes}
-                {...listeners}
-                aria-label="Перетащить, чтобы изменить порядок"
-                title="Перетащить, чтобы изменить порядок"
-                style={{ touchAction: 'none' }}
-                className="mt-0.5 flex h-6 w-6 shrink-0 cursor-grab items-center justify-center text-text-secondary transition-colors hover:text-accent active:cursor-grabbing"
-              >
-                <GripVertical className="h-4 w-4" />
-              </button>
+              {canManageExercises && (
+                // touch-action:none is required by dnd-kit's pointer sensor —
+                // without it, a touch-drag on this handle gets eaten by the
+                // browser's own scroll gesture instead.
+                <button
+                  type="button"
+                  {...attributes}
+                  {...listeners}
+                  aria-label="Перетащить, чтобы изменить порядок"
+                  title="Перетащить, чтобы изменить порядок"
+                  style={{ touchAction: 'none' }}
+                  className="mt-0.5 flex h-6 w-6 shrink-0 cursor-grab items-center justify-center text-text-secondary transition-colors hover:text-accent active:cursor-grabbing"
+                >
+                  <GripVertical className="h-4 w-4" />
+                </button>
+              )}
               {/* pointer-events-auto exempts this from the day-level lock
                   (see WorkoutView's pointer-events-none wrapper) — same
                   reasoning as SetRow's own completed toggle: skipping an

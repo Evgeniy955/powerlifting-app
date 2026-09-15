@@ -24,10 +24,12 @@ type Props = {
   metrics: ExerciseMetrics
   maxSets: number
   canEditOneRepMax: boolean
-  // Coach-only: hides the edit (replace exercise) and remove buttons —
-  // same split as the gym side's canManageExercises. An athlete can still
-  // drag-reorder and skip an exercise, just not change what's programmed
-  // or drop it from the day.
+  // Coach-only: hides the edit (replace exercise), remove, and
+  // drag-to-reorder controls — same split as the gym side's
+  // canManageExercises. An athlete can still skip an exercise, log their
+  // own weight/reps/sets, and add new exercises, just not change what's
+  // programmed, reorder (in particular the Базовые/СФП lifts), or drop it
+  // from the day.
   canManageExercises: boolean
   canCreateExercise: boolean
   // Drag-to-reorder is only meaningful (and only rendered) once the day is
@@ -90,9 +92,14 @@ export function WeekDayTableRow({
   onUpdateSet,
   onUpdateOneRepMax,
 }: Props) {
+  // Coach-only (canManageExercises): re-sequencing exercises — in
+  // particular the Базовые/СФП lifts — is programming, not logging, same
+  // split as the edit/remove buttons further down. `disabled` here is
+  // defense in depth; the handle itself is also not rendered for an
+  // athlete, see below.
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: entry.id,
-    disabled: locked,
+    disabled: locked || !canManageExercises,
   })
 
   const style = {
@@ -110,23 +117,25 @@ export function WeekDayTableRow({
         <div className="flex w-full flex-col items-start gap-0.5">
           {!simplified && (
             <div className="flex items-center gap-1">
-              {/* touch-action:none is required by dnd-kit's pointer sensor —
-                  without it, a touch-drag on this handle gets eaten by the
-                  browser's own scroll gesture instead. */}
-              <button
-                type="button"
-                {...attributes}
-                {...listeners}
-                disabled={locked}
-                aria-label="Перетащить, чтобы изменить порядок"
-                title="Перетащить, чтобы изменить порядок"
-                style={{ touchAction: 'none' }}
-                className={`flex h-4 w-4 shrink-0 items-center justify-center text-text-secondary transition-colors ${
-                  locked ? 'cursor-not-allowed opacity-40' : 'cursor-grab hover:text-accent active:cursor-grabbing'
-                }`}
-              >
-                <GripVertical className="h-3 w-3" />
-              </button>
+              {canManageExercises && (
+                // touch-action:none is required by dnd-kit's pointer sensor —
+                // without it, a touch-drag on this handle gets eaten by the
+                // browser's own scroll gesture instead.
+                <button
+                  type="button"
+                  {...attributes}
+                  {...listeners}
+                  disabled={locked}
+                  aria-label="Перетащить, чтобы изменить порядок"
+                  title="Перетащить, чтобы изменить порядок"
+                  style={{ touchAction: 'none' }}
+                  className={`flex h-4 w-4 shrink-0 items-center justify-center text-text-secondary transition-colors ${
+                    locked ? 'cursor-not-allowed opacity-40' : 'cursor-grab hover:text-accent active:cursor-grabbing'
+                  }`}
+                >
+                  <GripVertical className="h-3 w-3" />
+                </button>
+              )}
               {/* pointer-events-auto exempts this from the week-level lock
                   (see the pointer-events-none wrapper on WeekDayTable's
                   <table>) — same reasoning as the set-completed toggle a

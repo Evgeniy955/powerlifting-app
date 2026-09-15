@@ -25,9 +25,10 @@ type Props = {
   workoutId: string
   initialEntries: ExerciseEntryData[]
   rpeTable: RpePoint[]
-  // Coach-only: hides each card's edit/remove-exercise buttons — same split
-  // as the gym side's canManageExercises. An athlete can still skip a set/
-  // exercise and log their own numbers, just not change what's programmed.
+  // Coach-only: hides each card's edit/remove-exercise/drag-to-reorder
+  // controls — same split as the gym side's canManageExercises. An athlete
+  // can still skip a set/exercise, log their own weight/reps/sets, and add
+  // new exercises, just not change what's programmed or reorder the day.
   canManageExercises: boolean
   // Coach-only: lets the add-exercise / edit-exercise autocompletes create a
   // brand-new ExerciseCatalog row when the search comes up empty.
