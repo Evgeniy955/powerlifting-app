@@ -242,12 +242,17 @@ export function ExerciseCard({
               >
                 <GripVertical className="h-4 w-4" />
               </button>
+              {/* pointer-events-auto exempts this from the day-level lock
+                  (see WorkoutView's pointer-events-none wrapper) — same
+                  reasoning as SetRow's own completed toggle: skipping an
+                  exercise you didn't get to is a mid-session action, not an
+                  edit that needs the padlock opened first. */}
               <button
                 type="button"
                 onClick={toggleSkipped}
                 aria-pressed={skipped}
                 title={skipped ? 'Отметить как выполненное' : 'Отметить как пропущенное'}
-                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors ${
+                className={`pointer-events-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors ${
                   skipped
                     ? 'border-danger bg-danger text-on-danger'
                     : 'border-border bg-surface-2 text-text-secondary hover:border-danger hover:text-danger'

@@ -121,12 +121,17 @@ export function WeekDayTableRow({
               >
                 <GripVertical className="h-3 w-3" />
               </button>
+              {/* pointer-events-auto exempts this from the week-level lock
+                  (see the pointer-events-none wrapper on WeekDayTable's
+                  <table>) — same reasoning as the set-completed toggle a
+                  few cells over: skipping an exercise mid-session shouldn't
+                  require unlocking the whole day/week first. */}
               <button
                 type="button"
                 onClick={() => onToggleSkipped(entry.id, !entry.skipped)}
                 aria-pressed={entry.skipped}
                 title={entry.skipped ? 'Отметить как выполненное' : 'Отметить как пропущенное'}
-                className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors ${
+                className={`pointer-events-auto flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors ${
                   entry.skipped
                     ? 'border-danger bg-danger text-on-danger'
                     : 'border-border bg-surface-2 text-text-secondary hover:border-danger hover:text-danger'

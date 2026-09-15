@@ -456,12 +456,16 @@ export function GymWorkoutEditor({
                     />
                   )}
                   {canEdit && (
+                    // pointer-events-auto exempts this from the card's own
+                    // locked ? pointer-events-none lock above — skipping an
+                    // exercise mid-session shouldn't require unlocking the
+                    // whole card first, same as the powerlifting side.
                     <button
                       type="button"
                       onClick={() => void toggleSkipped(entry.id)}
                       aria-pressed={entry.skipped}
                       title={entry.skipped ? 'Отметить как выполненное' : 'Отметить как пропущенное'}
-                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors ${
+                      className={`pointer-events-auto flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors ${
                         entry.skipped
                           ? 'border-danger bg-danger text-on-danger'
                           : 'border-border bg-surface-2 text-text-secondary hover:border-danger hover:text-danger'
@@ -483,12 +487,16 @@ export function GymWorkoutEditor({
               ) : (
                 <h2 className="flex min-w-0 items-center gap-1.5 font-medium">
                   {canEdit && (
+                    // pointer-events-auto exempts this from the card's own
+                    // locked ? pointer-events-none lock above — skipping an
+                    // exercise mid-session shouldn't require unlocking the
+                    // whole card first, same as the powerlifting side.
                     <button
                       type="button"
                       onClick={() => void toggleSkipped(entry.id)}
                       aria-pressed={entry.skipped}
                       title={entry.skipped ? 'Отметить как выполненное' : 'Отметить как пропущенное'}
-                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors ${
+                      className={`pointer-events-auto flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors ${
                         entry.skipped
                           ? 'border-danger bg-danger text-on-danger'
                           : 'border-border bg-surface-2 text-text-secondary hover:border-danger hover:text-danger'
@@ -831,12 +839,16 @@ function GymExerciseTableRow({
             </button>
           )}
           {canEdit && (
+            // pointer-events-auto exempts this from the table's own
+            // locked ? pointer-events-none lock — skipping an exercise
+            // mid-session shouldn't require unlocking the whole table
+            // first, same as the powerlifting side's WeekDayTableRow.
             <button
               type="button"
               onClick={() => onToggleSkipped(entry.id)}
               aria-pressed={entry.skipped}
               title={entry.skipped ? 'Отметить как выполненное' : 'Отметить как пропущенное'}
-              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors ${
+              className={`pointer-events-auto flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors ${
                 entry.skipped
                   ? 'border-danger bg-danger text-on-danger'
                   : 'border-border bg-surface-2 text-text-secondary hover:border-danger hover:text-danger'
