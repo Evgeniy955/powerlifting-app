@@ -14,6 +14,14 @@ const DAY_MS = 24 * 60 * 60 * 1000
 // it by hand. Unlike duplicate-last-two-weeks (which appends onto the same
 // cycle), this always creates a separate cycle, so the source plan is left
 // untouched.
+//
+// The copy's weeks are always numbered 1..N in order, and each week's
+// workouts move by the same number of whole weeks as its number changed. A
+// week's calendar slot is derived purely from cycle.startDate + weekNumber
+// (see weekAccess.ts), so a source plan whose numbering starts past 1 (e.g.
+// weeks 1..10 were deleted before weeks were compacted on delete, leaving
+// "Микроцикл 11" and "12") would otherwise be copied with dates ~10 weeks
+// after the new start date instead of on it.
 export async function POST(req: NextRequest, props: { params: Promise<{ cycleId: string }> }) {
   const params = await props.params;
   try {
@@ -23,6 +31,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ cycleId:
       where: { id: params.cycleId },
       include: {
         microcycles: {
+          orderBy: { weekNumber: 'asc' },
           include: {
             workouts: {
               include: { exerciseEntries: { include: { sets: true } } },
@@ -87,12 +96,16 @@ export async function POST(req: NextRequest, props: { params: Promise<{ cycleId:
       completed: boolean
     }[] = []
 
-    for (const microcycle of source.microcycles) {
+    for (const [index, microcycle] of source.microcycles.entries()) {
+      const newWeekNumber = index + 1
+      // Whole weeks this microcycle moves to reach its compacted slot (0 for
+      // a source plan without gaps).
+      const weekShiftDays = (newWeekNumber - microcycle.weekNumber) * 7
       const newMicrocycleId = randomUUID()
       microcyclesData.push({
         id: newMicrocycleId,
         cycleId: newCycleId,
-        weekNumber: microcycle.weekNumber,
+        weekNumber: newWeekNumber,
       })
 
       for (const workout of microcycle.workouts) {
@@ -100,7 +113,9 @@ export async function POST(req: NextRequest, props: { params: Promise<{ cycleId:
         workoutsData.push({
           id: newWorkoutId,
           microcycleId: newMicrocycleId,
-          scheduledDate: new Date(workout.scheduledDate.getTime() + deltaDays * DAY_MS),
+          scheduledDate: new Date(
+            workout.scheduledDate.getTime() + (deltaDays + weekShiftDays) * DAY_MS
+          ),
           dayNumber: workout.dayNumber,
         })
 
