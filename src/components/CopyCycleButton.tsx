@@ -4,6 +4,7 @@ import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { CalendarDays, Copy } from 'lucide-react'
 import { Button, Dialog, Input, useToast } from '@/components/ui'
+import { muteLiveUpdatesFor } from '@/lib/liveUpdatesGate'
 
 type Props = {
   cycleId: string
@@ -50,6 +51,10 @@ export function CopyCycleButton({ cycleId, cycleName }: Props) {
     setLoading(true)
     setError(null)
     try {
+      // The copy inserts every Set row of the plan; keep the athlete-live
+      // toast quiet for it (see liveUpdatesGate). Re-armed after the
+      // response too, since broadcasts can trail the write by a moment.
+      muteLiveUpdatesFor(30_000)
       const res = await fetch(`/api/cycles/${cycleId}/duplicate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -60,6 +65,7 @@ export function CopyCycleButton({ cycleId, cycleName }: Props) {
         throw new Error(body.error ?? 'Не удалось скопировать план')
       }
       const { cycleId: newCycleId } = await res.json()
+      muteLiveUpdatesFor(8_000)
       toast({ title: 'План скопирован', variant: 'success' })
       setOpen(false)
       router.push(`/cycles/${newCycleId}`)
