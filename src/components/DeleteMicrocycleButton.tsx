@@ -59,7 +59,7 @@ export function DeleteMicrocycleButton({ microcycleId, weekNumber }: Props) {
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
         title="Удалить микроцикл?"
-        description={`«Микроцикл ${weekNumber}» — удалятся все тренировки и подходы внутри него. Действие необратимо.`}
+        description={`«Микроцикл ${weekNumber}» — удалятся все тренировки и подходы внутри него, а следующие микроциклы сдвинутся назад: займут его номер и даты. Действие необратимо.`}
       >
         <div className="flex justify-end gap-2">
           <Button variant="outline" size="sm" onClick={() => setConfirmOpen(false)}>

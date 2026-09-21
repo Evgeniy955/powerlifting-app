@@ -37,10 +37,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ weekId
 // cascading its workouts/exercise entries/sets via the relations declared
 // in schema.prisma.
 //
-// Unlike DELETE /api/microcycles/:microcycleId on the powerlifting side
-// (which deliberately leaves a gap in weekNumber — see that route's own
-// comment), gym plans renumber every remaining week to a contiguous
-// 1..N sequence afterward. Renumbering alone would desync "Неделя N" from
+// Same as DELETE /api/microcycles/:microcycleId on the powerlifting side:
+// every remaining week renumbers to a contiguous 1..N sequence afterward. Renumbering alone would desync "Неделя N" from
 // what it actually shows, though: currentWeekNumber and
 // isMicrocycleVisibleToAthlete (the Sunday-23:50 unlock) both derive a
 // week's calendar slot purely from plan.startDate + weekNumber, so each
